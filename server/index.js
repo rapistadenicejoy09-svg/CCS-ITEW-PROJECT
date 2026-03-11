@@ -1,0 +1,263 @@
+import express from 'express'
+import cors from 'cors'
+import helmet from 'helmet'
+import rateLimit from 'express-rate-limit'
+
+import { openDb, initDb } from './db.js'
+import {
+  generateBackupCode,
+  generateToken,
+  hashPassword,
+  normalizeIdentifier,
+  verifyPassword,
+} from './auth.js'
+import speakeasy from 'speakeasy'
+import qrcode from 'qrcode'
+import { authorize, PERMISSIONS } from './security.js'
+
+const PORT = Number(process.env.PORT || 5000)
+const SESSION_TTL_HOURS = 24
+
+const db = openDb()
+initDb(db)
+
+const app = express()
+app.use(helmet())
+app.use(
+  cors({
+    origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+    credentials: false,
+  })
+)
+app.use(express.json({ limit: '200kb' }))
+app.use(
+  rateLimit({
+    windowMs: 60 * 1000,
+    max: 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+  })
+)
+
+function nowIso() {
+  return new Date().toISOString()
+}
+
+function addHoursISO(hours) {
+  const d = new Date()
+  d.setHours(d.getHours() + hours)
+  return d.toISOString()
+}
+
+function getLoginAttempt(identifier) {
+  return db
+    .prepare('SELECT identifier, count, locked_until FROM login_attempts WHERE identifier = ?')
+    .get(identifier)
+}
+
+function setLoginAttempt(identifier, count, lockedUntil) {
+  db.prepare(
+    `INSERT INTO login_attempts(identifier, count, locked_until)
+     VALUES(?, ?, ?)
+     ON CONFLICT(identifier) DO UPDATE SET count = excluded.count, locked_until = excluded.locked_until`
+  ).run(identifier, count, lockedUntil)
+}
+
+function clearLoginAttempt(identifier) {
+  db.prepare('DELETE FROM login_attempts WHERE identifier = ?').run(identifier)
+}
+
+function isLocked(identifier) {
+  const row = getLoginAttempt(identifier)
+  if (!row?.locked_until) return { locked: false }
+  if (new Date(row.locked_until) > new Date()) return { locked: true, lockedUntil: row.locked_until }
+  clearLoginAttempt(identifier)
+  return { locked: false }
+}
+
+function recordFailed(identifier) {
+  const MAX = 5
+  const LOCK_MINUTES = 15
+  const row = getLoginAttempt(identifier)
+  const count = (row?.count || 0) + 1
+  if (count >= MAX) {
+    const d = new Date()
+    d.setMinutes(d.getMinutes() + LOCK_MINUTES)
+    setLoginAttempt(identifier, 0, d.toISOString())
+    return { locked: true, lockedUntil: d.toISOString() }
+  }
+  setLoginAttempt(identifier, count, null)
+  return { locked: false }
+}
+
+function authMiddleware(req, res, next) {
+  const header = req.headers.authorization || ''
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null
+  if (!token) return res.status(401).json({ error: 'Missing token' })
+  const session = db
+    .prepare('SELECT token, user_id, expires_at FROM sessions WHERE token = ?')
+    .get(token)
+  if (!session) return res.status(401).json({ error: 'Invalid token' })
+  if (new Date(session.expires_at) <= new Date()) {
+    db.prepare('DELETE FROM sessions WHERE token = ?').run(token)
+    return res.status(401).json({ error: 'Session expired' })
+  }
+  const user = db
+    .prepare('SELECT id, role, identifier, full_name, twofa_enabled FROM users WHERE id = ?')
+    .get(session.user_id)
+  if (!user) return res.status(401).json({ error: 'User not found' })
+  req.user = user
+  req.token = token
+  next()
+}
+
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true })
+})
+
+app.post('/api/auth/register', (req, res) => {
+  const role = String(req.body?.role || '').trim()
+  const identifier = normalizeIdentifier(req.body?.identifier)
+  const password = String(req.body?.password || '')
+  const fullName = String(req.body?.fullName || '').trim() || null
+  const enable2FA = Boolean(req.body?.enable2FA)
+
+  if (!['admin', 'student', 'faculty'].includes(role)) {
+    return res.status(400).json({ error: 'Invalid role' })
+  }
+  if (!identifier || identifier.length < 3) {
+    return res.status(400).json({ error: 'Invalid identifier' })
+  }
+  if (!password || password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters' })
+  }
+
+  const existing = db.prepare('SELECT id FROM users WHERE identifier = ?').get(identifier)
+  if (existing) return res.status(409).json({ error: 'Account already exists' })
+
+  const passwordHash = hashPassword(password)
+  const backupCode = enable2FA ? generateBackupCode() : null
+
+  db.prepare(
+    `INSERT INTO users(role, identifier, full_name, password_hash, twofa_enabled, twofa_backup_code, created_at)
+     VALUES(?, ?, ?, ?, ?, ?, ?)`
+  ).run(role, identifier, fullName, passwordHash, enable2FA ? 1 : 0, backupCode, nowIso())
+
+  return res.status(201).json({ ok: true, twoFABackupCode: backupCode })
+})
+
+app.post('/api/auth/login', (req, res) => {
+  const identifier = normalizeIdentifier(req.body?.identifier)
+  const password = String(req.body?.password || '')
+  const twoFACode = String(req.body?.twoFACode || '').trim()
+
+  if (!identifier || !password) return res.status(400).json({ error: 'Missing credentials' })
+
+  const lock = isLocked(identifier)
+  if (lock.locked) return res.status(429).json({ error: 'Locked', lockedUntil: lock.lockedUntil })
+
+  const user = db
+    .prepare(
+      'SELECT id, role, identifier, full_name, password_hash, twofa_enabled, twofa_backup_code, twofa_secret FROM users WHERE identifier = ?'
+    )
+    .get(identifier)
+  if (!user) {
+    recordFailed(identifier)
+    return res.status(401).json({ error: 'Invalid credentials' })
+  }
+
+  if (!verifyPassword(password, user.password_hash)) {
+    const st = recordFailed(identifier)
+    return res.status(st.locked ? 429 : 401).json({
+      error: st.locked ? 'Locked' : 'Invalid credentials',
+      lockedUntil: st.locked ? st.lockedUntil : undefined,
+    })
+  }
+
+  if (user.twofa_enabled) {
+    if (!twoFACode) return res.status(401).json({ error: 'Two-factor required' })
+    
+    // Check traditional backup code first
+    let isValid = twoFACode === user.twofa_backup_code
+    
+    // Check TOTP code
+    if (!isValid && user.twofa_secret) {
+      isValid = speakeasy.totp.verify({
+        secret: user.twofa_secret,
+        encoding: 'base32',
+        token: twoFACode,
+      })
+    }
+    
+    if (!isValid) return res.status(401).json({ error: 'Invalid 2FA code' })
+  }
+
+  clearLoginAttempt(identifier)
+
+  const token = generateToken()
+  db.prepare(
+    'INSERT INTO sessions(token, user_id, created_at, expires_at) VALUES(?, ?, ?, ?)'
+  ).run(token, user.id, nowIso(), addHoursISO(SESSION_TTL_HOURS))
+
+  return res.json({
+    ok: true,
+    token,
+    user: { role: user.role, identifier: user.identifier, fullName: user.full_name || '' },
+  })
+})
+
+app.post('/api/auth/logout', authMiddleware, (req, res) => {
+  db.prepare('DELETE FROM sessions WHERE token = ?').run(req.token)
+  res.json({ ok: true })
+})
+
+app.get('/api/me', authMiddleware, (req, res) => {
+  res.json({ ok: true, user: req.user })
+})
+
+app.post('/api/auth/2fa/setup', authMiddleware, async (req, res) => {
+  const secret = speakeasy.generateSecret({ name: `CCSDashboard (${req.user.identifier})` })
+  db.prepare('UPDATE users SET twofa_secret = ? WHERE id = ?').run(secret.base32, req.user.id)
+  
+  try {
+    const qrCodeUrl = await qrcode.toDataURL(secret.otpauth_url)
+    res.json({ ok: true, secret: secret.base32, qrCode: qrCodeUrl })
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to generate QR code' })
+  }
+})
+
+app.post('/api/auth/2fa/verify', authMiddleware, (req, res) => {
+  const { code } = req.body
+  if (!code) return res.status(400).json({ error: 'Missing code' })
+
+  const user = db.prepare('SELECT twofa_secret FROM users WHERE id = ?').get(req.user.id)
+  if (!user || !user.twofa_secret) {
+    return res.status(400).json({ error: '2FA not set up' })
+  }
+
+  const isValid = speakeasy.totp.verify({
+    secret: user.twofa_secret,
+    encoding: 'base32',
+    token: code,
+  })
+
+  if (isValid) {
+    db.prepare('UPDATE users SET twofa_enabled = 1 WHERE id = ?').run(req.user.id)
+    res.json({ ok: true })
+  } else {
+    res.status(401).json({ error: 'Invalid 2FA code' })
+  }
+})
+
+// Sample protected route using RBAC
+app.get('/api/admin/users', authMiddleware, authorize(PERMISSIONS.MANAGE_USERS), (req, res) => {
+  const users = db.prepare('SELECT id, role, identifier, full_name, twofa_enabled, created_at FROM users').all()
+  res.json({ ok: true, users })
+})
+
+app.listen(PORT, () => {
+  // eslint-disable-next-line no-console
+  console.log(`API server listening on http://localhost:${PORT}`)
+})
+
