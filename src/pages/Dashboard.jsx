@@ -161,7 +161,7 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="welcome-banner-bottom">
-              <div>Welcome to <span className="pinnacle-logo-text-banner">CCS Dashboard</span></div>
+              <div>Welcome to <span className="pinnacle-logo-text-banner">CCS Department's CPS</span></div>
               <div className="welcome-banner-subtitle">Comprehensive Profiling System</div>
             </div>
           </div>

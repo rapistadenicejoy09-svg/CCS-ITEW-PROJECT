@@ -1,4 +1,9 @@
+import dotenv from 'dotenv'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import express from 'express'
+
+dotenv.config({ path: path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.env') })
 import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
