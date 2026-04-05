@@ -401,41 +401,67 @@ export default function AdminStudentList() {
                         </div>
 
                         {/* Card Body */}
-                        <div className="p-5 flex-1 flex flex-col gap-4 text-sm">
-                          <div className="grid grid-cols-2 gap-y-3 gap-x-2">
-                             <div>
-                               <p className="text-[var(--text-muted)] text-[10px] uppercase font-semibold mb-0.5">Program</p>
-                               <p className="text-[var(--text)] text-xs">{student.academic_info?.program || student.class_section || '—'}</p>
-                             </div>
-                             <div>
-                               <p className="text-[var(--text-muted)] text-[10px] uppercase font-semibold mb-0.5">Year Level</p>
-                               <p className="text-[var(--text)] text-xs">{student.academic_info?.year_level || '—'}</p>
-                             </div>
-                             <div>
-                               <p className="text-[var(--text-muted)] text-[10px] uppercase font-semibold mb-0.5">GPA</p>
-                               <p className="text-[var(--text)] text-xs">{student.academic_info?.gpa ?? '—'}</p>
-                             </div>
-                             <div>
-                               <p className="text-[var(--text-muted)] text-[10px] uppercase font-semibold mb-0.5">Enrollment</p>
-                               <p className="text-[var(--text)] text-xs">{student.academic_info?.enrollment_status || '—'}</p>
-                             </div>
-                             <div className="col-span-2">
-                               <p className="text-[var(--text-muted)] text-[10px] uppercase font-semibold mb-0.5">Email</p>
-                               <p className="text-[var(--text)] text-xs truncate">{student.email || '—'}</p>
-                             </div>
-                           </div>
+                        <div className="p-5 flex-1 flex flex-col gap-5 text-sm">
+                          <div className="flex flex-col gap-4">
+                            {/* Academic Details Snippet */}
+                            <div className="flex flex-col">
+                              <p className="text-[var(--text-muted)] text-[10px] uppercase font-bold mb-1 tracking-wider">Academic Info</p>
+                              <p className="text-[var(--text)] text-sm font-bold leading-snug">{student.academic_info?.program || '—'}</p>
+                              <div className="flex items-center gap-2 mt-1 text-xs text-[var(--text-muted)]">
+                                <span>{student.academic_info?.year_level || '—'}</span>
+                                {student.class_section && (
+                                  <>
+                                    <span className="w-1 h-1 rounded-full bg-[var(--border-color)]"></span>
+                                    <span className="font-semibold text-[var(--accent)]">Sec {student.class_section}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
 
+                            {/* Enrollment Status */}
+                            <div>
+                               <p className="text-[var(--text-muted)] text-[10px] uppercase font-bold mb-1 tracking-wider">Enrollment</p>
+                               <span className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider inline-block ${
+                                 student.academic_info?.enrollment_status === 'Enrolled'
+                                   ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                   : student.academic_info?.enrollment_status === 'Not Enrolled'
+                                   ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+                                   : 'bg-[var(--border-color)] text-[var(--text-muted)]'
+                               }`}>
+                                 {student.academic_info?.enrollment_status || 'Unknown'}
+                               </span>
+                            </div>
+
+                            {/* Affiliations Snippet */}
+                            <div>
+                              <p className="text-[var(--text-muted)] text-[10px] uppercase font-bold mb-1 tracking-wider">Top Affiliation</p>
+                              {student.affiliations && student.affiliations.length > 0 ? (
+                                <div className="flex flex-col">
+                                  <p className="text-[var(--text)] text-xs font-semibold truncate leading-tight">
+                                    {student.affiliations[0].organization || '—'}
+                                  </p>
+                                  <p className="text-[10px] text-[var(--text-muted)] truncate">
+                                    {student.affiliations[0].position || student.affiliations[0].role || 'Member'}
+                                  </p>
+                                </div>
+                              ) : (
+                                <p className="text-[var(--text-muted)] text-[11px] italic">No affiliations listed</p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Skills Tags */}
                           {student.skills && Array.isArray(student.skills) && student.skills.length > 0 && (
-                            <div className="mt-auto pt-3">
-                              <p className="text-[var(--text-muted)] text-[10px] uppercase font-semibold mb-1.5">Skills</p>
+                            <div className="mt-auto pt-4 border-t border-[rgba(0,0,0,0.04)] dark:border-[rgba(255,255,255,0.04)]">
+                              <p className="text-[var(--text-muted)] text-[10px] uppercase font-bold mb-2 tracking-wider">Skills</p>
                               <div className="flex flex-wrap gap-1.5">
                                 {student.skills.slice(0, 3).map((sk, idx) => (
-                                  <span key={idx} className="px-2 py-0.5 bg-[var(--accent-soft)] border border-[rgba(229,118,47,0.2)] rounded text-[10px] text-[var(--accent)] font-medium">
+                                  <span key={idx} className="px-2 py-0.5 bg-[var(--accent-soft)] border border-[rgba(229,118,47,0.15)] rounded text-[10px] text-[var(--accent)] font-medium">
                                     {sk}
                                   </span>
                                 ))}
                                 {student.skills.length > 3 && (
-                                   <span className="px-2 py-0.5 rounded text-[10px] text-[var(--text-muted)]">+{student.skills.length - 3}</span>
+                                   <span className="px-2 py-0.5 rounded text-[10px] text-[var(--text-muted)] font-medium">+{student.skills.length - 3}</span>
                                 )}
                               </div>
                             </div>
@@ -473,10 +499,9 @@ export default function AdminStudentList() {
                       <thead className="bg-[rgba(0,0,0,0.02)] dark:bg-[rgba(255,255,255,0.02)] border-b border-[var(--border-color)] text-[var(--text-muted)] text-[10px] uppercase tracking-widest font-bold">
                         <tr>
                           <th className="px-6 py-4">Student Name &amp; ID</th>
-                          <th className="px-6 py-4">Email</th>
-                          <th className="px-6 py-4">Program</th>
-                          <th className="px-6 py-4">Year Level</th>
-                          <th className="px-6 py-4">GPA</th>
+                          <th className="px-6 py-4">Academic Details</th>
+                          <th className="px-6 py-4">Skills</th>
+                          <th className="px-6 py-4">Affiliations</th>
                           <th className="px-6 py-4 text-center">Enrollment</th>
                           <th className="px-6 py-4 text-right">Actions</th>
                         </tr>
@@ -493,17 +518,58 @@ export default function AdminStudentList() {
                                   <span className="text-xs text-[var(--accent)] font-mono mt-0.5">{displayStudentId(student)}</span>
                                 </div>
                               </td>
-                              <td className="px-6 py-4 text-[var(--text-muted)] text-xs truncate max-w-[180px]">
-                                {student.email || '—'}
+                              <td className="px-6 py-4">
+                                <div className="flex flex-col gap-1">
+                                  <span className="text-[var(--text)] text-xs font-bold">{student.academic_info?.program || '—'}</span>
+                                  <div className="flex items-center gap-2 text-[10px] text-[var(--text-muted)]">
+                                    <span>{student.academic_info?.year_level || '—'}</span>
+                                    {student.class_section && (
+                                      <>
+                                        <span className="w-1 h-1 rounded-full bg-[var(--border-color)]"></span>
+                                        <span className="font-semibold text-[var(--accent)]">Section {student.class_section}</span>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
                               </td>
-                              <td className="px-6 py-4 text-[var(--text)] text-xs font-medium">
-                                {student.academic_info?.program || student.class_section || '—'}
+                              <td className="px-6 py-4">
+                                <div className="flex flex-wrap gap-1 max-w-[200px]">
+                                  {student.skills && student.skills.length > 0 ? (
+                                    student.skills.slice(0, 2).map((sk, i) => (
+                                      <span key={i} className="px-2 py-0.5 bg-[var(--accent-soft)] text-[var(--accent)] rounded-[4px] text-[10px] font-medium border border-[rgba(229,118,47,0.15)]">
+                                        {sk}
+                                      </span>
+                                    ))
+                                  ) : (
+                                    <span className="text-[var(--text-muted)] text-[10px] italic">No skills</span>
+                                  )}
+                                  {student.skills?.length > 2 && (
+                                    <span className="text-[var(--text-muted)] text-[10px]">+{student.skills.length - 2}</span>
+                                  )}
+                                </div>
                               </td>
-                              <td className="px-6 py-4 text-[var(--text)] text-xs">
-                                {student.academic_info?.year_level || '—'}
-                              </td>
-                              <td className="px-6 py-4 text-[var(--text)] text-xs font-mono">
-                                {student.academic_info?.gpa ?? '—'}
+                              <td className="px-6 py-4">
+                                <div className="flex flex-col gap-1 max-w-[180px]">
+                                  {student.affiliations && student.affiliations.length > 0 ? (
+                                    student.affiliations.slice(0, 1).map((af, i) => (
+                                      <div key={i} className="flex flex-col">
+                                        <span className="text-[var(--text)] text-[11px] font-semibold truncate">
+                                          {af.organization || '—'}
+                                        </span>
+                                        <span className="text-[10px] text-[var(--text-muted)] truncate">
+                                          {af.position || af.role || 'Member'}
+                                        </span>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <span className="text-[var(--text-muted)] text-[10px] italic">No affiliations</span>
+                                  )}
+                                  {student.affiliations?.length > 1 && (
+                                    <span className="text-[var(--accent)] text-[10px] font-medium">
+                                      +{student.affiliations.length - 1} more
+                                    </span>
+                                  )}
+                                </div>
                               </td>
                               <td className="px-6 py-4 text-center">
                                 <span className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase tracking-wider inline-block ${
