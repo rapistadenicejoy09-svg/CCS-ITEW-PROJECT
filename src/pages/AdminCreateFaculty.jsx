@@ -198,13 +198,12 @@ export default function AdminCreateFaculty() {
             <SectionTitle>Institutional Assignment</SectionTitle>
             <div className="space-y-4">
               <div>
-                <Label required>Initial System Role</Label>
+                <Label required>Academic Role</Label>
                 <FSelect name="role" value={form.role} onChange={handleChange}>
                   <option value="faculty_professor">Professor</option>
                   <option value="dean">Dean</option>
                   <option value="department_chair">Department Chair</option>
                   <option value="secretary">Secretary</option>
-                  <option value="faculty">Faculty (Basic)</option>
                 </FSelect>
               </div>
               <div>
@@ -213,9 +212,6 @@ export default function AdminCreateFaculty() {
                   <option value="">Select Department</option>
                   <option value="Information Technology">Information Technology</option>
                   <option value="Computer Science">Computer Science</option>
-                  <option value="Engineering">Engineering</option>
-                  <option value="Business Administration">Business Administration</option>
-                  <option value="Education">Education</option>
                 </FSelect>
               </div>
               <div>

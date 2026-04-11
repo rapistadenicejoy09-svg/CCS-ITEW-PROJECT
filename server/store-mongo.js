@@ -242,6 +242,8 @@ export async function openMongoStore() {
       skills,
       affiliations,
       department,
+      specialization,
+      bio,
     }) {
       const id = await nextId('users')
       const doc = {
@@ -259,6 +261,8 @@ export async function openMongoStore() {
         student_id: studentIdStored,
         email: emailStored,
         department: department || null,
+        specialization: specialization || null,
+        bio: bio || null,
         is_active: 1,
         profile_image_url: null,
       }
@@ -313,6 +317,13 @@ export async function openMongoStore() {
 
     async enableTwofa(userId) {
       await users.updateOne({ id: userId }, { $set: { twofa_enabled: 1 } })
+    },
+
+    async disableTwofa(userId) {
+      await users.updateOne(
+        { $or: [{ id: Number(userId) }, { id: String(userId) }] },
+        { $set: { twofa_enabled: 0, twofa_secret: null, twofa_backup_code: null } },
+      )
     },
 
     async listAdminUsers() {
@@ -550,6 +561,10 @@ export async function openMongoStore() {
         identifier: user.identifier,
         email: user.email,
         full_name: user.full_name,
+        first_name: user.first_name ?? null,
+        middle_name: user.middle_name ?? null,
+        last_name: user.last_name ?? null,
+        personal_information: user.personal_information || {},
         twofa_enabled: !!user.twofa_enabled,
         profile_image_url: user.profile_image_url || null,
       }

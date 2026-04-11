@@ -236,10 +236,25 @@ function studentAccountProfileForResponse(p) {
 
 function adminFacultyAccountProfileForResponse(p) {
   const loginEmail = String(p.email || p.identifier || '').trim()
+  const pi = p.personal_information || {}
+  const full = String(p.full_name || '').trim()
+  const parts = full ? full.split(/\s+/).filter(Boolean) : []
+  const firstName = String(p.first_name || pi.first_name || parts[0] || '').trim()
+  const lastName = String(p.last_name || pi.last_name || parts[parts.length - 1] || '').trim()
+  const middleName = String(
+    p.middle_name ||
+    pi.middle_name ||
+    (parts.length > 2 ? parts.slice(1, -1).join(' ') : ''),
+  ).trim()
+  const displayName = [firstName, middleName, lastName].filter(Boolean).join(' ') || full || loginEmail
   return {
     role: p.role,
     identifier: p.identifier || '',
     fullName: p.full_name || '',
+    displayName,
+    firstName,
+    middleName,
+    lastName,
     email: loginEmail,
     profileImageUrl: p.profile_image_url || null,
     twofaEnabled: !!p.twofa_enabled,
@@ -322,6 +337,8 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
   let classSection = null
   let studentType = null
   let department = String(req.body?.department || '').trim() || null
+  let specialization = String(req.body?.specialization || req.body?.summary?.specialization || '').trim() || null
+  let bio = String(req.body?.bio || '').trim() || null
 
   if (role === 'student') {
     const studentIdRaw = String(req.body?.studentId ?? '').trim()
@@ -378,6 +395,8 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
       studentIdStored,
       emailStored,
       department,
+      specialization,
+      bio,
       affiliations: req.body?.affiliations || [],
       academicInfo: req.body?.academicInfo || {},
       personalInformation: req.body?.personalInformation || {},
@@ -562,6 +581,19 @@ app.post('/api/auth/2fa/verify', authMiddleware, asyncHandler(async (req, res) =
   } else {
     res.status(401).json({ error: 'Invalid 2FA code' })
   }
+}))
+
+app.post('/api/auth/2fa/disable', authMiddleware, asyncHandler(async (req, res) => {
+  const password = String(req.body?.password || '')
+  if (!password) return res.status(400).json({ error: 'Password is required' })
+
+  const hash = await store.getPasswordHash(req.user.id)
+  if (!hash || !verifyPassword(password, hash)) {
+    return res.status(401).json({ error: 'Current password is incorrect' })
+  }
+
+  await store.disableTwofa(req.user.id)
+  res.json({ ok: true })
 }))
 
 app.get('/api/admin/users', authMiddleware, authorize(PERMISSIONS.MANAGE_USERS), asyncHandler(async (req, res) => {

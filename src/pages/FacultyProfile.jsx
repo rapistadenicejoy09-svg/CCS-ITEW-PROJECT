@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
+  api2faDisable,
   api2faSetup,
   api2faVerify,
   apiChangePassword,
@@ -35,6 +36,8 @@ export default function FacultyProfile() {
   const [twoFAError, setTwoFAError] = useState('')
   const [twoFAMsg, setTwoFAMsg] = useState('')
   const [twoFALoading, setTwoFALoading] = useState(false)
+  const [disable2FAOpen, setDisable2FAOpen] = useState(false)
+  const [disable2FAPassword, setDisable2FAPassword] = useState('')
 
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -46,7 +49,8 @@ export default function FacultyProfile() {
   const currentUserRole = getRole()
   const isAdmin = currentUserRole === 'admin'
   const isMyProfile = !id
-  const isFaculty = currentUserRole === 'faculty' || isAdmin // Admin can access this page for any id
+  const facultyRoles = new Set(['faculty', 'faculty_professor', 'dean', 'department_chair', 'secretary'])
+  const isFaculty = facultyRoles.has(currentUserRole) || isAdmin // Admin can access this page for any id
 
   const load = useCallback(async () => {
     const token = localStorage.getItem('authToken')
@@ -132,6 +136,71 @@ export default function FacultyProfile() {
     }
   }
 
+  async function handleStart2FA() {
+    const token = localStorage.getItem('authToken')
+    if (!token) return
+    setTwoFAError('')
+    setTwoFAMsg('')
+    setTwoFALoading(true)
+    try {
+      const res = await api2faSetup(token)
+      setTwoFAQr(res?.qrCode || null)
+      setTwoFACode('')
+    } catch (err) {
+      setTwoFAError(err?.message || 'Could not start 2FA setup.')
+    } finally {
+      setTwoFALoading(false)
+    }
+  }
+
+  async function handleVerify2FA(e) {
+    e.preventDefault()
+    const token = localStorage.getItem('authToken')
+    if (!token) return
+    setTwoFAError('')
+    setTwoFAMsg('')
+    setTwoFALoading(true)
+    try {
+      await api2faVerify(token, twoFACode.trim())
+      setTwoFAMsg('Two-factor authentication is now enabled.')
+      setTwoFAQr(null)
+      setTwoFACode('')
+      await load()
+    } catch (err) {
+      setTwoFAError(err?.message || 'Invalid code.')
+    } finally {
+      setTwoFALoading(false)
+    }
+  }
+
+  async function handleDisable2FA(e) {
+    e.preventDefault()
+    const token = localStorage.getItem('authToken')
+    if (!token) return
+    if (!disable2FAPassword.trim()) {
+      setTwoFAError('Enter your password to disable two-factor authentication.')
+      return
+    }
+    setTwoFAError('')
+    setTwoFAMsg('')
+    setTwoFALoading(true)
+    try {
+      await api2faDisable(token, disable2FAPassword)
+      setDisable2FAOpen(false)
+      setDisable2FAPassword('')
+      setTwoFAMsg('Two-factor authentication has been disabled.')
+      await load()
+    } catch (err) {
+      if (err?.message === 'Current password is incorrect') {
+        setTwoFAError('Incorrect password. Please enter your current password to disable two-factor authentication.')
+      } else {
+        setTwoFAError(err?.message || 'Could not disable 2FA.')
+      }
+    } finally {
+      setTwoFALoading(false)
+    }
+  }
+
   if (!isFaculty) {
     return <div className="p-8 text-center text-[var(--text-muted)]">Access denied.</div>
   }
@@ -139,6 +208,9 @@ export default function FacultyProfile() {
   const displayName = profile?.displayName || 'Faculty'
   const heroLetter = displayName.charAt(0).toUpperCase()
   const s = profile?.summary || {}
+  const firstName = profile?.firstName || profile?.first_name || profile?.personal_information?.first_name || '—'
+  const middleName = profile?.middleName || profile?.middle_name || profile?.personal_information?.middle_name || '—'
+  const lastName = profile?.lastName || profile?.last_name || profile?.personal_information?.last_name || '—'
 
   return (
     <div className="profile-page profile-page-faculty">
@@ -179,8 +251,9 @@ export default function FacultyProfile() {
         <div className="profile-card profile-card-faculty">
           <h3 className="profile-card-title">Professional Information</h3>
           <ul className="profile-card-list">
-            <li><strong>First name:</strong> {profile?.firstName || '—'}</li>
-            <li><strong>Last name:</strong> {profile?.lastName || '—'}</li>
+            <li><strong>First name:</strong> {firstName}</li>
+            <li><strong>Middle name:</strong> {middleName}</li>
+            <li><strong>Last name:</strong> {lastName}</li>
             <li><strong>Email:</strong> {profile?.email || '—'}</li>
             <li><strong>Rank:</strong> Assistant Professor</li>
           </ul>
@@ -218,6 +291,97 @@ export default function FacultyProfile() {
             {saveMsg && !id && <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px' }}>{saveMsg}</p>}
           </form>
         </div>
+
+        {isMyProfile && (
+          <div className="profile-card profile-card-faculty">
+            <h3 className="profile-card-title">Two-factor authentication</h3>
+            <p className="text-sm text-[var(--text-muted)] mb-4">
+              Status:{' '}
+              <strong className="text-[var(--text)]">{profile?.twofaEnabled ? 'Enabled' : 'Not enabled'}</strong>
+            </p>
+            {!profile?.twofaEnabled && (
+              <>
+                <button type="button" className="btn btn-secondary mb-4" onClick={handleStart2FA} disabled={twoFALoading}>
+                  {twoFALoading && !twoFAQr ? 'Preparing…' : 'Set up authenticator app'}
+                </button>
+                {twoFAQr && (
+                  <form onSubmit={handleVerify2FA} className="space-y-4">
+                    <img src={twoFAQr} alt="2FA QR" className="max-w-[200px] rounded-lg border border-[var(--border-color)]" />
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1">
+                        6-digit code
+                      </label>
+                      <input
+                        className="search-input w-full max-w-xs"
+                        value={twoFACode}
+                        onChange={(e) => setTwoFACode(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                        placeholder="000000"
+                        inputMode="numeric"
+                      />
+                    </div>
+                    {twoFAError ? <p className="text-sm text-rose-400">{twoFAError}</p> : null}
+                    {twoFAMsg ? <p className="text-sm text-emerald-600 dark:text-emerald-400">{twoFAMsg}</p> : null}
+                    <button type="submit" className="btn btn-primary" disabled={twoFALoading || twoFACode.length < 6}>
+                      Verify and enable
+                    </button>
+                  </form>
+                )}
+              </>
+            )}
+            {profile?.twofaEnabled && (
+              <div className="space-y-3">
+                <p className="text-sm text-[var(--text-muted)]">Your account is protected with an authenticator app.</p>
+                {!disable2FAOpen ? (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      setDisable2FAOpen(true)
+                      setTwoFAError('')
+                      setTwoFAMsg('')
+                    }}
+                    disabled={twoFALoading}
+                  >
+                    Disable two-factor authentication
+                  </button>
+                ) : (
+                  <form onSubmit={handleDisable2FA} className="space-y-3">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                      Confirm with password
+                    </label>
+                    <input
+                      type="password"
+                      className="search-input w-full"
+                      value={disable2FAPassword}
+                      onChange={(e) => setDisable2FAPassword(e.target.value)}
+                      autoComplete="current-password"
+                      placeholder="Current password"
+                    />
+                    <div className="flex gap-2">
+                      <button type="submit" className="btn btn-primary" disabled={twoFALoading}>
+                        {twoFALoading ? 'Disabling…' : 'Confirm disable'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          setDisable2FAOpen(false)
+                          setDisable2FAPassword('')
+                          setTwoFAError('')
+                        }}
+                        disabled={twoFALoading}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
+            )}
+            {twoFAError ? <p className="text-sm text-rose-400 mt-3">{twoFAError}</p> : null}
+            {twoFAMsg ? <p className="text-sm text-emerald-600 dark:text-emerald-400 mt-3">{twoFAMsg}</p> : null}
+          </div>
+        )}
 
         {isAdmin && id && (
           <div className="profile-card profile-card-faculty lg:col-span-2">

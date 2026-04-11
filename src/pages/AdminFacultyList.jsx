@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import SuccessModal from '../components/SuccessModal'
 import { apiAdminPatchUser, apiAdminUsers, apiLogin } from '../lib/api'
 
 function getRole() {
@@ -118,6 +119,7 @@ export default function AdminFacultyList() {
   const [faculty, setFaculty] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [successModal, setSuccessModal] = useState({ open: false, message: '' })
   
   const [search, setSearch] = useState('')
   const [filterRole, setFilterRole] = useState('')
@@ -241,6 +243,10 @@ export default function AdminFacultyList() {
       await apiAdminPatchUser(token, target.id, { isActive: false })
       closeDeleteModal()
       await loadFaculty()
+      setSuccessModal({
+        open: true,
+        message: `${getFacultyName(target)} has been deactivated successfully.`,
+      })
     } catch (err) {
       setDeleteModalError(err?.message || 'Failed to deactivate account.')
     } finally {
@@ -301,13 +307,16 @@ export default function AdminFacultyList() {
         </header>
 
         {error && (
-          <div className="p-4 rounded-xl text-rose-600 bg-rose-50 border border-rose-200 animate-fade-in">
+          <div
+            className="p-4 rounded-xl text-rose-600 bg-rose-50 border border-rose-200 admin-animate-reveal"
+            style={{ animationDelay: '0.06s' }}
+          >
             {error}
           </div>
         )}
 
         {/* Filters and Search Bar Section */}
-        <section className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] p-5 md:p-6 shadow-sm">
+        <section className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] p-5 md:p-6 shadow-sm admin-student-list-toolbar-enter">
           <div className="flex flex-col md:flex-row gap-4 items-center">
             
             <div className="flex-1 w-full relative">
@@ -399,7 +408,7 @@ export default function AdminFacultyList() {
         </section>
 
         {/* Results */}
-        <section className="space-y-4">
+        <section className="space-y-4 admin-student-list-section-enter">
           <h2 className="text-xl font-bold px-1 flex items-center gap-2 text-[var(--text)]">
             <span className="w-6 h-[2px] bg-[var(--accent)]"></span>
             Faculty Members 
@@ -421,12 +430,12 @@ export default function AdminFacultyList() {
           ) : (
             <>
               {viewMode === 'grid' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                <div className="admin-student-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
                   {filteredFaculty.map((f, idx) => (
                     <div
                       key={f.id}
-                      className="group flex flex-col bg-[var(--card-bg)] border border-[var(--border-color)] hover:border-[var(--accent)] rounded-[var(--radius-md)] overflow-hidden transition-all duration-300 animate-reveal"
-                      style={{ animationDelay: `${idx * 0.05}s` }}
+                      className="admin-student-card group flex flex-col bg-[var(--card-bg)] border border-[var(--border-color)] hover:border-[var(--accent)] rounded-[var(--radius-md)] overflow-hidden admin-student-card-animate"
+                      style={{ animationDelay: `${Math.min(idx, 14) * 0.055}s` }}
                     >
                       <div className="p-5 pb-3 border-b border-[var(--border-color)] flex justify-between items-start">
                         <div>
@@ -487,7 +496,7 @@ export default function AdminFacultyList() {
               )}
 
               {viewMode === 'list' && (
-                <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] overflow-hidden shadow-sm">
+                <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm whitespace-nowrap">
                       <thead className="bg-[rgba(0,0,0,0.02)] border-b border-[var(--border-color)] text-[var(--text-muted)] text-[10px] uppercase tracking-widest font-bold">
@@ -499,8 +508,12 @@ export default function AdminFacultyList() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[var(--border-color)]">
-                        {filteredFaculty.map((f) => (
-                          <tr key={f.id} className="hover:bg-[rgba(0,0,0,0.02)]">
+                        {filteredFaculty.map((f, idx) => (
+                          <tr
+                            key={f.id}
+                            className="admin-student-list-row admin-student-table-row-enter hover:bg-[rgba(0,0,0,0.02)]"
+                            style={{ '--row-enter-delay': `${Math.min(idx, 16) * 0.035}s` }}
+                          >
                             <td className="px-6 py-4">
                               <div className="flex flex-col">
                                 <span className="font-bold text-[var(--text)]">{getFacultyName(f)}</span>
@@ -544,55 +557,106 @@ export default function AdminFacultyList() {
       {/* Delete Modal */}
       {deleteTarget && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={closeDeleteModal} />
-          <div className="relative bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] p-7 max-w-md w-full shadow-2xl">
-            <div className="flex flex-col items-center text-center">
-              <div className="w-14 h-14 rounded-full bg-rose-500/15 text-rose-600 flex items-center justify-center mb-4 ring-4 ring-rose-500/10">
-                <IconTrash />
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
+            aria-label="Close dialog"
+            onClick={() => !deleteSubmitting && closeDeleteModal()}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="deactivate-faculty-title"
+            className="admin-delete-modal-content relative bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] p-7 max-w-md w-full shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex flex-col">
+              <div className="flex flex-col items-center text-center mb-4">
+                <div className="w-14 h-14 rounded-full bg-rose-500/15 text-rose-600 dark:text-rose-400 flex items-center justify-center mb-4 ring-4 ring-rose-500/10">
+                  <IconTrash />
+                </div>
+                <h2 id="deactivate-faculty-title" className="text-xl font-bold text-[var(--text)] mb-2">
+                  Deactivate faculty account?
+                </h2>
+                <p className="text-sm text-[var(--text-muted)] leading-relaxed">
+                  This deactivates{' '}
+                  <span className="font-semibold text-[var(--text)]">
+                    {getFacultyName(deleteTarget)}
+                  </span>
+                  . They will no longer be able to sign in. Enter your administrator password to confirm.
+                </p>
               </div>
-              <h2 className="text-xl font-bold text-[var(--text)] mb-2">Deactivate Faculty?</h2>
-              <p className="text-sm text-[var(--text-muted)] mb-6">
-                Enter your admin password to deactivate <span className="font-bold text-[var(--text)]">{deleteTarget.displayName}</span>. 
-              </p>
-              
+
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1.5">
+                Your password
+              </label>
               <input
                 type="password"
-                placeholder="Admin Password"
+                placeholder="Administrator password"
                 className="search-input w-full mb-4"
                 value={deletePassword}
-                onChange={e => setDeletePassword(e.target.value)}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                disabled={deleteSubmitting}
               />
 
               {deleteNeeds2FA && (
-                <input
-                  type="text"
-                  placeholder="2FA Code"
-                  className="search-input w-full mb-4 font-mono text-center tracking-[0.5em]"
-                  value={deleteTwoFACode}
-                  onChange={e => setDeleteTwoFACode(e.target.value.replace(/\D/g,'').slice(0,6))}
-                />
+                <>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-1.5">
+                    Two-factor code
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="000000"
+                    className="search-input w-full mb-4 font-mono tracking-widest"
+                    value={deleteTwoFACode}
+                    onChange={(e) => setDeleteTwoFACode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    disabled={deleteSubmitting}
+                  />
+                </>
               )}
 
-              {deleteModalError && <p className="text-xs text-rose-500 mb-4">{deleteModalError}</p>}
+              {deleteModalError && (
+                <p className="text-sm text-rose-600 dark:text-rose-400 mb-4 text-center">{deleteModalError}</p>
+              )}
 
-              <p className="text-[10px] text-[var(--text-muted)] mb-4 uppercase tracking-[0.1em]">
-                {deleteRemoveCooldown > 0 ? `Safe confirmation in ${deleteRemoveCooldown}s` : 'Action Unlocked'}
+              <p className="text-[11px] text-center text-[var(--text-muted)] mb-3">
+                {deleteRemoveCooldown > 0
+                  ? `The deactivate action unlocks in ${deleteRemoveCooldown}s so you can review the details above.`
+                  : 'You can confirm deactivation when your password (and 2FA, if required) are entered.'}
               </p>
 
-              <div className="flex w-full gap-3">
-                <button className="flex-1 btn btn-secondary" onClick={closeDeleteModal}>Cancel</button>
-                <button 
-                  className="flex-1 btn btn-primary !bg-rose-600 !border-rose-600" 
+              <div className="flex w-full gap-3 mt-2">
+                <button
+                  type="button"
+                  className="flex-1 px-4 py-3 text-sm font-semibold text-[var(--text-muted)] hover:text-[var(--text)] bg-transparent hover:bg-[var(--border-color)]/30 border border-[var(--border-color)] rounded-xl transition-all duration-200 disabled:opacity-50"
+                  onClick={closeDeleteModal}
+                  disabled={deleteSubmitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="flex-1 px-4 py-3 text-sm font-semibold bg-rose-600 text-white rounded-xl hover:bg-rose-700 shadow-lg shadow-rose-600/20 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-rose-600"
                   onClick={verifyPasswordAndDelete}
                   disabled={deleteSubmitting || deleteRemoveCooldown > 0}
                 >
-                  {deleteSubmitting ? 'Processing...' : 'Deactivate'}
+                  {deleteSubmitting
+                    ? 'Working…'
+                    : deleteRemoveCooldown > 0
+                      ? `Deactivate (${deleteRemoveCooldown}s)`
+                      : 'Deactivate faculty'}
                 </button>
               </div>
             </div>
           </div>
         </div>
       )}
+      <SuccessModal
+        open={successModal.open}
+        title="Faculty account deactivated"
+        message={successModal.message}
+        onClose={() => setSuccessModal({ open: false, message: '' })}
+      />
     </div>
   )
 }

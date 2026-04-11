@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
+  api2faDisable,
   api2faSetup,
   api2faVerify,
   apiChangePassword,
@@ -56,6 +57,8 @@ export default function StudentProfile() {
   const [twoFAError, setTwoFAError] = useState('')
   const [twoFAMsg, setTwoFAMsg] = useState('')
   const [twoFALoading, setTwoFALoading] = useState(false)
+  const [disable2FAPassword, setDisable2FAPassword] = useState('')
+  const [disable2FAOpen, setDisable2FAOpen] = useState(false)
 
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -163,6 +166,34 @@ export default function StudentProfile() {
       await load()
     } catch (err) {
       setTwoFAError(err?.message || 'Invalid code.')
+    } finally {
+      setTwoFALoading(false)
+    }
+  }
+
+  async function handleDisable2FA(e) {
+    e.preventDefault()
+    const token = localStorage.getItem('authToken')
+    if (!token) return
+    if (!disable2FAPassword.trim()) {
+      setTwoFAError('Enter your password to disable two-factor authentication.')
+      return
+    }
+    setTwoFAError('')
+    setTwoFAMsg('')
+    setTwoFALoading(true)
+    try {
+      await api2faDisable(token, disable2FAPassword)
+      setDisable2FAPassword('')
+      setDisable2FAOpen(false)
+      setTwoFAMsg('Two-factor authentication has been disabled on your account.')
+      await load()
+    } catch (err) {
+      if (err?.message === 'Current password is incorrect') {
+        setTwoFAError('Incorrect password. Please enter your current password to disable two-factor authentication.')
+      } else {
+        setTwoFAError(err?.message || 'Could not disable 2FA.')
+      }
     } finally {
       setTwoFALoading(false)
     }
@@ -388,9 +419,56 @@ export default function StudentProfile() {
             </>
           )}
           {profile?.twofaEnabled && (
-            <p className="text-sm text-[var(--text-muted)]">
-              Your account is protected with an authenticator app. Use your app code or backup code at login.
-            </p>
+            <div className="space-y-3">
+              <p className="text-sm text-[var(--text-muted)]">
+                Your account is protected with an authenticator app. Use your app code or backup code at login.
+              </p>
+              {!disable2FAOpen ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    setDisable2FAOpen(true)
+                    setTwoFAError('')
+                    setTwoFAMsg('')
+                  }}
+                  disabled={twoFALoading}
+                >
+                  Disable two-factor authentication
+                </button>
+              ) : (
+                <form onSubmit={handleDisable2FA} className="space-y-3">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                    Confirm with password
+                  </label>
+                  <input
+                    type="password"
+                    className="search-input w-full max-w-xs"
+                    value={disable2FAPassword}
+                    onChange={(e) => setDisable2FAPassword(e.target.value)}
+                    autoComplete="current-password"
+                    placeholder="Current password"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <button type="submit" className="btn btn-primary" disabled={twoFALoading}>
+                      {twoFALoading ? 'Disabling…' : 'Confirm disable'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => {
+                        setDisable2FAOpen(false)
+                        setDisable2FAPassword('')
+                        setTwoFAError('')
+                      }}
+                      disabled={twoFALoading}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           )}
         </div>
       </div>

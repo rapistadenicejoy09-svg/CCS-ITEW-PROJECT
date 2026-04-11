@@ -1533,6 +1533,54 @@ input[type="date"]:focus::-webkit-calendar-picker-indicator {
   max-width: 360px;
 }
 
+.faculty-register-card {
+  max-width: 560px;
+  padding: 30px 28px;
+  height: 100vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  justify-content: flex-start;
+}
+
+.faculty-register-card .auth-form,
+.faculty-register-card .auth-footer-text {
+  max-width: 100%;
+}
+
+.faculty-register-section {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.faculty-register-section-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.faculty-register-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.faculty-register-field-full {
+  grid-column: 1 / -1;
+}
+
+.faculty-register-page {
+  height: 100vh;
+  overflow: hidden;
+}
+
 @media (max-width: 720px) {
 
   .auth-page-split-left,
@@ -1556,6 +1604,27 @@ input[type="date"]:focus::-webkit-calendar-picker-indicator {
     border-top: 1px solid rgba(148, 163, 184, 0.5);
     border-bottom: 1px solid rgba(148, 163, 184, 0.5);
   }
+
+  .faculty-register-card {
+    max-width: 100%;
+    padding: 22px 22px 24px;
+    height: auto;
+    overflow: visible;
+  }
+
+  .faculty-register-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .faculty-register-page {
+    height: auto;
+    overflow: visible;
+  }
+}
+
+body[data-theme='light'] .faculty-register-section {
+  background: rgba(241, 245, 249, 0.55);
+  border-color: rgba(148, 163, 184, 0.35);
 }
 
 .auth-card {

@@ -15,6 +15,27 @@ function studentHeaderPrimaryName(parsed) {
   )
 }
 
+function facultyHeaderPrimaryName(parsed) {
+  const fn = String(parsed?.firstName || parsed?.first_name || parsed?.personal_information?.first_name || '').trim()
+  const mn = String(parsed?.middleName || parsed?.middle_name || parsed?.personal_information?.middle_name || '').trim()
+  const ln = String(parsed?.lastName || parsed?.last_name || parsed?.personal_information?.last_name || '').trim()
+  const mi = mn ? `${mn.charAt(0).toUpperCase()}.` : ''
+  const built = [fn, mi, ln].filter(Boolean).join(' ')
+  if (built) return built
+
+  const full = String(parsed?.displayName || parsed?.fullName || parsed?.full_name || parsed?.identifier || '').trim()
+  if (!full) return 'Staff'
+  const parts = full.split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) {
+    const first = parts[0]
+    const last = parts[parts.length - 1]
+    const middleParts = parts.slice(1, -1).join(' ')
+    const middleInitial = middleParts ? `${middleParts.charAt(0).toUpperCase()}.` : ''
+    return [first, middleInitial, last].filter(Boolean).join(' ')
+  }
+  return full
+}
+
 const ALL_MODULES = [
   { id: 'student-profile', code: '1.1', title: 'Student List', path: '/student-profile', icon: <svg className="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 1-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg> },
   { id: 'faculty-profile', code: '1.2', title: 'Faculty List', path: '/admin/faculty', icon: <svg className="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> },
@@ -96,7 +117,7 @@ export default function Layout() {
         path = '/student-profile'
         setHeaderRoleLabel('Student')
       } else if (['faculty', 'dean', 'department_chair', 'secretary', 'faculty_professor'].includes(parsed?.role)) {
-        setPrimaryLabel(String(parsed.displayName || parsed.fullName || parsed.identifier || '').trim() || 'Staff')
+        setPrimaryLabel(facultyHeaderPrimaryName(parsed))
         setSecondaryLabel('')
         path = '/faculty-my-profile'
         

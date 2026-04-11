@@ -138,6 +138,10 @@ export async function apiRegister({
   violations,
   skills,
   affiliations,
+  department,
+  summary,
+  specialization,
+  bio,
 }) {
   return request('/api/auth/register', {
     method: 'POST',
@@ -158,6 +162,10 @@ export async function apiRegister({
       violations,
       skills,
       affiliations,
+      department,
+      summary,
+      specialization,
+      bio,
     }),
   })
 }
@@ -285,6 +293,14 @@ export async function api2faVerify(token, code) {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify({ code }),
+  })
+}
+
+export async function api2faDisable(token, password) {
+  return request('/api/auth/2fa/disable', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ password }),
   })
 }
 
