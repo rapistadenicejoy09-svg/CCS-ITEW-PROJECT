@@ -420,3 +420,55 @@ export async function apiAdminLogs(token, limit = 100) {
     headers: { Authorization: `Bearer ${token}` },
   })
 }
+
+// --- Events Module API ---
+
+export async function apiGetEvents(token, query = {}) {
+  const params = new URLSearchParams()
+  if (query.type) params.set('type', query.type)
+  if (query.department) params.set('department', query.department)
+  if (query.status) params.set('status', query.status)
+  if (query.visibility) params.set('visibility', query.visibility)
+  
+  return request(`/api/events?${params.toString()}`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export async function apiGetEvent(token, id) {
+  return request(`/api/events/${id}`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export async function apiCreateEvent(token, body) {
+  return request('/api/events', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function apiUpdateEvent(token, id, body) {
+  return request(`/api/events/${id}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function apiDeleteEvent(token, id) {
+  return request(`/api/events/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export async function apiApproveEvent(token, id) {
+  return request(`/api/events/${id}/approve`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
