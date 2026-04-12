@@ -453,9 +453,7 @@ export async function apiMeLogs(token, limit = 100) {
     method: 'GET',
     headers: { Authorization: `Bearer ${token}` },
   })
-}
-
-// --- College Research (multipart + JSON) ---
+}// --- College Research (multipart + JSON) ---
 async function fetchAuthNoJsonContentType(path, token, init = {}) {
   let API_BASE = await getApiBase()
   const doFetch = (base) =>
@@ -490,16 +488,6 @@ export async function apiResearchList(token, query = {}) {
   const qs = params.toString()
   // Use /api/college-research (not /api/research) for listing — some environments return 404 on the bare /api/research path.
   return request(`/api/college-research${qs ? `?${qs}` : ''}`, {
-// --- Events Module API ---
-
-export async function apiGetEvents(token, query = {}) {
-  const params = new URLSearchParams()
-  if (query.type) params.set('type', query.type)
-  if (query.department) params.set('department', query.department)
-  if (query.status) params.set('status', query.status)
-  if (query.visibility) params.set('visibility', query.visibility)
-  
-  return request(`/api/events?${params.toString()}`, {
     method: 'GET',
     headers: { Authorization: `Bearer ${token}` },
   })
@@ -507,8 +495,6 @@ export async function apiGetEvents(token, query = {}) {
 
 export async function apiResearchGet(token, id) {
   return request(`/api/research/${id}`, {
-export async function apiGetEvent(token, id) {
-  return request(`/api/events/${id}`, {
     method: 'GET',
     headers: { Authorization: `Bearer ${token}` },
   })
@@ -547,16 +533,6 @@ export async function apiResearchCreate(token, formData) {
 
 export async function apiResearchPatch(token, id, body) {
   return request(`/api/research/${id}`, {
-export async function apiCreateEvent(token, body) {
-  return request('/api/events', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify(body),
-  })
-}
-
-export async function apiUpdateEvent(token, id, body) {
-  return request(`/api/events/${id}`, {
     method: 'PATCH',
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify(body),
@@ -585,8 +561,6 @@ export async function apiResearchFinalApproval(token, id, body) {
 
 export async function apiResearchDelete(token, id) {
   return request(`/api/research/${id}`, {
-export async function apiDeleteEvent(token, id) {
-  return request(`/api/events/${id}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   })
@@ -608,6 +582,53 @@ export async function apiResearchDownloadBlob(token, id) {
     throw err
   }
   return await res.blob()
+}
+
+// --- Events Module API ---
+
+export async function apiGetEvents(token, query = {}) {
+  const params = new URLSearchParams()
+  if (query.type) params.set('type', query.type)
+  if (query.department) params.set('department', query.department)
+  if (query.status) params.set('status', query.status)
+  if (query.visibility) params.set('visibility', query.visibility)
+
+  return request(`/api/events?${params.toString()}`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export async function apiGetEvent(token, id) {
+  return request(`/api/events/${id}`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export async function apiCreateEvent(token, body) {
+  return request('/api/events', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function apiUpdateEvent(token, id, body) {
+  return request(`/api/events/${id}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function apiDeleteEvent(token, id) {
+  return request(`/api/events/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
 export async function apiApproveEvent(token, id) {
   return request(`/api/events/${id}/approve`, {
     method: 'PATCH',

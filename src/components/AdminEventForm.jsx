@@ -60,8 +60,13 @@ export default function AdminEventForm({ event, onClose, onSuccess }) {
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-      <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] w-full max-w-2xl overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-300">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      {/* Optimized overlay with NO blur for maximum performance */}
+      <div 
+        className="absolute inset-0 bg-black/45 cursor-default transition-opacity" 
+        onClick={onClose}
+      />
+      <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] w-full max-w-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200">
         <header className="p-6 border-b border-[var(--border-color)] flex justify-between items-center" style={{ background: 'var(--bg-main)' }}>
           <div className="flex items-center gap-3">
             <div className="p-2 bg-[var(--accent-soft)] text-[var(--accent)] rounded-lg">

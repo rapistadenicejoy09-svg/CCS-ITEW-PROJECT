@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { apiGetEvents, apiDeleteEvent, apiApproveEvent } from '../lib/api'
 import SuccessModal from '../components/SuccessModal'
+import ConfirmDeleteModal from '../components/ConfirmDeleteModal'
 import AdminEventForm from '../components/AdminEventForm'
 import EventCalendar from '../components/EventCalendar'
 import { Calendar, List, Search, Filter, Plus, Edit2, Trash2, CheckCircle, Clock, MapPin, Users } from '../components/Icons'
@@ -16,6 +17,7 @@ export default function AdminEventList() {
   const [editingEvent, setEditingEvent] = useState(null)
   const [showSuccess, setShowSuccess] = useState(false)
   const [successMsg, setSuccessMsg] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState(null)
 
   const authToken = localStorage.getItem('authToken')
 
@@ -59,17 +61,32 @@ export default function AdminEventList() {
     }
   }, [events])
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this event?')) return
+  function getAdminLoginIdentifier() {
     try {
-      const res = await apiDeleteEvent(authToken, id)
+      const raw = localStorage.getItem('authUser')
+      const u = raw ? JSON.parse(raw) : null
+      return (u?.identifier || '').trim() || null
+    } catch {
+      return null
+    }
+  }
+
+  const handleDelete = (event) => {
+    setDeleteTarget(event)
+  }
+
+  const verifyPasswordAndDelete = async () => {
+    if (!deleteTarget) return
+    try {
+      const res = await apiDeleteEvent(authToken, deleteTarget.id)
       if (res.ok) {
-        setEvents(events.filter(e => e.id !== id))
+        setEvents(events.filter(e => e.id !== deleteTarget.id))
         setSuccessMsg('Event deleted successfully')
         setShowSuccess(true)
+        setDeleteTarget(null)
       }
     } catch (err) {
-      alert(err.message)
+      throw new Error(err.message)
     }
   }
 
@@ -92,31 +109,29 @@ export default function AdminEventList() {
         {/* Header Section */}
         <header className="module-header flex flex-col md:flex-row justify-between items-start md:items-center admin-student-list-header-enter">
           <div>
-            <h1 className="font-bold text-[var(--text)] tracking-tight m-0" style={{ fontSize: '18px', textTransform: 'uppercase' }}>
-              EVENTS
+            <h1 className="main-title font-extrabold text-[var(--text)]">
+              Events
             </h1>
-            <p className="text-[10px] text-[var(--text-muted)] m-0 mt-0.5">
+            <p className="main-description text-[var(--text-muted)] mt-1">
               Manage academic and college events
             </p>
           </div>
           <button 
-            className="mt-4 md:mt-0 font-bold transition-all duration-300 hover:shadow-lg hover:scale-[1.03] active:scale-[0.98] flex items-center gap-1.5 rounded-full"
+            className="mt-4 md:mt-0 font-medium transition-all duration-300 text-sm px-6 py-2.5 rounded-full hover:shadow-lg hover:scale-[1.03] active:scale-[0.98]"
             style={{ 
               background: 'var(--accent)', 
               color: 'white', 
-              fontSize: '9px', 
-              padding: '4px 12px', 
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em'
+              border: '1px solid var(--accent-soft)',
+              borderRadius: '9999px'
             }}
             onClick={() => { setEditingEvent(null); setShowForm(true); }}
           >
-            <Plus size={12} /> Add Event
+            + Create New Event
           </button>
         </header>
 
         {/* Dashboard Summary Cards */}
-        <div className="summary-row grid grid-cols-1 md:grid-cols-4 gap-4 mb-2">
+        <div className="summary-row grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-2 w-full mx-auto">
           <div className="summary-card">
             <div className="flex items-center justify-between mb-2">
               <span className="summary-label">Total Events</span>
@@ -314,7 +329,7 @@ export default function AdminEventList() {
                       <button 
                         className="p-2 text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all"
                         title="Delete"
-                        onClick={() => handleDelete(event.id)}
+                        onClick={() => handleDelete(event)}
                       >
                         <Trash2 size={18} />
                       </button>
@@ -348,6 +363,22 @@ export default function AdminEventList() {
         <SuccessModal 
           message={successMsg} 
           onClose={() => setShowSuccess(false)} 
+        />
+      )}
+
+      {deleteTarget && (
+        <ConfirmDeleteModal
+          title="Delete Event?"
+          description={
+            <p>
+              Are you sure you want to delete <span className="font-bold text-[var(--text)]">{deleteTarget.title}</span>? 
+              This action cannot be undone. Enter your administrator password to confirm.
+            </p>
+          }
+          confirmLabel="Confirm Deletion"
+          adminIdentifier={getAdminLoginIdentifier()}
+          onConfirm={verifyPasswordAndDelete}
+          onClose={() => setDeleteTarget(null)}
         />
       )}
     </div>
