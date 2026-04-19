@@ -873,7 +873,78 @@ app.delete('/api/scheduling/:id', authMiddleware, authorize(PERMISSIONS.SCHEDULI
   res.json({ ok: true })
 }))
 
-// --- FILE UPLOAD (GridFS) ---
+// --- COLLEGE RESEARCH Endpoints ---
+
+app.get('/api/research', authMiddleware, asyncHandler(async (req, res) => {
+  const query = {
+    scope: req.query.scope || 'repository',
+    year: req.query.year,
+    course: req.query.course,
+    author: req.query.author,
+    keyword: req.query.keyword,
+    userId: req.user.id
+  }
+  const research = await store.listResearch(query)
+  res.json({ ok: true, research })
+}))
+
+app.get('/api/research/analytics', authMiddleware, asyncHandler(async (req, res) => {
+  const analytics = await store.getResearchAnalytics()
+  res.json({ ok: true, analytics })
+}))
+
+app.get('/api/research/advisers', authMiddleware, asyncHandler(async (req, res) => {
+  const advisers = await store.listResearchAdvisers()
+  res.json({ ok: true, advisers })
+}))
+
+app.get('/api/research/authors/suggestions', authMiddleware, asyncHandler(async (req, res) => {
+  const q = req.query.q || ''
+  const limit = Number(req.query.limit || 10)
+  const course = req.query.course
+  const suggestions = await store.suggestResearchAuthors(q, limit, course)
+  res.json({ ok: true, suggestions })
+}))
+
+app.get('/api/research/:id', authMiddleware, asyncHandler(async (req, res) => {
+  const research = await store.getResearchById(req.params.id)
+  if (!research) return res.status(404).json({ error: 'Research record not found' })
+  res.json({ ok: true, research })
+}))
+
+app.post('/api/research', authMiddleware, authorize(PERMISSIONS.COLLEGE_RESEARCH_MANAGE), asyncHandler(async (req, res) => {
+  const data = {
+    ...req.body,
+    created_by_user_id: req.user.id,
+    created_at: nowIso(),
+    updated_at: nowIso()
+  }
+  const id = await store.createResearch(data)
+  res.status(201).json({ ok: true, id })
+}))
+
+app.patch('/api/research/:id', authMiddleware, authorize(PERMISSIONS.COLLEGE_RESEARCH_MANAGE), asyncHandler(async (req, res) => {
+  const existing = await store.getResearchById(req.params.id)
+  if (!existing) return res.status(404).json({ error: 'Research record not found' })
+  
+  // Faculty review logic
+  if (req.body.status === 'under_faculty_review' && !req.body.adviser_faculty_id) {
+    return res.status(400).json({ error: 'Adviser is required for faculty review' })
+  }
+
+  await store.updateResearch(req.params.id, {
+    ...req.body,
+    updated_at: nowIso()
+  })
+  res.json({ ok: true })
+}))
+
+app.delete('/api/research/:id', authMiddleware, authorize(PERMISSIONS.COLLEGE_RESEARCH_MANAGE), asyncHandler(async (req, res) => {
+  await store.deleteResearch(req.params.id)
+  res.json({ ok: true })
+}))
+
+// --- FILE UPLOAD (Common) ---
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -889,6 +960,85 @@ const upload = multer({
     }
   }
 })
+
+
+app.post('/api/research/upload', authMiddleware, authorize(PERMISSIONS.COLLEGE_RESEARCH_MANAGE), upload.single('file'), asyncHandler(async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file provided' })
+  if (!store.researchFilesBucket) return res.status(500).json({ error: 'File storage not available' })
+
+  const bucket = store.researchFilesBucket
+  const filename = `${Date.now()}-research-${req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+
+  const fileId = await new Promise((resolve, reject) => {
+    const uploadStream = bucket.openUploadStream(filename, {
+      contentType: req.file.mimetype,
+      metadata: { originalName: req.file.originalname, uploadedBy: req.user.id }
+    })
+    uploadStream.on('finish', () => resolve(uploadStream.id))
+    uploadStream.on('error', reject)
+    uploadStream.end(req.file.buffer)
+  })
+
+  res.status(201).json({
+    ok: true,
+    fileId: fileId.toString(),
+    filename: req.file.originalname,
+    mimeType: req.file.mimetype
+  })
+}))
+
+app.get('/api/research/file/:fileId', authMiddleware, asyncHandler(async (req, res) => {
+  if (!store.researchFilesBucket) return res.status(500).json({ error: 'File storage not available' })
+  
+  let objectId
+  try {
+    objectId = new ObjectId(req.params.fileId)
+  } catch {
+    return res.status(400).json({ error: 'Invalid file ID' })
+  }
+
+  const bucket = store.researchFilesBucket
+  const files = await bucket.find({ _id: objectId }).toArray()
+  if (!files.length) return res.status(404).json({ error: 'File not found' })
+
+  const file = files[0]
+  res.setHeader('Content-Type', file.contentType || 'application/pdf')
+  res.setHeader('Content-Disposition', `inline; filename="${file.filename}"`)
+
+  const downloadStream = bucket.openDownloadStream(objectId)
+  downloadStream.pipe(res)
+}))
+
+// --- EVENTS Endpoints ---
+
+app.get('/api/events', authMiddleware, asyncHandler(async (req, res) => {
+  const events = await store.listEvents()
+  res.json({ ok: true, events })
+}))
+
+app.post('/api/events', authMiddleware, authorize(PERMISSIONS.EVENTS_MANAGE), asyncHandler(async (req, res) => {
+  const data = {
+    ...req.body,
+    created_by_user_id: req.user.id
+  }
+  const result = await store.createEvent(data)
+  res.status(201).json(result)
+}))
+
+app.put('/api/events/:id', authMiddleware, authorize(PERMISSIONS.EVENTS_MANAGE), asyncHandler(async (req, res) => {
+  const result = await store.updateEvent(req.params.id, req.body)
+  res.json(result)
+}))
+
+app.patch('/api/events/:id/approve', authMiddleware, authorize(PERMISSIONS.EVENTS_MANAGE), asyncHandler(async (req, res) => {
+  const result = await store.approveEvent(req.params.id)
+  res.json(result)
+}))
+
+app.delete('/api/events/:id', authMiddleware, authorize(PERMISSIONS.EVENTS_MANAGE), asyncHandler(async (req, res) => {
+  const result = await store.deleteEvent(req.params.id)
+  res.json(result)
+}))
 
 app.post('/api/instructions/upload', authMiddleware, authorize(PERMISSIONS.INSTRUCTIONS_MANAGE), upload.single('file'), asyncHandler(async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file provided' })

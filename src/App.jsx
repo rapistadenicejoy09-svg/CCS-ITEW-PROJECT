@@ -20,6 +20,11 @@ import SchedulingPage from './pages/SchedulingPage'
 import SchedulingAddPage from './pages/SchedulingAddPage'
 import SchedulingViewPage from './pages/SchedulingViewPage'
 import SchedulingEditPage from './pages/SchedulingEditPage'
+import CollegeResearch from './pages/CollegeResearch'
+import AdminFacultyList from './pages/AdminFacultyList'
+import AdminCreateFaculty from './pages/AdminCreateFaculty'
+import AdminFacultyView from './pages/AdminFacultyView'
+import AdminEventList from './pages/AdminEventList'
 import { canAccessPath } from './lib/security'
 import './App.css'
 
@@ -58,13 +63,15 @@ export default function App() {
             <Route path="admin/create-student" element={<AdminCreateStudent />} />
             <Route path="admin/student/:id" element={<AdminStudentView />} />
             <Route path="faculty-my-profile" element={<FacultyProfile />} />
-            <Route path="faculty-profile" element={<ModulePage />} />
-            <Route path="events" element={<ModulePage />} />
+            <Route path="faculty-profile" element={<AdminFacultyList />} />
+            <Route path="admin/faculty/create" element={<AdminCreateFaculty />} />
+            <Route path="admin/faculty/:id" element={<AdminFacultyView />} />
+            <Route path="events" element={<AdminEventList />} />
             <Route path="scheduling" element={<SchedulingPage />} />
             <Route path="scheduling/add" element={<SchedulingAddPage />} />
             <Route path="scheduling/:id" element={<SchedulingViewPage />} />
             <Route path="scheduling/:id/edit" element={<SchedulingEditPage />} />
-            <Route path="college-research" element={<ModulePage />} />
+            <Route path="college-research" element={<CollegeResearch />} />
             <Route path="instructions" element={<InstructionsPage />} />
             <Route path="admin/instructions/add" element={<AdminAddMaterial />} />
             <Route path="admin/instructions/:id" element={<AdminViewMaterial />} />

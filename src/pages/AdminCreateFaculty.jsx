@@ -113,7 +113,7 @@ export default function AdminCreateFaculty() {
         },
         bio: form.bio,
       })
-      navigate('/admin/faculty')
+      navigate('/faculty-profile')
     } catch (err) {
       setError(err?.message || 'Failed to create faculty account.')
     } finally {
@@ -132,7 +132,7 @@ export default function AdminCreateFaculty() {
             <p className="main-description text-[var(--text-muted)] mt-1">Register a new faculty member and assign institutional roles.</p>
           </div>
           <div className="flex items-center gap-2">
-            <Link to="/admin/faculty" className="btn btn-secondary">← Cancel</Link>
+            <Link to="/faculty-profile" className="btn btn-secondary">← Cancel</Link>
             <button onClick={handleCreate} disabled={creating} className="btn btn-primary">
               {creating ? 'Creating Account...' : 'Save Faculty Profile'}
             </button>

@@ -180,6 +180,189 @@ export function openSqliteStore() {
     deleteInstruction(id) {
       db.prepare('DELETE FROM instructions WHERE id = ?').run(id)
     },
+
+    listResearch(query = {}) {
+      const { scope, year, course, author, keyword } = query
+      let sql = 'SELECT * FROM research'
+      const params = []
+      const clauses = []
+
+      if (scope === 'repository') clauses.push("status = 'published'")
+      else if (scope === 'mine') {
+        clauses.push('created_by_user_id = ?')
+        params.push(query.userId)
+      } else if (scope === 'adviser_review') {
+        clauses.push("status = 'under_faculty_review' AND adviser_faculty_id = ?")
+        params.push(query.userId)
+      } else if (scope === 'pending_approval') clauses.push("status = 'pending_approval'")
+
+      if (year) {
+        clauses.push('year = ?')
+        params.push(year)
+      }
+      if (course) {
+        clauses.push('course = ?')
+        params.push(course)
+      }
+      if (author) {
+        clauses.push('authors LIKE ?')
+        params.push(`%${author}%`)
+      }
+      if (keyword) {
+        clauses.push('keywords LIKE ?')
+        params.push(`%${keyword}%`)
+      }
+
+      if (clauses.length > 0) {
+        sql += ' WHERE ' + clauses.join(' AND ')
+      }
+      sql += ' ORDER BY id DESC'
+
+      const rows = db.prepare(sql).all(...params)
+      return rows.map(r => ({
+        ...r,
+        keywords: JSON.parse(r.keywords || '[]'),
+        authors: JSON.parse(r.authors || '[]')
+      }))
+    },
+
+    getResearchById(id) {
+      const row = db.prepare('SELECT * FROM research WHERE id = ?').get(id)
+      if (!row) return null
+      return {
+        ...row,
+        keywords: JSON.parse(row.keywords || '[]'),
+        authors: JSON.parse(row.authors || '[]')
+      }
+    },
+
+    createResearch(data) {
+      const stmt = db.prepare(`
+        INSERT INTO research (title, abstract, year, course, category, research_type, keywords, authors, adviser_faculty_id, status, created_by_user_id, file_path, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      const info = stmt.run(
+        data.title,
+        data.abstract,
+        data.year,
+        data.course,
+        data.category,
+        data.researchType,
+        JSON.stringify(data.keywords || []),
+        JSON.stringify(data.authors || []),
+        data.adviser_faculty_id,
+        data.status || 'draft',
+        data.created_by_user_id,
+        data.file_path,
+        data.created_at || new Date().toISOString(),
+        data.updated_at || new Date().toISOString()
+      )
+      return info.lastInsertRowid
+    },
+
+    updateResearch(id, updates) {
+      const fields = []
+      const params = []
+      for (const [key, val] of Object.entries(updates)) {
+        if (key === 'keywords' || key === 'authors') {
+          fields.push(`${key} = ?`)
+          params.push(JSON.stringify(val))
+        } else {
+          fields.push(`${key} = ?`)
+          params.push(val)
+        }
+      }
+      fields.push('updated_at = ?')
+      params.push(new Date().toISOString())
+      params.push(id)
+
+      const sql = `UPDATE research SET ${fields.join(', ')} WHERE id = ?`
+      db.prepare(sql).run(...params)
+    },
+
+    deleteResearch(id) {
+      db.prepare('DELETE FROM research WHERE id = ?').run(id)
+    },
+
+    getResearchAnalytics() {
+      const total = db.prepare("SELECT COUNT(*) as count FROM research WHERE status = 'published'").get().count || 0
+      const byType = db.prepare("SELECT research_type as _id, COUNT(*) as count FROM research WHERE status = 'published' GROUP BY research_type").all()
+      const byYear = db.prepare("SELECT year as _id, COUNT(*) as count FROM research WHERE status = 'published' GROUP BY year ORDER BY year DESC LIMIT 5").all()
+      return { total, byType, byYear }
+    },
+
+    listResearchAdvisers() {
+      const facultyRoles = ['faculty', 'faculty_professor', 'dean', 'department_chair', 'secretary']
+      const placeholders = facultyRoles.map(() => '?').join(',')
+      return db.prepare(`SELECT id, full_name, identifier FROM users WHERE role IN (${placeholders})`).all(...facultyRoles)
+    },
+
+    suggestResearchAuthors(q, limit = 10, course) {
+      let sql = "SELECT id, full_name, identifier, class_section FROM users WHERE role = 'student'"
+      const params = []
+      if (q) {
+        sql += " AND (full_name LIKE ? OR identifier LIKE ?)"
+        params.push(`%${q}%`, `%${q}%`)
+      }
+      if (course) {
+        sql += " AND class_section = ?"
+        params.push(course)
+      }
+      sql += " LIMIT ?"
+      params.push(limit)
+      return db.prepare(sql).all(...params)
+    },
+
+    listEvents() {
+      return db.prepare("SELECT * FROM events ORDER BY start_time ASC").all()
+    },
+
+    createEvent(data) {
+      const stmt = db.prepare(`
+        INSERT INTO events (title, description, type, start_time, end_time, location, target_audience, status, created_by_user_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      const res = stmt.run(
+        data.title,
+        data.description,
+        data.type,
+        data.start_time,
+        data.end_time,
+        data.location,
+        data.target_audience,
+        data.status || 'pending',
+        data.created_by_user_id,
+        new Date().toISOString(),
+        new Date().toISOString()
+      )
+      return { id: res.lastInsertRowid, ok: true }
+    },
+
+    updateEvent(id, updates) {
+      const fields = []
+      const params = []
+      for (const [key, val] of Object.entries(updates)) {
+        fields.push(`${key} = ?`)
+        params.push(val)
+      }
+      fields.push('updated_at = ?')
+      params.push(new Date().toISOString())
+      params.push(id)
+
+      const sql = `UPDATE events SET ${fields.join(', ')} WHERE id = ?`
+      db.prepare(sql).run(...params)
+      return { ok: true }
+    },
+
+    approveEvent(id) {
+      db.prepare("UPDATE events SET status = 'approved', updated_at = ? WHERE id = ?").run(new Date().toISOString(), id)
+      const event = db.prepare("SELECT * FROM events WHERE id = ?").get(id)
+      return { ok: true, event }
+    },
+
+    deleteEvent(id) {
+      db.prepare("DELETE FROM events WHERE id = ?").run(id)
+      return { ok: true }
+    }
   }
 }
-

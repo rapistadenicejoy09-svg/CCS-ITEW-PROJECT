@@ -473,3 +473,145 @@ export async function apiFetchInstructionFileBlob(token, fileId, { preview = fal
   return { blob, contentType }
 }
 
+// --- Research API ---
+
+export async function apiResearchList(token, query = {}) {
+  const params = new URLSearchParams()
+  if (query.scope) params.append('scope', query.scope)
+  if (query.year) params.append('year', query.year)
+  if (query.course) params.append('course', query.course)
+  if (query.author) params.append('author', query.author)
+  if (query.keyword) params.append('keyword', query.keyword)
+  const url = `/api/research${params.toString() ? '?' + params.toString() : ''}`
+  return request(url, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export async function apiResearchAnalytics(token) {
+  return request('/api/research/analytics', {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export async function apiResearchAdvisers(token) {
+  return request('/api/research/advisers', {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export async function apiResearchAuthorSuggestions(token, query = {}) {
+  const params = new URLSearchParams()
+  if (query.q) params.append('q', query.q)
+  if (query.course) params.append('course', query.course)
+  if (query.limit) params.append('limit', String(query.limit))
+  const url = `/api/research/authors/suggestions${params.toString() ? '?' + params.toString() : ''}`
+  return request(url, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export async function apiResearchCreate(token, body) {
+  return request('/api/research', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function apiResearchPatch(token, id, body) {
+  return request(`/api/research/${id}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function apiResearchUploadPdf(token, file) {
+  const resolvedBase = await getApiBase()
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const res = await fetch(`${resolvedBase}/api/research/upload`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  })
+
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data?.error || 'Upload failed')
+  return data
+}
+
+export async function apiResearchDownloadBlob(token, fileId) {
+  const resolvedBase = await getApiBase()
+  const res = await fetch(`${resolvedBase}/api/research/file/${fileId}`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  if (!res.ok) throw new Error('Download failed')
+  const blob = await res.blob()
+  return { blob, contentType: res.headers.get('Content-Type') }
+}
+
+export async function apiResearchDelete(token, id) {
+  return request(`/api/research/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export async function apiResearchFacultyReview(token, id, adviserId) {
+  return apiResearchPatch(token, id, {
+    status: 'under_faculty_review',
+    adviser_faculty_id: adviserId,
+  })
+}
+
+export async function apiResearchFinalApproval(token, id, status = 'published') {
+  return apiResearchPatch(token, id, { status })
+}
+
+// --- Events API ---
+
+export async function apiGetEvents(token) {
+  return request('/api/events', {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export async function apiCreateEvent(token, body) {
+  return request('/api/events', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function apiUpdateEvent(token, id, body) {
+  return request(`/api/events/${id}`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function apiApproveEvent(token, id) {
+  return request(`/api/events/${id}/approve`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export async function apiDeleteEvent(token, id) {
+  return request(`/api/events/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+

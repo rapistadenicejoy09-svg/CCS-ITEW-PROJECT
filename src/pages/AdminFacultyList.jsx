@@ -237,7 +237,7 @@ export default function AdminFacultyList() {
             </p>
           </div>
           <Link
-            to="/admin/create-faculty"
+            to="/admin/faculty/create"
             className="mt-4 md:mt-0 font-medium transition-all duration-300 text-sm px-6 py-2.5 rounded-full hover:shadow-lg hover:scale-[1.03] active:scale-[0.98]"
             style={{ background: 'var(--accent)', color: 'white', border: '1px solid var(--accent-soft)' }}
           >

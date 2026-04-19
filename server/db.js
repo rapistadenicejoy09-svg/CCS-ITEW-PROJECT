@@ -70,6 +70,39 @@ export function initDb(db) {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS research (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      abstract TEXT NOT NULL,
+      year INTEGER NOT NULL,
+      course TEXT NOT NULL,
+      category TEXT,
+      research_type TEXT NOT NULL,
+      keywords TEXT, -- JSON array
+      authors TEXT, -- JSON array
+      adviser_faculty_id INTEGER,
+      status TEXT NOT NULL,
+      created_by_user_id INTEGER NOT NULL,
+      file_path TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT,
+      type TEXT NOT NULL, -- Academic, Seminar, etc.
+      start_time TEXT NOT NULL,
+      end_time TEXT NOT NULL,
+      location TEXT,
+      target_audience TEXT,
+      status TEXT NOT NULL DEFAULT 'pending', -- pending, approved, cancelled
+      created_by_user_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `)
 
   // Apply schema migrations

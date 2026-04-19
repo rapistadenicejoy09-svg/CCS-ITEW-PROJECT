@@ -131,11 +131,13 @@ export default function SchedulingPage() {
   const [sectionFilter, setSectionFilter] = useState('')
 
   useEffect(() => {
-    const fromAuth = getStudentAssignmentFromAuth()
-    setCourseFilter(fromAuth.course)
-    setYearFilter(fromAuth.yearLevel)
-    setSectionFilter(fromAuth.section)
-  }, [])
+    if (role === 'student') {
+      const fromAuth = getStudentAssignmentFromAuth()
+      setCourseFilter(fromAuth.course)
+      setYearFilter(fromAuth.yearLevel)
+      setSectionFilter(fromAuth.section)
+    }
+  }, [role])
 
   useEffect(() => {
     async function load() {

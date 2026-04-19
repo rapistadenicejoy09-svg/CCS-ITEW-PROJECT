@@ -146,7 +146,7 @@ export default function AdminFacultyView() {
               Institutional record for <span className="text-[var(--text)] font-semibold">{getFacultyName(u)}</span>
             </p>
           </div>
-          <Link to="/admin/faculty" className="btn btn-secondary">← Back to List</Link>
+          <Link to="/faculty-profile" className="btn btn-secondary">← Back to List</Link>
         </header>
 
         {error && (

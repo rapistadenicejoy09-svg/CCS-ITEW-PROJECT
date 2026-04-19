@@ -93,6 +93,8 @@ async function createMongoStore() {
    const counters = db.collection('counters')
   const instructions = db.collection('instructions')
   const schedules = db.collection('schedules')
+  const research = db.collection('research')
+  const events = db.collection('events')
 
   // Ensure uniqueness constraints for user identity and sessions.
   await Promise.all([
@@ -111,6 +113,11 @@ async function createMongoStore() {
     sessions.createIndex({ token: 1 }, { unique: true, name: 'sessions_token_unique' }),
     instructions.createIndex({ id: 1 }, { unique: true, name: 'instructions_id_unique' }),
     schedules.createIndex({ id: 1 }, { unique: true, name: 'schedules_id_unique' }),
+    research.createIndex({ id: 1 }, { unique: true, name: 'research_id_unique' }),
+    research.createIndex({ status: 1 }, { name: 'research_status' }),
+    research.createIndex({ created_by_user_id: 1 }, { name: 'research_author' }),
+    events.createIndex({ id: 1 }, { unique: true, name: 'events_id_unique' }),
+    events.createIndex({ status: 1 }, { name: 'events_status' }),
   ])
 
   async function nextUserId() {
@@ -157,6 +164,34 @@ async function createMongoStore() {
     return maxId + 1
   }
 
+  async function nextResearchId() {
+    const res = await counters.findOneAndUpdate(
+      { _id: 'research' },
+      { $inc: { seq: 1 } },
+      { upsert: true, returnDocument: 'after' },
+    )
+    const seq = res?.value?.seq ?? res?.seq
+    if (typeof seq === 'number') return seq
+    
+    const last = await research.find({ id: { $gt: 0 } }, { projection: { id: 1 } }).sort({ id: -1 }).limit(1).toArray()
+    const maxId = last.length > 0 ? (Number(last[0].id) || 0) : 0
+    return maxId + 1
+  }
+
+  async function nextEventId() {
+    const res = await counters.findOneAndUpdate(
+      { _id: 'events' },
+      { $inc: { seq: 1 } },
+      { upsert: true, returnDocument: 'after' },
+    )
+    const seq = res?.value?.seq ?? res?.seq
+    if (typeof seq === 'number') return seq
+    
+    const last = await events.find({ id: { $gt: 0 } }, { projection: { id: 1 } }).sort({ id: -1 }).limit(1).toArray()
+    const maxId = last.length > 0 ? (Number(last[0].id) || 0) : 0
+    return maxId + 1
+  }
+
 
 
   const gridFsBucket = new (await import('mongodb')).GridFSBucket(db, { bucketName: 'instruction_files' })
@@ -165,6 +200,7 @@ async function createMongoStore() {
     /** Expose raw db handle and GridFS bucket for file operations */
     db,
     gridFsBucket,
+    researchFilesBucket: new (await import('mongodb')).GridFSBucket(db, { bucketName: 'research_files' }),
     async getLoginAttempt(identifier) {
       return await loginAttempts.findOne(
         { identifier },
@@ -753,7 +789,124 @@ async function createMongoStore() {
     async deleteSchedule(id) {
       await schedules.deleteOne({ id: Number(id) })
     },
+
+    async listResearch(query = {}) {
+      const { scope, year, course, author, keyword } = query
+      const filter = {}
+      if (scope === 'repository') filter.status = 'published'
+      else if (scope === 'mine') filter.created_by_user_id = query.userId
+      else if (scope === 'adviser_review') {
+        filter.status = 'under_faculty_review'
+        filter.adviser_faculty_id = query.userId
+      } else if (scope === 'pending_approval') filter.status = 'pending_approval'
+      
+      if (year) filter.year = Number(year)
+      if (course) filter.course = course
+      if (author) filter['authors.display_name'] = { $regex: author, $options: 'i' }
+      if (keyword) filter.keywords = { $in: [new RegExp(keyword, 'i')] }
+
+      return await research.find(filter).sort({ id: -1 }).toArray()
+    },
+
+    async getResearchById(id) {
+      return await research.findOne({ id: Number(id) })
+    },
+
+    async createResearch(data) {
+      const id = await nextResearchId()
+      const doc = {
+        id,
+        ...data,
+        status: data.status || 'draft',
+        created_at: data.created_at || new Date().toISOString(),
+        updated_at: data.updated_at || new Date().toISOString()
+      }
+      await research.insertOne(doc)
+      return id
+    },
+
+    async updateResearch(id, updates) {
+      await research.updateOne(
+        { id: Number(id) },
+        { $set: { ...updates, updated_at: new Date().toISOString() } }
+      )
+    },
+
+    async deleteResearch(id) {
+      await research.deleteOne({ id: Number(id) })
+    },
+
+    async getResearchAnalytics() {
+      const total = await research.countDocuments({ status: 'published' })
+      const byType = await research.aggregate([
+        { $match: { status: 'published' } },
+        { $group: { _id: '$researchType', count: { $sum: 1 } } }
+      ]).toArray()
+      const byYear = await research.aggregate([
+        { $match: { status: 'published' } },
+        { $group: { _id: '$year', count: { $sum: 1 } } },
+        { $sort: { _id: -1 } },
+        { $limit: 5 }
+      ]).toArray()
+      return { total, byType, byYear }
+    },
+
+    async listResearchAdvisers() {
+      // Find all faculty users (any academic role)
+      const facultyRoles = ['faculty', 'faculty_professor', 'dean', 'department_chair', 'secretary']
+      return await users.find({ role: { $in: facultyRoles } }, { projection: { id: 1, full_name: 1, display_name: 1, identifier: 1 } }).toArray()
+    },
+
+    async suggestResearchAuthors(q, limit = 10, course) {
+      const filter = { role: 'student' }
+      if (q) {
+        filter.$or = [
+          { full_name: { $regex: q, $options: 'i' } },
+          { identifier: { $regex: q, $options: 'i' } }
+        ]
+      }
+      if (course) filter.class_section = course
+      return await users.find(filter).limit(limit).toArray()
+    },
+
+    async listEvents() {
+      return await events.find({}).sort({ start_time: 1 }).toArray()
+    },
+
+    async createEvent(data) {
+      const id = await nextEventId()
+      const doc = {
+        id,
+        ...data,
+        status: data.status || 'pending',
+        created_at: nowIso(),
+        updated_at: nowIso()
+      }
+      await events.insertOne(doc)
+      return { ...doc, ok: true }
+    },
+
+    async updateEvent(id, updates) {
+      await events.updateOne(
+        { id: Number(id) },
+        { $set: { ...updates, updated_at: nowIso() } }
+      )
+      return { ok: true }
+    },
+
+    async approveEvent(id) {
+      const res = await events.findOneAndUpdate(
+        { id: Number(id) },
+        { $set: { status: 'approved', updated_at: nowIso() } },
+        { returnDocument: 'after' }
+      )
+      const event = res?.value ?? res
+      return { ok: true, event }
+    },
+
+    async deleteEvent(id) {
+      await events.deleteOne({ id: Number(id) })
+      return { ok: true }
+    }
   }
 }
-
-
