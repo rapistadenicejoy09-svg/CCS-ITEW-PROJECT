@@ -211,31 +211,31 @@ function normalizedStudentNameParts(piRaw, fullName, rootNames) {
   const raw = piRaw && typeof piRaw === 'object' ? piRaw : {}
   let first = String(
     root.first_name ??
-      root.firstName ??
-      raw.first_name ??
-      raw.firstName ??
-      raw.FirstName ??
-      raw.given_name ??
-      '',
+    root.firstName ??
+    raw.first_name ??
+    raw.firstName ??
+    raw.FirstName ??
+    raw.given_name ??
+    '',
   ).trim()
   let middle = String(
     root.middle_name ??
-      root.middleName ??
-      raw.middle_name ??
-      raw.middleName ??
-      raw.MiddleName ??
-      raw.middle ??
-      '',
+    root.middleName ??
+    raw.middle_name ??
+    raw.middleName ??
+    raw.MiddleName ??
+    raw.middle ??
+    '',
   ).trim()
   let last = String(
     root.last_name ??
-      root.lastName ??
-      raw.last_name ??
-      raw.lastName ??
-      raw.LastName ??
-      raw.family_name ??
-      raw.surname ??
-      '',
+    root.lastName ??
+    raw.last_name ??
+    raw.lastName ??
+    raw.LastName ??
+    raw.family_name ??
+    raw.surname ??
+    '',
   ).trim()
 
   const fb = String(fullName || '').trim()
@@ -370,7 +370,7 @@ function publicAuthUser(user) {
 const authMiddleware = asyncHandler(async (req, res, next) => {
   const header = req.headers.authorization || ''
   let token = header.startsWith('Bearer ') ? header.slice(7) : null
-  
+
   // Allow token from query string (useful for iframes and direct downloads)
   if (!token && req.query.token) {
     token = req.query.token
@@ -516,10 +516,10 @@ app.post('/api/auth/login', asyncHandler(async (req, res) => {
 
   if (user.twofa_enabled) {
     if (!twoFACode) return res.status(401).json({ error: 'Two-factor required' })
-    
+
     // Check traditional backup code first
     let isValid = twoFACode === user.twofa_backup_code
-    
+
     // Check TOTP code
     if (!isValid && user.twofa_secret) {
       isValid = speakeasy.totp.verify({
@@ -528,7 +528,7 @@ app.post('/api/auth/login', asyncHandler(async (req, res) => {
         token: twoFACode,
       })
     }
-    
+
     if (!isValid) return res.status(401).json({ error: 'Invalid 2FA code' })
   }
 
@@ -603,7 +603,7 @@ app.post('/api/auth/2fa/setup', authMiddleware, asyncHandler(async (req, res) =>
   const label = String(req.user.email || req.user.identifier || req.user.id || 'user').trim()
   const secret = speakeasy.generateSecret({ name: `CCSDashboard (${label})` })
   await store.setTwofaSecret(req.user.id, secret.base32)
-  
+
   try {
     const qrCodeUrl = await qrcode.toDataURL(secret.otpauth_url)
     res.json({ ok: true, secret: secret.base32, qrCode: qrCodeUrl })
@@ -774,13 +774,13 @@ app.get('/api/instructions/:id', authMiddleware, asyncHandler(async (req, res) =
       const fileIdString = instruction.link.replace('gridfs://', '')
       const fileId = new ObjectId(fileIdString)
       const files = await store.gridFsBucket.find({ _id: fileId }).toArray()
-      
+
       if (files.length > 0) {
         const file = files[0]
         // GridFS can store type in .contentType or .metadata.contentType depending on driver/version
         instruction.mimeType = file.contentType || (file.metadata && file.metadata.contentType)
         instruction.fileName = file.filename || (file.metadata && file.metadata.originalName)
-        
+
         console.log(`[DATABASE] File found: ${instruction.fileName} (${instruction.mimeType || 'unknown type'})`)
       } else {
         console.warn(`[DATABASE] WARNING: No file found in GridFS for ID: ${fileIdString}`)
@@ -815,19 +815,7 @@ app.post('/api/instructions', authMiddleware, authorize(PERMISSIONS.INSTRUCTIONS
 app.put('/api/instructions/:id', authMiddleware, authorize(PERMISSIONS.INSTRUCTIONS_MANAGE), asyncHandler(async (req, res) => {
   const existing = await store.getInstructionById(req.params.id)
   if (!existing) return res.status(404).json({ error: 'Instruction not found' })
-  
-<<<<<<< HEAD
-  await store.updateInstruction(req.params.id, {
-    type: String(req.body.type || existing.type),
-    title: String(req.body.title || existing.title),
-    course: String(req.body.course || existing.course),
-    subject: String(req.body.subject || existing.subject),
-    description: String(req.body.description || existing.description),
-    status: String(req.body.status || existing.status),
-    author: String(req.body.author || existing.author),
-    link: String(req.body.link || existing.link),
-    updated_at: nowIso()
-=======
+
   // Apply visibility filters based on user role/dept if not admin
   const filtered = list.filter(event => {
     if (req.user.role === 'admin') return true
@@ -838,7 +826,6 @@ app.put('/api/instructions/:id', authMiddleware, authorize(PERMISSIONS.INSTRUCTI
     if (event.target_audience === req.user.role) return true
     if (event.department && event.department === req.user.department) return true
     return false
->>>>>>> abb86b7a85bbdba3a64180193550bac5029f85e6
   })
   res.json({ ok: true })
 }))
@@ -873,7 +860,7 @@ app.post('/api/scheduling', authMiddleware, authorize(PERMISSIONS.SCHEDULING_MAN
 app.put('/api/scheduling/:id', authMiddleware, authorize(PERMISSIONS.SCHEDULING_MANAGE), asyncHandler(async (req, res) => {
   const existing = await store.getScheduleById(req.params.id)
   if (!existing) return res.status(404).json({ error: 'Schedule not found' })
-  
+
   await store.updateSchedule(req.params.id, {
     ...req.body,
     updated_at: nowIso()
@@ -939,7 +926,7 @@ app.post('/api/research', authMiddleware, authorize(PERMISSIONS.COLLEGE_RESEARCH
 app.patch('/api/research/:id', authMiddleware, authorize(PERMISSIONS.COLLEGE_RESEARCH_MANAGE), asyncHandler(async (req, res) => {
   const existing = await store.getResearchById(req.params.id)
   if (!existing) return res.status(404).json({ error: 'Research record not found' })
-  
+
   // Faculty review logic
   if (req.body.status === 'under_faculty_review' && !req.body.adviser_faculty_id) {
     return res.status(400).json({ error: 'Adviser is required for faculty review' })
@@ -1002,7 +989,7 @@ app.post('/api/research/upload', authMiddleware, authorize(PERMISSIONS.COLLEGE_R
 
 app.get('/api/research/file/:fileId', authMiddleware, asyncHandler(async (req, res) => {
   if (!store.researchFilesBucket) return res.status(500).json({ error: 'File storage not available' })
-  
+
   let objectId
   try {
     objectId = new ObjectId(req.params.fileId)
@@ -1038,23 +1025,18 @@ app.post('/api/events', authMiddleware, authorize(PERMISSIONS.EVENTS_MANAGE), as
   res.status(201).json(result)
 }))
 
-<<<<<<< HEAD
-app.put('/api/events/:id', authMiddleware, authorize(PERMISSIONS.EVENTS_MANAGE), asyncHandler(async (req, res) => {
-  const result = await store.updateEvent(req.params.id, req.body)
-  res.json(result)
-=======
 app.patch('/api/events/:id', authMiddleware, authorize(PERMISSIONS.EVENTS_MANAGE), asyncHandler(async (req, res) => {
   const id = Number(req.params.id)
   const target = await store.getEventById(id)
   if (!target) return res.status(404).json({ error: 'Event not found' })
-  
+
   // Ownership check
   if (req.user.role !== 'admin' && target.created_by !== req.user.id) {
     return res.status(403).json({ error: 'Forbidden: You can only edit your own events' })
   }
-  
+
   const updated = await store.updateEvent(id, req.body)
-  
+
   await store.createLog({
     type: 'UPDATE',
     action: 'Event Updated',
@@ -1063,7 +1045,7 @@ app.patch('/api/events/:id', authMiddleware, authorize(PERMISSIONS.EVENTS_MANAGE
     userName: req.user.full_name || req.user.identifier,
     userIp: req.ip
   })
-  
+
   res.json({ ok: true, event: updated })
 }))
 
@@ -1071,14 +1053,14 @@ app.delete('/api/events/:id', authMiddleware, authorize(PERMISSIONS.EVENTS_MANAG
   const id = Number(req.params.id)
   const target = await store.getEventById(id)
   if (!target) return res.status(404).json({ error: 'Event not found' })
-  
+
   // Ownership check
   if (req.user.role !== 'admin' && target.created_by !== req.user.id) {
     return res.status(403).json({ error: 'Forbidden: You can only delete your own events' })
   }
-  
+
   await store.deleteEvent(id)
-  
+
   await store.createLog({
     type: 'DELETE',
     action: 'Event Deleted',
@@ -1087,9 +1069,8 @@ app.delete('/api/events/:id', authMiddleware, authorize(PERMISSIONS.EVENTS_MANAG
     userName: req.user.full_name || req.user.identifier,
     userIp: req.ip
   })
-  
+
   res.json({ ok: true })
->>>>>>> abb86b7a85bbdba3a64180193550bac5029f85e6
 }))
 
 app.patch('/api/events/:id/approve', authMiddleware, authorize(PERMISSIONS.EVENTS_MANAGE), asyncHandler(async (req, res) => {
@@ -1130,7 +1111,7 @@ app.post('/api/instructions/upload', authMiddleware, authorize(PERMISSIONS.INSTR
 
 app.get('/api/instructions/file/:fileId', authMiddleware, asyncHandler(async (req, res) => {
   if (!store.gridFsBucket) return res.status(500).json({ error: 'File storage not available' })
-  
+
   let objectId
   try {
     objectId = new ObjectId(req.params.fileId)
@@ -1144,10 +1125,10 @@ app.get('/api/instructions/file/:fileId', authMiddleware, asyncHandler(async (re
 
   const file = files[0]
   const isPreview = req.query.preview === '1'
-  
+
   // Robust MIME Type detection: check GridFS fields and map by extension as fallback
   let contentType = file.contentType || (file.metadata && file.metadata.contentType)
-  
+
   if (!contentType || contentType === 'application/octet-stream') {
     const ext = file.filename.split('.').pop().toLowerCase()
     const mimeMap = {
@@ -1169,7 +1150,7 @@ app.get('/api/instructions/file/:fileId', authMiddleware, asyncHandler(async (re
   res.setHeader('Content-Type', contentType || 'application/octet-stream')
   res.setHeader('X-Content-Type-Options', 'nosniff')
   res.setHeader('Cache-Control', 'private, max-age=3600')
-  
+
   if (isPreview) {
     // For previews, we omit the filename entirely to prevent the browser from auto-downloading.
     res.setHeader('Content-Disposition', 'inline')
