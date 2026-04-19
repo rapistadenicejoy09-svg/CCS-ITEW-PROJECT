@@ -143,8 +143,16 @@ function fallbackBaseForErrorMessage() {
   return DEFAULT_API_CANDIDATES[0]
 }
 
-async function request(path, options = {}) {
+export async function request(path, options = {}) {
   const { headers: optionHeaders, ...rest } = options
+
+  // Automatically inject Authorization header if not explicitly provided
+  const authHeaders = {}
+  if (!optionHeaders?.Authorization && typeof localStorage !== 'undefined') {
+    const token = localStorage.getItem('authToken')
+    if (token) authHeaders.Authorization = `Bearer ${token}`
+  }
+
   let res
   try {
     let API_BASE = await getApiBase()
@@ -153,6 +161,7 @@ async function request(path, options = {}) {
         ...rest,
         headers: {
           'Content-Type': 'application/json',
+          ...authHeaders,
           ...(optionHeaders || {}),
         },
       })
@@ -163,6 +172,7 @@ async function request(path, options = {}) {
         ...rest,
         headers: {
           'Content-Type': 'application/json',
+          ...authHeaders,
           ...(optionHeaders || {}),
         },
       })

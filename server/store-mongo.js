@@ -90,8 +90,9 @@ async function createMongoStore() {
   const users = db.collection('users')
   const loginAttempts = db.collection('login_attempts')
   const sessions = db.collection('sessions')
-  const counters = db.collection('counters')
+   const counters = db.collection('counters')
   const instructions = db.collection('instructions')
+  const schedules = db.collection('schedules')
 
   // Ensure uniqueness constraints for user identity and sessions.
   await Promise.all([
@@ -109,6 +110,7 @@ async function createMongoStore() {
     loginAttempts.createIndex({ identifier: 1 }, { unique: true, name: 'login_attempts_identifier_unique' }),
     sessions.createIndex({ token: 1 }, { unique: true, name: 'sessions_token_unique' }),
     instructions.createIndex({ id: 1 }, { unique: true, name: 'instructions_id_unique' }),
+    schedules.createIndex({ id: 1 }, { unique: true, name: 'schedules_id_unique' }),
   ])
 
   async function nextUserId() {
@@ -137,6 +139,20 @@ async function createMongoStore() {
     if (typeof seq === 'number') return seq
     
     const last = await instructions.find({ id: { $gt: 0 } }, { projection: { id: 1 } }).sort({ id: -1 }).limit(1).toArray()
+    const maxId = last.length > 0 ? (Number(last[0].id) || 0) : 0
+    return maxId + 1
+  }
+
+  async function nextScheduleId() {
+    const res = await counters.findOneAndUpdate(
+      { _id: 'schedules' },
+      { $inc: { seq: 1 } },
+      { upsert: true, returnDocument: 'after' },
+    )
+    const seq = res?.value?.seq ?? res?.seq
+    if (typeof seq === 'number') return seq
+    
+    const last = await schedules.find({ id: { $gt: 0 } }, { projection: { id: 1 } }).sort({ id: -1 }).limit(1).toArray()
     const maxId = last.length > 0 ? (Number(last[0].id) || 0) : 0
     return maxId + 1
   }
@@ -686,6 +702,56 @@ async function createMongoStore() {
 
     async deleteInstruction(id) {
       await instructions.deleteOne({ id: Number(id) })
+    },
+    
+    async listSchedules() {
+      return await schedules.find({}, { projection: { _id: 0 } }).sort({ id: 1 }).toArray()
+    },
+
+    async getScheduleById(id) {
+      return await schedules.findOne({ id: Number(id) }, { projection: { _id: 0 } })
+    },
+
+    async createSchedule(data) {
+      const id = await nextScheduleId()
+      const doc = {
+        id,
+        subjectCode: data.subjectCode,
+        subjectTitle: data.subjectTitle,
+        instructor: data.instructor,
+        course: data.course,
+        yearLevel: data.yearLevel,
+        section: data.section,
+        day: data.day,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        room: data.room,
+        created_at: data.created_at,
+        updated_at: data.updated_at
+      }
+      await schedules.insertOne(doc)
+      return id
+    },
+
+    async updateSchedule(id, data) {
+      const setUpdates = {
+        subjectCode: data.subjectCode,
+        subjectTitle: data.subjectTitle,
+        instructor: data.instructor,
+        course: data.course,
+        yearLevel: data.yearLevel,
+        section: data.section,
+        day: data.day,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        room: data.room,
+        updated_at: data.updated_at
+      }
+      await schedules.updateOne({ id: Number(id) }, { $set: setUpdates })
+    },
+
+    async deleteSchedule(id) {
+      await schedules.deleteOne({ id: Number(id) })
     },
   }
 }

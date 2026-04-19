@@ -54,6 +54,22 @@ export function initDb(db) {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS schedules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      subjectCode TEXT NOT NULL,
+      subjectTitle TEXT NOT NULL,
+      instructor TEXT NOT NULL,
+      course TEXT NOT NULL,
+      yearLevel TEXT NOT NULL,
+      section TEXT NOT NULL,
+      day TEXT NOT NULL,
+      startTime TEXT NOT NULL,
+      endTime TEXT NOT NULL,
+      room TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
   `)
 
   // Apply schema migrations

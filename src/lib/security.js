@@ -125,6 +125,12 @@ export function canAccessPath(path) {
   if (/^\/admin\/instructions\/[^/]+$/.test(path)) {
     return hasPermission(PERMISSIONS.INSTRUCTIONS_VIEW)
   }
+  if (path === '/scheduling/add' || /^\/scheduling\/[^/]+\/edit$/.test(path)) {
+    return hasPermission(PERMISSIONS.SCHEDULING_MANAGE)
+  }
+  if (/^\/scheduling\/[^/]+$/.test(path)) {
+    return hasPermission(PERMISSIONS.SCHEDULING_VIEW)
+  }
   const perm = PATH_PERMISSIONS[path]
   if (!perm) return true
   return hasPermission(perm)

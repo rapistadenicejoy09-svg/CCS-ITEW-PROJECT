@@ -835,6 +835,44 @@ app.delete('/api/instructions/:id', authMiddleware, authorize(PERMISSIONS.INSTRU
   res.json({ ok: true })
 }))
 
+// --- SCHEDULING Endpoints ---
+
+app.get('/api/scheduling', authMiddleware, asyncHandler(async (req, res) => {
+  const schedules = await store.listSchedules()
+  res.json({ ok: true, schedules })
+}))
+
+app.get('/api/scheduling/:id', authMiddleware, asyncHandler(async (req, res) => {
+  const schedule = await store.getScheduleById(req.params.id)
+  if (!schedule) return res.status(404).json({ error: 'Schedule not found' })
+  res.json({ ok: true, schedule })
+}))
+
+app.post('/api/scheduling', authMiddleware, authorize(PERMISSIONS.SCHEDULING_MANAGE), asyncHandler(async (req, res) => {
+  const id = await store.createSchedule({
+    ...req.body,
+    created_at: nowIso(),
+    updated_at: nowIso()
+  })
+  res.status(201).json({ ok: true, id })
+}))
+
+app.put('/api/scheduling/:id', authMiddleware, authorize(PERMISSIONS.SCHEDULING_MANAGE), asyncHandler(async (req, res) => {
+  const existing = await store.getScheduleById(req.params.id)
+  if (!existing) return res.status(404).json({ error: 'Schedule not found' })
+  
+  await store.updateSchedule(req.params.id, {
+    ...req.body,
+    updated_at: nowIso()
+  })
+  res.json({ ok: true })
+}))
+
+app.delete('/api/scheduling/:id', authMiddleware, authorize(PERMISSIONS.SCHEDULING_MANAGE), asyncHandler(async (req, res) => {
+  await store.deleteSchedule(req.params.id)
+  res.json({ ok: true })
+}))
+
 // --- FILE UPLOAD (GridFS) ---
 
 const upload = multer({
