@@ -4,6 +4,7 @@ import SuccessModal from '../components/SuccessModal'
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal'
 import AdminEventForm from '../components/AdminEventForm'
 import EventCalendar from '../components/EventCalendar'
+import { hasPermission, PERMISSIONS } from '../lib/security'
 import { Calendar, List, Search, Filter, Plus, Edit2, Trash2, CheckCircle, Clock, MapPin, Users } from '../components/Icons'
 
 export default function AdminEventList() {
@@ -61,14 +62,21 @@ export default function AdminEventList() {
     }
   }, [events])
 
-  function getAdminLoginIdentifier() {
+  function getAuthUser() {
     try {
       const raw = localStorage.getItem('authUser')
-      const u = raw ? JSON.parse(raw) : null
-      return (u?.identifier || '').trim() || null
+      return raw ? JSON.parse(raw) : null
     } catch {
       return null
     }
+  }
+
+  const authUser = getAuthUser()
+  const isAdmin = authUser?.role === 'admin'
+  const canManage = isAdmin || hasPermission(PERMISSIONS.EVENTS_MANAGE)
+
+  function getAdminLoginIdentifier() {
+    return authUser?.identifier || authUser?.email || null
   }
 
   const handleDelete = (event) => {
@@ -116,18 +124,20 @@ export default function AdminEventList() {
               Manage academic and college events
             </p>
           </div>
-          <button 
-            className="mt-4 md:mt-0 font-medium transition-all duration-300 text-sm px-6 py-2.5 rounded-full hover:shadow-lg hover:scale-[1.03] active:scale-[0.98]"
-            style={{ 
-              background: 'var(--accent)', 
-              color: 'white', 
-              border: '1px solid var(--accent-soft)',
-              borderRadius: '9999px'
-            }}
-            onClick={() => { setEditingEvent(null); setShowForm(true); }}
-          >
-            + Create New Event
-          </button>
+          {canManage && (
+            <button 
+              className="mt-4 md:mt-0 font-medium transition-all duration-300 text-sm px-6 py-2.5 rounded-full hover:shadow-lg hover:scale-[1.03] active:scale-[0.98]"
+              style={{ 
+                background: 'var(--accent)', 
+                color: 'white', 
+                border: '1px solid var(--accent-soft)',
+                borderRadius: '9999px'
+              }}
+              onClick={() => { setEditingEvent(null); setShowForm(true); }}
+            >
+              + Create New Event
+            </button>
+          )}
         </header>
 
         {/* Dashboard Summary Cards */}
@@ -310,7 +320,7 @@ export default function AdminEventList() {
                   </td>
                   <td className="p-4 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      {event.status === 'pending' && (
+                      {isAdmin && event.status === 'pending' && (
                         <button 
                           className="p-2 text-emerald-500 hover:bg-emerald-500/10 rounded-lg transition-all"
                           title="Approve"
@@ -319,20 +329,24 @@ export default function AdminEventList() {
                           <CheckCircle size={18} />
                         </button>
                       )}
-                      <button 
-                        className="p-2 text-[var(--accent)] hover:bg-[var(--accent-soft)] rounded-lg transition-all"
-                        title="Edit"
-                        onClick={() => { setEditingEvent(event); setShowForm(true); }}
-                      >
-                        <Edit2 size={18} />
-                      </button>
-                      <button 
-                        className="p-2 text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all"
-                        title="Delete"
-                        onClick={() => handleDelete(event)}
-                      >
-                        <Trash2 size={18} />
-                      </button>
+                      {(isAdmin || event.created_by === authUser?.id) && (
+                        <>
+                          <button 
+                            className="p-2 text-[var(--accent)] hover:bg-[var(--accent-soft)] rounded-lg transition-all"
+                            title="Edit"
+                            onClick={() => { setEditingEvent(event); setShowForm(true); }}
+                          >
+                            <Edit2 size={18} />
+                          </button>
+                          <button 
+                            className="p-2 text-rose-500 hover:bg-rose-500/10 rounded-lg transition-all"
+                            title="Delete"
+                            onClick={() => handleDelete(event)}
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>

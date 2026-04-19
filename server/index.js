@@ -816,6 +816,7 @@ app.put('/api/instructions/:id', authMiddleware, authorize(PERMISSIONS.INSTRUCTI
   const existing = await store.getInstructionById(req.params.id)
   if (!existing) return res.status(404).json({ error: 'Instruction not found' })
   
+<<<<<<< HEAD
   await store.updateInstruction(req.params.id, {
     type: String(req.body.type || existing.type),
     title: String(req.body.title || existing.title),
@@ -826,6 +827,18 @@ app.put('/api/instructions/:id', authMiddleware, authorize(PERMISSIONS.INSTRUCTI
     author: String(req.body.author || existing.author),
     link: String(req.body.link || existing.link),
     updated_at: nowIso()
+=======
+  // Apply visibility filters based on user role/dept if not admin
+  const filtered = list.filter(event => {
+    if (req.user.role === 'admin') return true
+    if (event.created_by === req.user.id) return true // Creator can always see their own event
+    if (event.status !== 'approved') return false // Hide pending/cancelled events from others
+    if (event.visibility === 'public') return true
+    if (event.target_audience === 'all') return true
+    if (event.target_audience === req.user.role) return true
+    if (event.department && event.department === req.user.department) return true
+    return false
+>>>>>>> abb86b7a85bbdba3a64180193550bac5029f85e6
   })
   res.json({ ok: true })
 }))
@@ -1025,9 +1038,58 @@ app.post('/api/events', authMiddleware, authorize(PERMISSIONS.EVENTS_MANAGE), as
   res.status(201).json(result)
 }))
 
+<<<<<<< HEAD
 app.put('/api/events/:id', authMiddleware, authorize(PERMISSIONS.EVENTS_MANAGE), asyncHandler(async (req, res) => {
   const result = await store.updateEvent(req.params.id, req.body)
   res.json(result)
+=======
+app.patch('/api/events/:id', authMiddleware, authorize(PERMISSIONS.EVENTS_MANAGE), asyncHandler(async (req, res) => {
+  const id = Number(req.params.id)
+  const target = await store.getEventById(id)
+  if (!target) return res.status(404).json({ error: 'Event not found' })
+  
+  // Ownership check
+  if (req.user.role !== 'admin' && target.created_by !== req.user.id) {
+    return res.status(403).json({ error: 'Forbidden: You can only edit your own events' })
+  }
+  
+  const updated = await store.updateEvent(id, req.body)
+  
+  await store.createLog({
+    type: 'UPDATE',
+    action: 'Event Updated',
+    details: `Event "${target.title}" updated by ${req.user.full_name || req.user.identifier}`,
+    userId: req.user.id,
+    userName: req.user.full_name || req.user.identifier,
+    userIp: req.ip
+  })
+  
+  res.json({ ok: true, event: updated })
+}))
+
+app.delete('/api/events/:id', authMiddleware, authorize(PERMISSIONS.EVENTS_MANAGE), asyncHandler(async (req, res) => {
+  const id = Number(req.params.id)
+  const target = await store.getEventById(id)
+  if (!target) return res.status(404).json({ error: 'Event not found' })
+  
+  // Ownership check
+  if (req.user.role !== 'admin' && target.created_by !== req.user.id) {
+    return res.status(403).json({ error: 'Forbidden: You can only delete your own events' })
+  }
+  
+  await store.deleteEvent(id)
+  
+  await store.createLog({
+    type: 'DELETE',
+    action: 'Event Deleted',
+    details: `Event "${target.title}" deleted by ${req.user.full_name || req.user.identifier}`,
+    userId: req.user.id,
+    userName: req.user.full_name || req.user.identifier,
+    userIp: req.ip
+  })
+  
+  res.json({ ok: true })
+>>>>>>> abb86b7a85bbdba3a64180193550bac5029f85e6
 }))
 
 app.patch('/api/events/:id/approve', authMiddleware, authorize(PERMISSIONS.EVENTS_MANAGE), asyncHandler(async (req, res) => {
