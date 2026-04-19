@@ -1616,6 +1616,8 @@ app.get('/api/events', authMiddleware, authorize(PERMISSIONS.EVENTS_VIEW), async
   // Apply visibility filters based on user role/dept if not admin
   const filtered = list.filter(event => {
     if (req.user.role === 'admin') return true
+    if (event.created_by === req.user.id) return true // Creator can always see their own event
+    if (event.status !== 'approved') return false // Hide pending/cancelled events from others
     if (event.visibility === 'public') return true
     if (event.target_audience === 'all') return true
     if (event.target_audience === req.user.role) return true
@@ -1660,6 +1662,11 @@ app.patch('/api/events/:id', authMiddleware, authorize(PERMISSIONS.EVENTS_MANAGE
   const target = await store.getEventById(id)
   if (!target) return res.status(404).json({ error: 'Event not found' })
   
+  // Ownership check
+  if (req.user.role !== 'admin' && target.created_by !== req.user.id) {
+    return res.status(403).json({ error: 'Forbidden: You can only edit your own events' })
+  }
+  
   const updated = await store.updateEvent(id, req.body)
   
   await store.createLog({
@@ -1678,6 +1685,11 @@ app.delete('/api/events/:id', authMiddleware, authorize(PERMISSIONS.EVENTS_MANAG
   const id = Number(req.params.id)
   const target = await store.getEventById(id)
   if (!target) return res.status(404).json({ error: 'Event not found' })
+  
+  // Ownership check
+  if (req.user.role !== 'admin' && target.created_by !== req.user.id) {
+    return res.status(403).json({ error: 'Forbidden: You can only delete your own events' })
+  }
   
   await store.deleteEvent(id)
   
