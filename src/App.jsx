@@ -14,6 +14,7 @@ import FacultyDocuments from './pages/FacultyDocuments'
 import FacultyEvaluations from './pages/FacultyEvaluations'
 import FacultyConsultation from './pages/FacultyConsultation'
 import FacultySubjects from './pages/FacultySubjects'
+import FacultyFacultyList from './pages/FacultyFacultyList'
 import AdminLogin from './pages/AdminLogin'
 import AdminBootstrapAccount from './pages/AdminBootstrapAccount'
 import AdminAdminsPage from './pages/AdminAdminsPage'
@@ -106,6 +107,7 @@ export default function App() {
               <Route path="faculty/evaluations" element={<FacultyEvaluations />} />
               <Route path="faculty/consultation" element={<FacultyConsultation />} />
               <Route path="faculty/subjects" element={<FacultySubjects />} />
+              <Route path="faculty/faculty-list" element={<FacultyFacultyList />} />
               <Route path="events" element={<AdminEventList />} />
               <Route path="scheduling" element={<SchedulingPage />} />
               <Route path="scheduling/add" element={<SchedulingAddPage />} />

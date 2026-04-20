@@ -54,8 +54,8 @@ export default function FacultySubjects() {
     <div className="module-page">
       <header className="module-header">
         <div>
-          <h1 className="main-title">Master Subjects Management</h1>
-          <p className="main-description">Admin-only: Create and manage the college curriculum.</p>
+          <h1 className="main-title font-extrabold text-[var(--text)]">Master Subjects Management</h1>
+          <p className="main-description text-[var(--text-muted)] mt-1">Admin-only: Create and manage the college curriculum.</p>
         </div>
       </header>
 

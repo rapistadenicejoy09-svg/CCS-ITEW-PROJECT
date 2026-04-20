@@ -868,6 +868,20 @@ app.get('/api/admin/users', authMiddleware, authorize(PERMISSIONS.MANAGE_USERS),
   res.json({ ok: true, users })
 }))
 
+app.get(
+  '/api/faculty/directory',
+  authMiddleware,
+  authorize(PERMISSIONS.FACULTY_DIRECTORY_VIEW),
+  asyncHandler(async (_req, res) => {
+    const users = await store.listAdminUsers()
+    const facultyOnly = users.filter((u) =>
+      ['dean', 'department_chair', 'secretary', 'faculty_professor', 'faculty'].includes(u.role),
+    )
+    const activeOnly = facultyOnly.filter((u) => u?.is_active !== 0 && u?.is_active !== false)
+    res.json({ ok: true, faculty: activeOnly })
+  }),
+)
+
 app.get('/api/admin/users/:id', authMiddleware, authorize(PERMISSIONS.MANAGE_USERS), asyncHandler(async (req, res) => {
   const id = Number(req.params.id)
   if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid id' })

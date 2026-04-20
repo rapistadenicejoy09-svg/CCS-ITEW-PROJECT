@@ -62,8 +62,8 @@ export default function FacultyTeachingLoad() {
     <div className="module-page">
       <header className="module-header">
         <div>
-          <h1 className="main-title">Teaching Load Management</h1>
-          <p className="main-description">Oversee subject assignments and class sections.</p>
+          <h1 className="main-title font-extrabold text-[var(--text)]">Teaching Load Management</h1>
+          <p className="main-description text-[var(--text-muted)] mt-1">Oversee subject assignments and class sections.</p>
         </div>
       </header>
 
