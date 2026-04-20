@@ -68,8 +68,8 @@ export default function FacultySchedule() {
     <div className="module-page">
       <header className="module-header">
         <div>
-          <h1 className="main-title">Weekly Schedule</h1>
-          <p className="main-description">Manage your class times and room allocations.</p>
+          <h1 className="main-title font-extrabold text-[var(--text)]">Weekly Schedule</h1>
+          <p className="main-description text-[var(--text-muted)] mt-1">Manage your class times and room allocations.</p>
         </div>
       </header>
 

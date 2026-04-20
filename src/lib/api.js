@@ -386,6 +386,13 @@ export async function apiAdminPatchUser(token, id, body) {
   })
 }
 
+export async function apiFacultyDirectory(token) {
+  return request('/api/faculty/directory', {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
 export async function apiAdminStudents(token, query = {}) {
   const params = new URLSearchParams()
   if (query.skill) params.append('skill', query.skill)
