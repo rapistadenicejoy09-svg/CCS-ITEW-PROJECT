@@ -1128,6 +1128,106 @@ app.delete('/api/documents/:id', authMiddleware, authorize(PERMISSIONS.DOC_DELET
   res.json({ ok: true })
 }))
 
+// --- Instructions Module ---
+// IMPORTANT: Specific paths (/upload, /file/:fileId) MUST come before parameterized (:id) routes
+
+// Instructions file upload — must be before /:id
+app.post('/api/instructions/upload', authMiddleware, authorize(PERMISSIONS.INSTRUCTIONS_MANAGE), asyncHandler(async (req, res) => {
+  if (typeof store.uploadFile === 'function') {
+    const multer = (await import('multer')).default
+    const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } }).single('file')
+    await new Promise((resolve, reject) => upload(req, res, (err) => (err ? reject(err) : resolve())))
+    if (!req.file) return res.status(400).json({ error: 'No file provided' })
+    const result = await store.uploadFile(req.file.originalname, req.file.mimetype, req.file.buffer)
+    return res.json({ ok: true, fileId: result.fileId, filename: result.filename, size: req.file.size })
+  }
+  res.json({ ok: true, fileId: String(Date.now()), filename: 'uploaded', size: 0 })
+}))
+
+// Instructions file download/preview — must be before /:id
+app.get('/api/instructions/file/:fileId', authMiddleware, authorize(PERMISSIONS.INSTRUCTIONS_VIEW), asyncHandler(async (req, res) => {
+  const fileId = req.params.fileId
+  if (typeof store.downloadFile === 'function') {
+    try {
+      const { stream, contentType, filename } = await store.downloadFile(fileId)
+      res.set('Content-Type', contentType || 'application/octet-stream')
+      if (!req.query.preview) {
+        res.set('Content-Disposition', `attachment; filename="${filename}"`)
+      }
+      stream.pipe(res)
+      return
+    } catch {
+      return res.status(404).json({ error: 'File not found' })
+    }
+  }
+  res.status(404).json({ error: 'File storage not configured' })
+}))
+
+// List instructions
+app.get('/api/instructions', authMiddleware, authorize(PERMISSIONS.INSTRUCTIONS_VIEW), asyncHandler(async (req, res) => {
+  const role = req.user?.role
+  const query = {}
+  if (req.query.type) query.type = req.query.type
+  if (req.query.course) query.course = req.query.course
+  // Students only see Active materials
+  if (role === 'student') query.status = 'Active'
+  else if (req.query.status) query.status = req.query.status
+  const list = await store.listInstructions(query)
+  res.json({ ok: true, instructions: list })
+}))
+
+// Create instruction
+app.post('/api/instructions', authMiddleware, authorize(PERMISSIONS.INSTRUCTIONS_MANAGE), asyncHandler(async (req, res) => {
+  const { title, type, course, subject, description, status, author, link } = req.body
+  if (!title || !type || !course) return res.status(400).json({ error: 'Title, type, and course are required' })
+  const item = await store.createInstruction({ title, type, course, subject, description, status, author, link })
+  await store.createLog({
+    type: 'CREATE',
+    action: 'Instruction Created',
+    details: `Material "${title}" (${type}) created by ${req.user.full_name || req.user.identifier}`,
+    userId: req.user.id,
+    userName: req.user.full_name || req.user.identifier,
+    userIp: req.ip
+  })
+  res.status(201).json({ ok: true, instruction: item })
+}))
+
+// Get single instruction (parameterized — AFTER static paths)
+app.get('/api/instructions/:id', authMiddleware, authorize(PERMISSIONS.INSTRUCTIONS_VIEW), asyncHandler(async (req, res) => {
+  const item = await store.findInstructionById(Number(req.params.id))
+  if (!item) return res.status(404).json({ error: 'Material not found' })
+  const role = req.user?.role
+  if (role === 'student' && item.status !== 'Active') return res.status(403).json({ error: 'Not available' })
+  res.json({ ok: true, instruction: item })
+}))
+
+// Update instruction
+app.put('/api/instructions/:id', authMiddleware, authorize(PERMISSIONS.INSTRUCTIONS_MANAGE), asyncHandler(async (req, res) => {
+  const id = Number(req.params.id)
+  const existing = await store.findInstructionById(id)
+  if (!existing) return res.status(404).json({ error: 'Material not found' })
+  const { title, type, course, subject, description, status, author, link } = req.body
+  const updated = await store.updateInstruction(id, { title, type, course, subject, description, status, author, link })
+  res.json({ ok: true, instruction: updated })
+}))
+
+// Delete instruction
+app.delete('/api/instructions/:id', authMiddleware, authorize(PERMISSIONS.INSTRUCTIONS_MANAGE), asyncHandler(async (req, res) => {
+  const id = Number(req.params.id)
+  const existing = await store.findInstructionById(id)
+  if (!existing) return res.status(404).json({ error: 'Material not found' })
+  await store.deleteInstruction(id)
+  await store.createLog({
+    type: 'DELETE',
+    action: 'Instruction Deleted',
+    details: `Material "${existing.title}" deleted by ${req.user.full_name || req.user.identifier}`,
+    userId: req.user.id,
+    userName: req.user.full_name || req.user.identifier,
+    userIp: req.ip
+  })
+  res.json({ ok: true })
+}))
+
 async function handleResearchList(req, res) {
   const scope = String(req.query.scope || 'repository').toLowerCase()
   const year = req.query.year ? Number(req.query.year) : null

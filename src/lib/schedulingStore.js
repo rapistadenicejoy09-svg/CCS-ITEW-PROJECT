@@ -1,7 +1,7 @@
 export const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 import { request } from './api'
 
-const API_BASE = '/api/scheduling'
+const API_BASE = '/api/schedules'
 
 export async function getSchedules() {
   try {
