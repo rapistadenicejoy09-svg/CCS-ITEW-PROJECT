@@ -36,7 +36,7 @@ const FSelect = ({ children, className = '', ...props }) => (
     </select>
     <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
       <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M1 1L5 5L9 1" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M1 1L5 5L9 1" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     </div>
   </div>
@@ -73,9 +73,8 @@ function ViewValue({ children, multiline }) {
     (Array.isArray(text) && text.length === 0)
   return (
     <div
-      className={`rounded-xl border border-dashed border-[var(--border-color)] bg-[rgba(0,0,0,0.02)] dark:bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] transition-all duration-300 hover:border-[var(--accent)]/40 hover:bg-[rgba(229,118,47,0.07)] ${
-        multiline ? 'min-h-[5.5rem] whitespace-pre-wrap' : 'min-h-[44px] flex items-center'
-      }`}
+      className={`rounded-xl border border-dashed border-[var(--border-color)] bg-[rgba(0,0,0,0.02)] dark:bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] transition-all duration-300 hover:border-[var(--accent)]/40 hover:bg-[rgba(229,118,47,0.07)] ${multiline ? 'min-h-[5.5rem] whitespace-pre-wrap' : 'min-h-[44px] flex items-center'
+        }`}
     >
       {empty ? <span className="text-[var(--text-muted)] italic">—</span> : children}
     </div>
@@ -136,12 +135,12 @@ const TableHead = ({ cols }) => (
 
 export default function AdminStudentView() {
   const { id } = useParams()
-  const [user, setUser]       = useState(null)
+  const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError]     = useState('')
-  const [saving, setSaving]   = useState(false)
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
-  const [formData, setFormData]   = useState({})
+  const [formData, setFormData] = useState({})
   const [skillInput, setSkillInput] = useState('')
   const [showDeactivateModal, setShowDeactivateModal] = useState(false)
   const [showSuccessModal, setShowSuccessModal] = useState(false)
@@ -160,31 +159,31 @@ export default function AdminStudentView() {
 
   function buildForm(u) {
     return {
-      firstName:  u.personal_information?.first_name || (u.full_name?.split(' ')[0] ?? ''),
+      firstName: u.personal_information?.first_name || (u.full_name?.split(' ')[0] ?? ''),
       middleName: u.personal_information?.middle_name || '',
-      lastName:   u.personal_information?.last_name  || (u.full_name?.split(' ').slice(1).join(' ') ?? ''),
-      studentId:  u.student_id || '',
-      email:      u.email || '',
-      isActive:   u.is_active === 1 || u.is_active === true,
+      lastName: u.personal_information?.last_name || (u.full_name?.split(' ').slice(1).join(' ') ?? ''),
+      studentId: u.student_id || '',
+      email: u.email || '',
+      isActive: u.is_active === 1 || u.is_active === true,
       personalInformation: {
-        phone:         u.personal_information?.phone || u.personal_information?.phone_number || '',
+        phone: u.personal_information?.phone || u.personal_information?.phone_number || '',
         date_of_birth: u.personal_information?.date_of_birth || '',
-        gender:        u.personal_information?.gender || '',
-        address:       u.personal_information?.address || '',
+        gender: u.personal_information?.gender || '',
+        address: u.personal_information?.address || '',
       },
       academicInfo: {
-        program:           u.academic_info?.program || u.class_section || '',
-        year_level:        u.academic_info?.year_level || '',
-        gpa:               u.academic_info?.gpa ?? '',
+        program: u.academic_info?.program || u.class_section || '',
+        year_level: u.academic_info?.year_level || '',
+        gpa: u.academic_info?.gpa ?? '',
         enrollment_status: u.academic_info?.enrollment_status || 'Enrolled',
       },
-      academicHistory:       u.academic_history        || [],
+      academicHistory: u.academic_history || [],
       nonAcademicActivities: u.non_academic_activities || [],
-      violations:            u.violations              || [],
-      skills:                u.skills                  || [],
-      affiliations:          u.affiliations            || [],
-      studentType:           u.student_type            || 'regular',
-      classSection:          u.class_section           || '',
+      violations: u.violations || [],
+      skills: u.skills || [],
+      affiliations: u.affiliations || [],
+      studentType: u.student_type || 'regular',
+      classSection: u.class_section || '',
     }
   }
 
@@ -193,19 +192,19 @@ export default function AdminStudentView() {
     const token = localStorage.getItem('authToken')
     if (!token) { setError('Missing auth token.'); setLoading(false); return }
     let cancelled = false
-    ;(async () => {
-      setLoading(true); setError('')
-      try {
-        const res = await apiAdminUser(token, id)
-        const u   = res?.user
-        if (!u || u.role !== 'student') throw new Error('Student not found.')
-        if (!cancelled) { setUser(u); setFormData(buildForm(u)) }
-      } catch (e) {
-        if (!cancelled) setError(e?.message || 'Failed to load student.')
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    })()
+      ; (async () => {
+        setLoading(true); setError('')
+        try {
+          const res = await apiAdminUser(token, id)
+          const u = res?.user
+          if (!u || u.role !== 'student') throw new Error('Student not found.')
+          if (!cancelled) { setUser(u); setFormData(buildForm(u)) }
+        } catch (e) {
+          if (!cancelled) setError(e?.message || 'Failed to load student.')
+        } finally {
+          if (!cancelled) setLoading(false)
+        }
+      })()
     return () => { cancelled = true }
   }, [id, isAdmin])
 
@@ -239,23 +238,23 @@ export default function AdminStudentView() {
     try {
       await apiAdminPatchUser(token, id, {
         fullName: [formData.firstName, formData.middleName, formData.lastName].filter(Boolean).join(' '),
-        email:    formData.email,
+        email: formData.email,
         studentId: formData.studentId,
-        isActive:  formData.isActive,
+        isActive: formData.isActive,
         studentType: formData.studentType,
         classSection: formData.classSection,
         personalInformation: {
           ...formData.personalInformation,
           first_name: formData.firstName,
           middle_name: formData.middleName,
-          last_name:  formData.lastName,
+          last_name: formData.lastName,
         },
-        academicInfo:          formData.academicInfo,
-        academicHistory:       formData.academicHistory,
+        academicInfo: formData.academicInfo,
+        academicHistory: formData.academicHistory,
         nonAcademicActivities: formData.nonAcademicActivities,
-        violations:            formData.violations,
-        skills:                formData.skills,
-        affiliations:          formData.affiliations,
+        violations: formData.violations,
+        skills: formData.skills,
+        affiliations: formData.affiliations,
       })
       const res = await apiAdminUser(token, id)
       setUser(res.user)
@@ -341,7 +340,7 @@ export default function AdminStudentView() {
               <code className="text-[var(--accent)] bg-[var(--accent-soft)] px-2 py-0.5 rounded text-xs font-mono">
                 {user?.student_id}
               </code>
-              <span className={`text-xs font-semibold ${user?.is_active ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+              <span className={`text-xs font-semibold ${user?.is_active ? 'text-emerald-400' : 'text-rose-400'}`}>
                 · {user?.is_active ? 'Active' : 'Inactive'}
               </span>
             </p>
@@ -611,13 +610,12 @@ export default function AdminStudentView() {
                 ) : (
                   <div className="min-h-[44px] flex items-center">
                     <span
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider inline-flex ${
-                        fd.academicInfo?.enrollment_status === 'Enrolled'
-                          ? 'tag-enrolled'
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider inline-flex ${fd.academicInfo?.enrollment_status === 'Enrolled'
+                          ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25'
                           : fd.academicInfo?.enrollment_status === 'Not Enrolled'
-                            ? 'tag-not-enrolled'
-                            : 'tag-unknown'
-                      }`}
+                            ? 'bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/25'
+                            : 'bg-[var(--border-color)]/40 text-[var(--text-muted)] border border-[var(--border-color)]'
+                        }`}
                     >
                       {fd.academicInfo?.enrollment_status || '—'}
                     </span>
@@ -647,11 +645,10 @@ export default function AdminStudentView() {
                     <Label>Account status</Label>
                     <div className="min-h-[44px] flex items-center">
                       <span
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider shadow-sm ${
-                          fd.isActive
-                            ? 'tag-active'
-                            : 'tag-inactive'
-                        }`}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider border ${fd.isActive
+                            ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25'
+                            : 'bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/25'
+                          }`}
                       >
                         {fd.isActive ? 'Active account' : 'Inactive account'}
                       </span>
@@ -997,14 +994,14 @@ export default function AdminStudentView() {
                 This student will be barred from logging in and accessing any portal features. You can reactivate this profile at any time.
               </p>
               <div className="flex w-full gap-3">
-                <button 
+                <button
                   onClick={() => setShowDeactivateModal(false)}
                   className="flex-1 px-4 py-3 text-sm font-semibold text-[var(--text-muted)] hover:text-[var(--text)] bg-white/5 hover:bg-white/10 border border-white/5 rounded-xl transition-all duration-200"
                   type="button"
                 >
                   Keep Active
                 </button>
-                <button 
+                <button
                   onClick={() => {
                     pf({ isActive: false })
                     setShowDeactivateModal(false)

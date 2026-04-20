@@ -265,18 +265,17 @@ export default function ActivityLog() {
                           </div>
                         </td>
                         <td className="px-6 py-5">
-                          <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${
-                            log.user_role === 'admin' ? 'bg-amber-500/10 text-amber-500' :
-                            log.user_role === 'dean' ? 'bg-fuchsia-500/10 text-fuchsia-500' :
-                            log.user_role === 'student' ? 'bg-sky-500/10 text-sky-500' :
-                            log.user_role === 'faculty_professor' ? 'bg-indigo-500/10 text-indigo-500' :
-                            log.user_role === 'secretary' ? 'bg-teal-500/10 text-teal-500' :
-                            log.user_role === 'department_chair' ? 'bg-orange-500/10 text-orange-500' :
-                            'bg-slate-500/10 text-slate-500'
-                          }`}>
+                          <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${log.user_role === 'admin' ? 'bg-amber-500/10 text-amber-500' :
+                              log.user_role === 'dean' ? 'bg-fuchsia-500/10 text-fuchsia-500' :
+                                log.user_role === 'student' ? 'bg-sky-500/10 text-sky-500' :
+                                  log.user_role === 'faculty_professor' ? 'bg-indigo-500/10 text-indigo-500' :
+                                    log.user_role === 'secretary' ? 'bg-teal-500/10 text-teal-500' :
+                                      log.user_role === 'department_chair' ? 'bg-orange-500/10 text-orange-500' :
+                                        'bg-slate-500/10 text-slate-500'
+                            }`}>
                             {log.user_role === 'faculty_professor' ? 'Professor' :
-                             log.user_role === 'department_chair' ? 'Chair' :
-                             log.user_role || 'System'}
+                              log.user_role === 'department_chair' ? 'Chair' :
+                                log.user_role || 'System'}
                           </span>
                         </td>
                         <td className="px-6 py-5 text-sm font-semibold text-[var(--text)]">
@@ -287,7 +286,7 @@ export default function ActivityLog() {
                             String(log.type).toLowerCase() === 'update' ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20' :
                               String(log.type).toLowerCase() === 'delete' ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20' :
                                 String(log.type).toLowerCase() === 'security' ? 'bg-violet-500/10 text-violet-600 border border-violet-500/25' :
-                                'bg-slate-500/10 text-slate-500 border border-slate-500/20'
+                                  'bg-slate-500/10 text-slate-500 border border-slate-500/20'
                             }`}>
                             {log.type}
                           </span>

@@ -2,6 +2,10 @@ export const ROLES = {
   ADMIN: 'admin',
   STUDENT: 'student',
   FACULTY: 'faculty',
+  DEAN: 'dean',
+  DEPARTMENT_CHAIR: 'department_chair',
+  SECRETARY: 'secretary',
+  FACULTY_PROFESSOR: 'faculty_professor',
 }
 
 export const PERMISSIONS = {
@@ -48,6 +52,11 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.INSTRUCTIONS_MANAGE,
     PERMISSIONS.CREATE_ADMIN_ACCOUNT,
     PERMISSIONS.MANAGE_USERS,
+    PERMISSIONS.DOC_CREATE,
+    PERMISSIONS.DOC_APPROVE,
+    PERMISSIONS.DOC_DELETE,
+    PERMISSIONS.VIEW_REPORTS,
+    PERMISSIONS.MANAGE_DEPARTMENT,
   ]),
   [ROLES.STUDENT]: new Set([
     PERMISSIONS.DASHBOARD_VIEW,
@@ -57,8 +66,6 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.DOC_READ_OWN,
     PERMISSIONS.DOC_UPDATE_OWN,
     PERMISSIONS.COLLEGE_RESEARCH_VIEW,
-    PERMISSIONS.INSTRUCTIONS_VIEW,
-    PERMISSIONS.SCHEDULING_VIEW,
   ]),
   [ROLES.FACULTY]: new Set([
     PERMISSIONS.DASHBOARD_VIEW,
@@ -78,8 +85,6 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.STUDENT_PROFILE,
     PERMISSIONS.EVENTS_VIEW,
     PERMISSIONS.EVENTS_MANAGE,
-    PERMISSIONS.SCHEDULING_VIEW,
-    PERMISSIONS.SCHEDULING_MANAGE,
     PERMISSIONS.MANAGE_USERS,
     PERMISSIONS.DOC_READ_OWN,
     PERMISSIONS.DOC_APPROVE,
@@ -122,9 +127,6 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.DOC_UPDATE_OWN,
     PERMISSIONS.DOC_APPROVE,
     PERMISSIONS.COLLEGE_RESEARCH_VIEW,
-    PERMISSIONS.COLLEGE_RESEARCH_MANAGE,
-    PERMISSIONS.INSTRUCTIONS_VIEW,
-    PERMISSIONS.INSTRUCTIONS_MANAGE,
   ]),
 }
 
@@ -148,6 +150,23 @@ export function authorize(permission) {
     } else {
       res.status(403).json({ error: 'Forbidden: Missing permission' })
     }
+  }
+}
+
+/**
+ * Require an authenticated user whose role is one of the allowed values.
+ * Returns 403 for missing user, missing role, or disallowed role (never reveals which).
+ */
+export function requireRole(...allowedRoles) {
+  const allowed = new Set(allowedRoles)
+  return (req, res, next) => {
+    if (!req.user || !req.user.role) {
+      return res.status(403).json({ error: 'Forbidden' })
+    }
+    if (!allowed.has(req.user.role)) {
+      return res.status(403).json({ error: 'Forbidden' })
+    }
+    next()
   }
 }
 

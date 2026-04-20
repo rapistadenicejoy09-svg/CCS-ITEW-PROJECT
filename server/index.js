@@ -3,7 +3,9 @@ import cors from 'cors'
 import helmet from 'helmet'
 import rateLimit from 'express-rate-limit'
 import multer from 'multer'
-import { ObjectId } from 'mongodb'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
 
 import { openStore } from './store.js'
 import {
@@ -15,7 +17,32 @@ import {
 } from './auth.js'
 import speakeasy from 'speakeasy'
 import qrcode from 'qrcode'
-import { authorize, PERMISSIONS } from './security.js'
+import { authorize, PERMISSIONS, ROLES, requireRole, hasPermission } from './security.js'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const researchUploadDir = path.join(__dirname, 'uploads', 'research')
+fs.mkdirSync(researchUploadDir, { recursive: true })
+
+const researchUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, researchUploadDir),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname || '').toLowerCase()
+      const safe = ext === '.pdf' ? ext : '.pdf'
+      cb(null, `r-${Date.now()}-${Math.random().toString(36).slice(2, 10)}${safe}`)
+    },
+  }),
+  limits: { fileSize: 25 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ok =
+      file.mimetype === 'application/pdf' ||
+      String(file.originalname || '')
+        .toLowerCase()
+        .endsWith('.pdf')
+    if (!ok) return cb(new Error('Only PDF files are allowed'))
+    cb(null, true)
+  },
+})
 
 const PORT = Number(process.env.PORT || 5000)
 const SESSION_TTL_HOURS = 24
@@ -25,70 +52,37 @@ const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, ne
 // Provider init is async for MongoDB; keep server startup blocked until the store is ready.
 let store
 try {
-  console.log('[STARTUP] Opening datastore...')
   store = await openStore()
+  if (typeof store.backfillPublishedRepositoryRefs === 'function') {
+    try {
+      const n = await store.backfillPublishedRepositoryRefs()
+      if (n > 0) {
+        // eslint-disable-next-line no-console
+        console.log(`[Research] Assigned repository reference number(s) to ${n} published record(s).`)
+      }
+      const m = await store.backfillSubmissionRefs()
+      if (m > 0) {
+        // eslint-disable-next-line no-console
+        console.log(`[Research] Assigned submission reference number(s) to ${m} record(s).`)
+      }
+
+      const missingStaff = await store.fixMissingFacultyInformation()
+      if (missingStaff > 0) {
+        console.log(`[Admin] Reconstructed personal records for ${missingStaff} faculty/admin staff.`)
+      }
+    } catch (bfErr) {
+      // eslint-disable-next-line no-console
+      console.warn('[Research] Repository ref backfill:', bfErr?.message || bfErr)
+    }
+  }
 } catch (err) {
   // eslint-disable-next-line no-console
   console.error('Failed to open datastore:', err)
-  if (!process.env.VERCEL) {
-    process.exit(1)
-  }
-  // On Vercel the process is reused for the serverless isolate; defer hard fail to request handling.
-  store = null
+  process.exit(1)
 }
 
 const app = express()
-
-/** Vercel rewrites strip the real path; restore so Express `/api/...` routes match. */
-function vercelRestoreRequestUrl(req, _res, next) {
-  if (!process.env.VERCEL) return next()
-  const candidates = [
-    req.headers['x-invoke-path'],
-    req.headers['x-vercel-invoke-path'],
-    req.headers['x-forwarded-uri'],
-    req.headers['x-matched-path'],
-    req.headers['x-vercel-original-path'],
-    req.headers[':path'],
-  ]
-  for (const raw of candidates) {
-    if (!raw || typeof raw !== 'string') continue
-    try {
-      let pathPart = raw
-      if (pathPart.startsWith('http')) {
-        const u = new URL(pathPart)
-        pathPart = u.pathname + u.search
-      }
-      if (pathPart.startsWith('/')) {
-        req.url = pathPart
-        if (req.originalUrl != null) req.originalUrl = pathPart
-        break
-      }
-    } catch {
-      // try next header
-    }
-  }
-  next()
-}
-
-if (process.env.VERCEL) {
-  app.set('trust proxy', true)
-}
-app.use(vercelRestoreRequestUrl)
-
-
-// Configure helmet to be more permissive for frames in development, 
-// allowing the frontend to embed the PDF viewer.
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-      "frame-ancestors": ["'self'", "http://localhost:*", "http://127.0.0.1:*"],
-    },
-  },
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-  frameguard: false, // Allow iframes
-}))
-
+app.use(helmet())
 
 const configuredCorsOrigins = String(process.env.CORS_ORIGINS || '')
   .split(',')
@@ -109,23 +103,29 @@ app.use(
         return cb(null, configuredCorsOrigins.includes(origin))
       }
 
-      // Same Vercel project (frontend + API): allow deployment and branch preview URLs.
-      const vu = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : ''
-      const vb = process.env.VERCEL_BRANCH_URL ? `https://${process.env.VERCEL_BRANCH_URL}` : ''
-      if (vu && origin === vu) return cb(null, true)
-      if (vb && origin === vb) return cb(null, true)
-
       // Dev default: allow Vite on any localhost port (5173, 5174, etc.).
       if (isDev && isLocalViteOrigin(origin)) return cb(null, true)
-
-      // Vercel + no explicit list: allow any origin (custom domains differ from VERCEL_URL; API uses Bearer tokens).
-      if (process.env.VERCEL) return cb(null, true)
 
       return cb(null, false)
     },
     credentials: false,
   })
 )
+
+app.get('/api/health', (req, res) => res.json({ ok: true }))
+app.get('/', (req, res) => {
+  res.send(`
+    <html>
+      <body style="font-family: sans-serif; padding: 2rem; line-height: 1.5;">
+        <h2>CCS Profiling System API</h2>
+        <p>The backend server is running successfully.</p>
+        <p>To access the application, please visit the frontend at:</p>
+        <a href="http://localhost:5173" style="font-weight: bold; color: #4f46e5;">http://localhost:5173</a>
+      </body>
+    </html>
+  `)
+})
+
 app.use(express.json({ limit: '200kb' }))
 app.use(
   rateLimit({
@@ -133,24 +133,8 @@ app.use(
     max: 120,
     standardHeaders: true,
     legacyHeaders: false,
-    validate: { xForwardedForHeader: false },
   })
 )
-
-function apiPathOnly(req) {
-  const u = String(req.url || '').split('?')[0]
-  return u
-}
-
-app.use((req, res, next) => {
-  if (store) return next()
-  const p = apiPathOnly(req)
-  if (p === '/api/health') return next()
-  return res.status(503).json({
-    error:
-      'Database unavailable. Add MONGODB_URI (and MONGODB_DB if your URI has no database name) in Vercel → Project → Settings → Environment Variables, then redeploy.',
-  })
-})
 
 function nowIso() {
   return new Date().toISOString()
@@ -273,28 +257,6 @@ function studentDisplayNameFromPi(pi, fullNameFallback) {
   return fb
 }
 
-function normalizeCourseKey(value) {
-  const raw = String(value || '').trim().toUpperCase()
-  if (!raw) return ''
-  if (raw === 'CS' || raw === 'BSCS' || raw.includes('COMPUTER SCIENCE')) return 'BSCS'
-  if (raw === 'IT' || raw === 'BSIT' || raw.includes('INFORMATION TECHNOLOGY')) return 'BSIT'
-  return raw
-}
-
-async function studentAllowedCourseKeys(userId) {
-  const out = new Set()
-  const student = await store.getAdminUserById(userId)
-  const classSection = normalizeCourseKey(student?.class_section)
-  if (classSection) out.add(classSection)
-
-  // Some datasets store student course/program inside academic_info.
-  const profile = typeof store.getAccountProfile === 'function' ? await store.getAccountProfile(userId) : null
-  const program = normalizeCourseKey(profile?.academic_info?.program || profile?.summary?.program)
-  if (program) out.add(program)
-
-  return out
-}
-
 function studentAccountProfileForResponse(p) {
   const pi = normalizedStudentNameParts(p.personal_information, p.full_name, {
     first_name: p.first_name,
@@ -323,15 +285,40 @@ function studentAccountProfileForResponse(p) {
   }
 }
 
+/** DB user / profile row: snake_case + personal_information (same shape as getAccountProfile / getUserByIdForAuth). */
+function nonStudentNameFieldsFromDbUser(p) {
+  const pi = p.personal_information || {}
+  const full = String(p.full_name || '').trim()
+  const parts = full ? full.split(/\s+/).filter(Boolean) : []
+  const firstName = String(p.first_name || pi.first_name || parts[0] || '').trim()
+  const lastName = String(p.last_name || pi.last_name || parts[parts.length - 1] || '').trim()
+  const middleName = String(
+    p.middle_name || pi.middle_name || (parts.length > 2 ? parts.slice(1, -1).join(' ') : ''),
+  ).trim()
+  return { firstName, middleName, lastName }
+}
+
 function adminFacultyAccountProfileForResponse(p) {
   const loginEmail = String(p.email || p.identifier || '').trim()
+  const full = String(p.full_name || '').trim()
+  const { firstName, middleName, lastName } = nonStudentNameFieldsFromDbUser(p)
+  const displayName = [firstName, middleName, lastName].filter(Boolean).join(' ') || full || loginEmail
   return {
     role: p.role,
+    id: p.id,
     identifier: p.identifier || '',
     fullName: p.full_name || '',
+    displayName,
+    firstName,
+    middleName,
+    lastName,
     email: loginEmail,
     profileImageUrl: p.profile_image_url || null,
     twofaEnabled: !!p.twofa_enabled,
+    department: p.department || null,
+    specialization: p.specialization || null,
+    personal_information: p.personal_information || {},
+    bio: p.bio || null,
   }
 }
 
@@ -345,6 +332,7 @@ function publicAuthUser(user) {
     })
     const displayName = studentDisplayNameFromPi(pi, user.full_name)
     return {
+      id: user.id,
       role: user.role,
       identifier: user.identifier,
       studentId: user.student_id || user.identifier,
@@ -358,24 +346,146 @@ function publicAuthUser(user) {
       mustChangePassword: studentMustChangePassword(user),
     }
   }
+  const { firstName, middleName, lastName } = nonStudentNameFieldsFromDbUser(user)
+  const mi = middleName ? `${middleName.charAt(0).toUpperCase()}.` : ''
+  const headerLabel = [firstName, mi, lastName].filter(Boolean).join(' ') || user.full_name || user.identifier || ''
   return {
+    id: user.id,
     role: user.role,
     identifier: user.identifier,
     fullName: user.full_name || '',
-    displayName: user.full_name || user.identifier || '',
+    displayName: headerLabel,
+    firstName,
+    middleName,
+    lastName,
     profileImageUrl: user.profile_image_url || null,
   }
 }
 
+function userNumId(u) {
+  const n = Number(u?.id)
+  return Number.isFinite(n) ? n : null
+}
+
+function researchCreatorLabel(u) {
+  if (!u) return ''
+  if (u.role === 'student') {
+    const pi = normalizedStudentNameParts(u.personal_information, u.full_name, {
+      first_name: u.first_name,
+      middle_name: u.middle_name,
+      last_name: u.last_name,
+    })
+    return studentDisplayNameFromPi(pi, u.full_name)
+  }
+  return String(u.full_name || u.identifier || '').trim() || `User ${u.id}`
+}
+
+function researchForClient(item) {
+  if (!item) return null
+  const { file_stored_name: _fs, ...rest } = item
+  return { ...rest, has_pdf: Boolean(item.file_stored_name) }
+}
+
+/** Published works get a unique CCS-CR-{year}-{seq} once; fills legacy rows missing a ref on any save. */
+async function assignRepositoryRefIfPublishing(store, existingItem, patch) {
+  const nextStatus = patch.status !== undefined ? patch.status : existingItem.status
+  const patchOut = { ...patch }
+  const needsRef =
+    nextStatus === 'published' && !existingItem.repository_ref && !patch.repository_ref
+  if (!needsRef) return patch
+  let at = patchOut.published_at || existingItem.published_at
+  if (!at) {
+    at = new Date().toISOString()
+    if (!existingItem.published_at && !patch.published_at) {
+      patchOut.published_at = at
+    }
+  }
+  const y = new Date(at).getFullYear()
+  patchOut.repository_ref = await store.nextResearchRepositoryRef(y)
+  return patchOut
+}
+
+function canViewResearchItem(user, item) {
+  if (!item || !user) return false
+  if (!hasPermission(user.role, PERMISSIONS.COLLEGE_RESEARCH_VIEW)) return false
+  if (['admin', 'dean', 'department_chair'].includes(user.role)) return true
+  if (user.role === 'secretary') return true
+  if (item.status === 'published') return true
+  const uid = userNumId(user)
+  if (item.created_by_user_id === uid) return true
+  if (item.adviser_faculty_id != null && Number(item.adviser_faculty_id) === uid) return true
+  const co = Array.isArray(item.co_author_user_ids) ? item.co_author_user_ids.map(Number) : []
+  if (uid != null && co.includes(uid)) return true
+  return false
+}
+
+function canEditResearchItem(user, item) {
+  if (!item || !user) return false
+  if (user.role === 'admin' || user.role === 'secretary') return true
+  const uid = userNumId(user)
+  if (item.created_by_user_id !== uid) return false
+  return ['draft', 'rejected'].includes(item.status)
+}
+
+function deleteResearchStoredFile(storedName) {
+  if (!storedName || typeof storedName !== 'string') return
+  const base = path.basename(storedName)
+  if (base !== storedName || !base.startsWith('r-')) return
+  const fp = path.join(researchUploadDir, base)
+  try {
+    fs.unlinkSync(fp)
+  } catch {
+    // ignore
+  }
+}
+
+function resolveNewResearchStatus(body, user) {
+  const want = String(body?.status || 'draft').toLowerCase()
+  if (want === 'draft') return 'draft'
+  if (user.role === 'admin') {
+    const direct = String(body?.publishDirect || '').toLowerCase()
+    if (direct === 'true' || direct === '1') return 'published'
+    return 'pending_approval'
+  }
+  if (user.role === 'secretary') {
+    const needApproval = String(body?.requireApproval || '').toLowerCase()
+    if (needApproval === 'true' || needApproval === '1') return 'pending_approval'
+    return 'published'
+  }
+  if (user.role === 'student') return 'under_faculty_review'
+  if (['faculty', 'faculty_professor', 'dean', 'department_chair'].includes(user.role)) {
+    return 'pending_approval'
+  }
+  return 'draft'
+}
+
+async function buildResearchAuthors(store, creatorUser, coAuthorIds) {
+  const raw = Array.isArray(coAuthorIds) ? coAuthorIds : []
+  const ids = [...new Set(raw.map((x) => Number(x)).filter((n) => Number.isFinite(n)))]
+  const creatorId = userNumId(creatorUser)
+  const authors = [
+    {
+      display_name: researchCreatorLabel(creatorUser),
+      user_id: creatorId,
+      user_role: creatorUser.role,
+    },
+  ]
+  for (const id of ids) {
+    if (id === creatorId) continue
+    const row = await store.getUserByIdForAuth(id)
+    if (!row) continue
+    authors.push({
+      display_name: researchCreatorLabel(row),
+      user_id: userNumId(row),
+      user_role: row.role,
+    })
+  }
+  return { authors, co_author_user_ids: authors.map((a) => a.user_id).filter((x) => x != null) }
+}
+
 const authMiddleware = asyncHandler(async (req, res, next) => {
   const header = req.headers.authorization || ''
-  let token = header.startsWith('Bearer ') ? header.slice(7) : null
-
-  // Allow token from query string (useful for iframes and direct downloads)
-  if (!token && req.query.token) {
-    token = req.query.token
-  }
-
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null
   if (!token) return res.status(401).json({ error: 'Missing token' })
   const session = await store.getSessionByToken(token)
   if (!session) return res.status(401).json({ error: 'Invalid token' })
@@ -398,15 +508,37 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true })
 })
 
-app.post('/api/auth/register', asyncHandler(async (req, res) => {
-  const role = String(req.body?.role || '').trim()
+const REGISTER_ROLES_PUBLIC = [
+  'student',
+  'faculty',
+  'dean',
+  'department_chair',
+  'secretary',
+  'faculty_professor',
+]
+
+async function registerUserFromRequest(req, res, { role: roleFixed } = {}) {
+  const role = roleFixed ?? String(req.body?.role || '').trim()
   const password = String(req.body?.password || '')
   let fullName = String(req.body?.fullName || '').trim() || null
   const enable2FA = Boolean(req.body?.enable2FA)
 
-  if (!['admin', 'student', 'faculty'].includes(role)) {
+  const allowedRoles = roleFixed
+    ? [roleFixed]
+    : [...REGISTER_ROLES_PUBLIC, 'admin']
+  if (!allowedRoles.includes(role)) {
     return res.status(400).json({ error: 'Invalid role' })
   }
+
+  if (role === 'admin' && !roleFixed) {
+    const adminCount = await store.countUsersByRole('admin')
+    if (adminCount > 0) {
+      return res.status(403).json({
+        error: 'Admin accounts can only be created by an existing administrator.',
+      })
+    }
+  }
+
   if (!password || password.length < 8) {
     return res.status(400).json({ error: 'Password must be at least 8 characters' })
   }
@@ -416,6 +548,9 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
   let emailStored = null
   let classSection = null
   let studentType = null
+  let department = String(req.body?.department || '').trim() || null
+  let specialization = String(req.body?.specialization || req.body?.summary?.specialization || '').trim() || null
+  let bio = String(req.body?.bio || '').trim() || null
 
   if (role === 'student') {
     const studentIdRaw = String(req.body?.studentId ?? '').trim()
@@ -453,6 +588,12 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
     if (identifier.includes('@')) {
       emailStored = identifier
     }
+    const piRaw = req.body?.personalInformation || req.body?.personal_information || {}
+    const nameFn = String(piRaw.first_name || piRaw.firstName || '').trim()
+    const nameMn = String(piRaw.middle_name || piRaw.middleName || '').trim()
+    const nameLn = String(piRaw.last_name || piRaw.lastName || '').trim()
+    const composedFromPi = [nameFn, nameMn, nameLn].filter(Boolean).join(' ')
+    if (composedFromPi) fullName = composedFromPi
   }
 
   const passwordHash = hashPassword(password)
@@ -471,6 +612,10 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
       studentType,
       studentIdStored,
       emailStored,
+      department,
+      specialization,
+      bio,
+      affiliations: req.body?.affiliations || [],
       academicInfo: req.body?.academicInfo || {},
       personalInformation: req.body?.personalInformation || {},
       academicHistory: req.body?.academicHistory || [],
@@ -479,12 +624,60 @@ app.post('/api/auth/register', asyncHandler(async (req, res) => {
       skills: req.body?.skills || [],
       affiliations: req.body?.affiliations || [],
     })
+
+    const creatorId = req.user?.id ?? null
+    const creatorName = req.user?.full_name || req.user?.identifier || 'System'
+    const isAdminProvisionedByAdmin = role === 'admin' && creatorId != null
+
+    if (isAdminProvisionedByAdmin) {
+      await store.createLog({
+        type: 'SECURITY',
+        action: 'Admin Account Created',
+        details: `New administrator "${fullName || identifier}" (login: ${identifier}) was created by ${creatorName} (admin user ID ${creatorId}).`,
+        userId: creatorId,
+        userName: creatorName,
+        userIp: req.ip,
+      })
+    } else if (role === 'admin') {
+      await store.createLog({
+        type: 'SECURITY',
+        action: 'Admin Account Created',
+        details: `Initial administrator "${fullName || identifier}" (login: ${identifier}) — first-time bootstrap (no prior admin users).`,
+        userId: null,
+        userName: 'System',
+        userIp: req.ip,
+      })
+    } else {
+      await store.createLog({
+        type: 'CREATE',
+        action: 'Account Created',
+        details: `New ${role} account created: ${fullName || identifier}`,
+        userId: creatorId,
+        userName: creatorName,
+        userIp: req.ip,
+      })
+    }
   } catch (err) {
     return res.status(500).json({ error: err.message })
   }
 
   return res.status(201).json({ ok: true, twoFABackupCode: backupCode })
+}
+
+app.post('/api/auth/register', asyncHandler(async (req, res) => {
+  return registerUserFromRequest(req, res)
 }))
+
+/** Admin-only: create additional administrator accounts (authenticated). */
+app.post(
+  '/api/admin/accounts',
+  authMiddleware,
+  requireRole(ROLES.ADMIN),
+  asyncHandler(async (req, res) => {
+    req.body = { ...req.body, role: 'admin' }
+    return registerUserFromRequest(req, res, { role: 'admin' })
+  }),
+)
 
 app.post('/api/auth/login', asyncHandler(async (req, res) => {
   const identifier = normalizeIdentifier(req.body?.identifier)
@@ -542,6 +735,16 @@ app.post('/api/auth/login', asyncHandler(async (req, res) => {
     expiresAtIso: addHoursISO(SESSION_TTL_HOURS),
   })
 
+  await store.createLog({
+    type: 'ACCESS',
+    action: 'User Login',
+    details: `${user.full_name || user.identifier} logged in successfully`,
+    userId: user.id,
+    userName: user.full_name || user.identifier,
+    userIp: req.ip
+  })
+  console.log(`[AUTH] Login successful for ${user.identifier}`)
+
   return res.json({
     ok: true,
     token,
@@ -571,6 +774,10 @@ app.patch('/api/account/profile', authMiddleware, asyncHandler(async (req, res) 
   const body = {}
   if (req.body.profileImageUrl !== undefined) body.profileImageUrl = req.body.profileImageUrl
   if (req.body.fullName !== undefined) body.fullName = req.body.fullName
+  if (req.body.personalInformation !== undefined) body.personalInformation = req.body.personalInformation
+  if (req.body.bio !== undefined) body.bio = req.body.bio
+  if (req.body.department !== undefined) body.department = req.body.department
+  if (req.body.specialization !== undefined) body.specialization = req.body.specialization
   if (Object.keys(body).length === 0) {
     return res.status(400).json({ error: 'No updates provided' })
   }
@@ -635,6 +842,19 @@ app.post('/api/auth/2fa/verify', authMiddleware, asyncHandler(async (req, res) =
   }
 }))
 
+app.post('/api/auth/2fa/disable', authMiddleware, asyncHandler(async (req, res) => {
+  const password = String(req.body?.password || '')
+  if (!password) return res.status(400).json({ error: 'Password is required' })
+
+  const hash = await store.getPasswordHash(req.user.id)
+  if (!hash || !verifyPassword(password, hash)) {
+    return res.status(401).json({ error: 'Current password is incorrect' })
+  }
+
+  await store.disableTwofa(req.user.id)
+  res.json({ ok: true })
+}))
+
 app.get('/api/admin/users', authMiddleware, authorize(PERMISSIONS.MANAGE_USERS), asyncHandler(async (req, res) => {
   const users = await store.listAdminUsers()
   res.json({ ok: true, users })
@@ -653,8 +873,8 @@ app.patch('/api/admin/users/:id', authMiddleware, authorize(PERMISSIONS.MANAGE_U
   if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid id' })
   const target = await store.getAdminUserById(id)
   if (!target) return res.status(404).json({ error: 'User not found' })
-  if (target.role !== 'student') {
-    return res.status(400).json({ error: 'Only student accounts can be updated this way' })
+  if (target.role === 'admin' && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Only admins can update admin accounts' })
   }
   const updates = {}
   if (req.body.isActive !== undefined) {
@@ -710,6 +930,22 @@ app.patch('/api/admin/users/:id', authMiddleware, authorize(PERMISSIONS.MANAGE_U
     return res.status(400).json({ error: 'No valid updates provided' })
   }
   const user = await store.updateStudentProfile(id, updates)
+
+  // Log the update
+  const actingUser = req.user
+  let detailMsg = `Updated profile for ${user.full_name}`
+  if (req.body.isActive !== undefined) detailMsg = `${req.body.isActive ? 'Activated' : 'Deactivated'} account: ${user.full_name}`
+  if (req.body.role !== undefined) detailMsg = `Changed role for ${user.full_name} to ${req.body.role}`
+
+  await store.createLog({
+    type: 'UPDATE',
+    action: 'Profile Updated',
+    details: detailMsg,
+    userId: actingUser.id,
+    userName: actingUser.full_name || actingUser.identifier,
+    userIp: req.ip
+  })
+
   res.json({ ok: true, user })
 }))
 
@@ -728,93 +964,654 @@ app.get('/api/admin/students', authMiddleware, authorize(PERMISSIONS.MANAGE_USER
   res.json({ ok: true, students })
 }))
 
-// --- INSTRUCTIONS Endpoints ---
+app.get('/api/admin/logs', authMiddleware, authorize(PERMISSIONS.MANAGE_USERS), asyncHandler(async (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 100, 500)
+  const list = await store.listLogs(limit)
+  console.log(`[ADMIN] Fetched ${list.length} activity logs`)
+  res.json({ ok: true, logs: list })
+}))
 
-app.get('/api/instructions', authMiddleware, asyncHandler(async (req, res) => {
-  let instructions = await store.listInstructions()
+app.get('/api/me/logs', authMiddleware, asyncHandler(async (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 100, 500)
+  const list = await store.listUserLogs(limit, req.user.id)
+  res.json({ ok: true, logs: list })
+}))
 
-  if (req.user.role === 'student') {
-    const allowedCourseKeys = await studentAllowedCourseKeys(req.user.id)
-    const allowedTypes = new Set(['curriculum', 'syllabus', 'lesson'])
+// --- Faculty Module API ---
 
-    // Students only see active materials of supported types for their own course.
-    instructions = instructions.filter((i) => {
-      const type = String(i?.type || '').trim().toLowerCase()
-      const status = String(i?.status || '').trim().toLowerCase()
-      const courseKey = normalizeCourseKey(i?.course)
-      if (!allowedTypes.has(type)) return false
-      if (status && status !== 'active') return false
-      if (allowedCourseKeys.size === 0) return false
-      return allowedCourseKeys.has(courseKey)
+// Subjects
+app.get('/api/subjects', authMiddleware, asyncHandler(async (req, res) => {
+  const list = await store.listSubjects()
+  res.json({ ok: true, subjects: list })
+}))
+
+app.post('/api/subjects', authMiddleware, authorize(PERMISSIONS.MANAGE_USERS), asyncHandler(async (req, res) => {
+  const { code, name, description, units } = req.body
+  if (!code || !name) return res.status(400).json({ error: 'Code and Name are required' })
+  const sub = await store.createSubject({ code, name, description, units: Number(units) || 0 })
+  res.status(201).json({ ok: true, subject: sub })
+}))
+
+app.patch('/api/subjects/:id', authMiddleware, authorize(PERMISSIONS.MANAGE_USERS), asyncHandler(async (req, res) => {
+  const id = Number(req.params.id)
+  const sub = await store.updateSubject(id, req.body)
+  res.json({ ok: true, subject: sub })
+}))
+
+app.delete('/api/subjects/:id', authMiddleware, authorize(PERMISSIONS.MANAGE_USERS), asyncHandler(async (req, res) => {
+  const id = Number(req.params.id)
+  await store.deleteSubject(id)
+  res.json({ ok: true })
+}))
+
+// Teaching Loads
+app.get('/api/teaching-loads', authMiddleware, asyncHandler(async (req, res) => {
+  const facultyId = req.query.facultyId || (req.user.role === 'faculty' ? req.user.id : null)
+  const list = await store.listTeachingLoads(facultyId)
+  res.json({ ok: true, teachingLoads: list })
+}))
+
+app.post('/api/teaching-loads', authMiddleware, authorize(PERMISSIONS.MANAGE_USERS), asyncHandler(async (req, res) => {
+  const { facultyId, subjectId, sectionId, semester, academicYear } = req.body
+  if (!facultyId || !subjectId || !sectionId) return res.status(400).json({ error: 'Faculty, Subject, and Section are required' })
+  const load = await store.createTeachingLoad({
+    faculty_id: Number(facultyId),
+    subject_id: Number(subjectId),
+    section_id: sectionId,
+    semester,
+    academic_year: academicYear
+  })
+  res.status(201).json({ ok: true, teachingLoad: load })
+}))
+
+app.delete('/api/teaching-loads/:id', authMiddleware, authorize(PERMISSIONS.MANAGE_USERS), asyncHandler(async (req, res) => {
+  const id = Number(req.params.id)
+  await store.deleteTeachingLoad(id)
+  res.json({ ok: true })
+}))
+
+// Schedules
+app.get('/api/schedules', authMiddleware, asyncHandler(async (req, res) => {
+  const loadId = req.query.teachingLoadId
+  const list = await store.listSchedules(loadId)
+  res.json({ ok: true, schedules: list })
+}))
+
+app.post('/api/schedules', authMiddleware, authorize(PERMISSIONS.SCHEDULING_MANAGE), asyncHandler(async (req, res) => {
+  const { teachingLoadId, day, startTime, endTime, room } = req.body
+  if (!teachingLoadId || !day || !startTime || !endTime) return res.status(400).json({ error: 'Missing schedule details' })
+
+  // Conflict detection
+  const overlaps = await store.findOverlappingSchedules(day, startTime, endTime, room)
+  if (overlaps.length > 0) {
+    return res.status(409).json({ error: 'Schedule conflict detected', overlaps })
+  }
+
+  const sch = await store.createSchedule({
+    teaching_load_id: Number(teachingLoadId),
+    day,
+    start_time: startTime,
+    end_time: endTime,
+    room
+  })
+  res.status(201).json({ ok: true, schedule: sch })
+}))
+
+app.delete('/api/schedules/:id', authMiddleware, authorize(PERMISSIONS.SCHEDULING_MANAGE), asyncHandler(async (req, res) => {
+  const id = Number(req.params.id)
+  await store.deleteSchedule(id)
+  res.json({ ok: true })
+}))
+
+// Documents
+app.get('/api/documents', authMiddleware, asyncHandler(async (req, res) => {
+  const { facultyId, subjectId, status } = req.query
+  const list = await store.listDocuments(facultyId, subjectId)
+  // Filter by status if provided
+  const filtered = status ? list.filter(d => d.status === status) : list
+  res.json({ ok: true, documents: filtered })
+}))
+
+app.post('/api/documents', authMiddleware, authorize(PERMISSIONS.DOC_CREATE), asyncHandler(async (req, res) => {
+  const { subjectId, title, fileUrl, fileType } = req.body
+  if (!subjectId || !title) return res.status(400).json({ error: 'Subject ID and title are required' })
+
+  // Determine initial status based on role
+  let initialStatus = 'pending_faculty'
+  if (req.user.role === 'faculty' || req.user.role === 'secretary' || req.user.role === 'faculty_professor') {
+    initialStatus = 'pending_chair'
+  } else if (req.user.role === 'student') {
+    initialStatus = 'pending_faculty'
+  }
+
+  const doc = await store.createDocument({
+    faculty_id: req.user.role !== 'student' ? req.user.id : null,
+    student_id: req.user.role === 'student' ? req.user.id : null,
+    subject_id: Number(subjectId),
+    title,
+    file_url: fileUrl,
+    file_type: fileType,
+    status: initialStatus
+  })
+  res.status(201).json({ ok: true, document: doc })
+}))
+
+app.patch('/api/documents/:id/approval', authMiddleware, authorize(PERMISSIONS.DOC_APPROVE), asyncHandler(async (req, res) => {
+  const id = Number(req.params.id)
+  const { action, comments } = req.body // action: 'approve' or 'reject'
+
+  if (!['approve', 'reject'].includes(action)) {
+    return res.status(400).json({ error: 'Invalid action' })
+  }
+
+  const doc = await store.findDocumentById(id)
+  if (!doc) return res.status(404).json({ error: 'Document not found' })
+
+  let nextStatus = 'rejected'
+  if (action === 'approve') {
+    if (req.user.role === 'faculty' || req.user.role === 'faculty_professor') {
+      nextStatus = 'pending_chair'
+    } else if (req.user.role === 'department_chair') {
+      nextStatus = 'pending_dean'
+    } else if (req.user.role === 'dean' || req.user.role === 'admin') {
+      nextStatus = 'approved'
+    }
+  }
+
+  const updated = await store.updateDocumentStatus(id, nextStatus, req.user.id, comments)
+  res.json({ ok: true, document: updated })
+}))
+
+app.delete('/api/documents/:id', authMiddleware, authorize(PERMISSIONS.DOC_DELETE), asyncHandler(async (req, res) => {
+  const id = Number(req.params.id)
+  await store.deleteDocument(id)
+  res.json({ ok: true })
+}))
+
+async function handleResearchList(req, res) {
+  const scope = String(req.query.scope || 'repository').toLowerCase()
+  const year = req.query.year ? Number(req.query.year) : null
+  const course = String(req.query.course || '').trim()
+  const keyword = String(req.query.keyword || '').trim()
+  const author = String(req.query.author || '').trim()
+  const statusFilter = String(req.query.status || '').trim()
+
+  let filter = {}
+  if (scope === 'repository') {
+    filter.status = 'published'
+  } else if (scope === 'mine') {
+    filter.created_by_user_id = userNumId(req.user)
+  } else if (scope === 'adviser_review') {
+    filter.status = 'under_faculty_review'
+    filter.adviser_faculty_id = userNumId(req.user)
+  } else if (scope === 'pending_approval') {
+    filter.status = 'pending_approval'
+  } else if (scope === 'all' && (req.user.role === 'admin' || req.user.role === 'secretary')) {
+    filter = {}
+  } else {
+    filter.status = 'published'
+  }
+
+  if (statusFilter && (scope === 'all' || scope === 'mine')) {
+    filter = { ...filter, status: statusFilter }
+  }
+
+  if (year && Number.isFinite(year)) filter.year = year
+  if (course && ['CS', 'IT'].includes(course)) filter.course = course
+
+  let list = await store.listResearchPublications(filter)
+
+  if (keyword) {
+    const re = new RegExp(keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
+    list = list.filter(
+      (p) =>
+        re.test(p.title || '') ||
+        re.test(p.abstract || '') ||
+        (Array.isArray(p.keywords) && p.keywords.some((k) => re.test(String(k)))),
+    )
+  }
+  if (author) {
+    const re = new RegExp(author.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
+    list = list.filter((p) => {
+      if (re.test(p.adviser_name || '')) return true
+      const authors = Array.isArray(p.authors) ? p.authors : []
+      return authors.some((a) => re.test(String(a.display_name || '')))
     })
   }
 
-  res.json({ ok: true, instructions })
-}))
-
-app.get('/api/instructions/:id', authMiddleware, asyncHandler(async (req, res) => {
-  const instruction = await store.getInstructionById(req.params.id)
-  if (!instruction) return res.status(404).json({ error: 'Instruction not found' })
-
-  if (req.user.role === 'student') {
-    const allowedCourseKeys = await studentAllowedCourseKeys(req.user.id)
-    const type = String(instruction?.type || '').trim().toLowerCase()
-    const status = String(instruction?.status || '').trim().toLowerCase()
-    const courseKey = normalizeCourseKey(instruction?.course)
-    const allowedTypes = new Set(['curriculum', 'syllabus', 'lesson'])
-
-    if (allowedCourseKeys.size === 0 || !allowedTypes.has(type) || (status && status !== 'active') || !allowedCourseKeys.has(courseKey)) {
-      return res.status(403).json({ error: 'Access denied' })
+  if (scope === 'repository' || scope === 'mine') {
+    list = list.filter((item) => canViewResearchItem(req.user, item))
+  } else if (scope === 'adviser_review') {
+    list = list.filter((item) => canViewResearchItem(req.user, item))
+  } else if (scope === 'pending_approval') {
+    if (!['dean', 'department_chair', 'admin'].includes(req.user.role)) {
+      list = []
     }
   }
 
-  // Enhanced: If it's a GridFS link, include file metadata for smart frontend previews
-  if (instruction.link && instruction.link.startsWith('gridfs://') && store.gridFsBucket) {
-    try {
-      const fileIdString = instruction.link.replace('gridfs://', '')
-      const fileId = new ObjectId(fileIdString)
-      const files = await store.gridFsBucket.find({ _id: fileId }).toArray()
+  res.json({ ok: true, items: list.map(researchForClient) })
+}
 
-      if (files.length > 0) {
-        const file = files[0]
-        // GridFS can store type in .contentType or .metadata.contentType depending on driver/version
-        instruction.mimeType = file.contentType || (file.metadata && file.metadata.contentType)
-        instruction.fileName = file.filename || (file.metadata && file.metadata.originalName)
+// --- College Research Repository ---
+app.get(
+  '/api/research/author-suggestions',
+  authMiddleware,
+  authorize(PERMISSIONS.COLLEGE_RESEARCH_VIEW),
+  asyncHandler(async (req, res) => {
+    const q = String(req.query.q || '').trim()
+    const lim = Math.min(80, Math.max(5, Number(req.query.limit) || 55))
+    const course = String(req.query.course || '').trim()
+    const list = await store.searchUsersForResearchAuthors(q, lim, course)
+    res.json({ ok: true, users: list })
+  }),
+)
 
-        console.log(`[DATABASE] File found: ${instruction.fileName} (${instruction.mimeType || 'unknown type'})`)
-      } else {
-        console.warn(`[DATABASE] WARNING: No file found in GridFS for ID: ${fileIdString}`)
+app.get(
+  '/api/research/advisers',
+  authMiddleware,
+  authorize(PERMISSIONS.COLLEGE_RESEARCH_VIEW),
+  asyncHandler(async (req, res) => {
+    const list = await store.listFacultyForResearchAdviser(300)
+    res.json({ ok: true, advisers: list })
+  }),
+)
+
+app.get(
+  '/api/research/analytics',
+  authMiddleware,
+  authorize(PERMISSIONS.COLLEGE_RESEARCH_VIEW),
+  asyncHandler(async (req, res) => {
+    const elevated = hasPermission(req.user.role, PERMISSIONS.VIEW_REPORTS) || req.user.role === 'admin'
+    if (!elevated) {
+      const pub = await store.listResearchPublications({ status: 'published' })
+      const byYear = {}
+      for (const p of pub) {
+        const y = p.year ?? 'unknown'
+        byYear[y] = (byYear[y] || 0) + 1
       }
-    } catch (e) {
-      console.error(`[DATABASE] ERROR during file lookup: ${e.message}`)
+      return res.json({
+        ok: true,
+        scope: 'public',
+        analytics: { totalPublished: pub.length, byYear },
+      })
     }
-  }
+    const analytics = await store.getResearchAnalytics()
+    res.json({ ok: true, scope: 'full', analytics })
+  }),
+)
 
-  res.json({ ok: true, instruction })
+// Primary list URL (avoids rare proxy / tooling issues with exact path "/api/research").
+app.get(
+  '/api/college-research',
+  authMiddleware,
+  authorize(PERMISSIONS.COLLEGE_RESEARCH_VIEW),
+  asyncHandler(handleResearchList),
+)
+
+app.get(
+  '/api/research',
+  authMiddleware,
+  authorize(PERMISSIONS.COLLEGE_RESEARCH_VIEW),
+  asyncHandler(handleResearchList),
+)
+
+// More specific routes must be registered before /api/research/:id
+app.get(
+  '/api/research/:id/file',
+  authMiddleware,
+  authorize(PERMISSIONS.COLLEGE_RESEARCH_VIEW),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id)
+    const item = await store.findResearchPublicationById(id)
+    if (!item || !item.file_stored_name) return res.status(404).json({ error: 'File not found' })
+    if (!canViewResearchItem(req.user, item)) return res.status(403).json({ error: 'Forbidden' })
+    const base = path.basename(item.file_stored_name)
+    if (base !== item.file_stored_name || !base.startsWith('r-')) return res.status(400).json({ error: 'Invalid file' })
+    const fp = path.join(researchUploadDir, base)
+    if (!fs.existsSync(fp)) return res.status(404).json({ error: 'File missing on server' })
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(item.file_original_name || 'research.pdf')}"`)
+    fs.createReadStream(fp).pipe(res)
+  }),
+)
+
+app.get(
+  '/api/research/:id',
+  authMiddleware,
+  authorize(PERMISSIONS.COLLEGE_RESEARCH_VIEW),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id)
+    if (!Number.isFinite(id) || id < 1) return res.status(400).json({ error: 'Invalid id' })
+    const item = await store.findResearchPublicationById(id)
+    if (!item) return res.status(404).json({ error: 'Not found' })
+    if (!canViewResearchItem(req.user, item)) return res.status(403).json({ error: 'Forbidden' })
+    res.json({ ok: true, item: researchForClient(item) })
+  }),
+)
+
+app.post(
+  '/api/research',
+  authMiddleware,
+  authorize(PERMISSIONS.DOC_CREATE),
+  (req, res, next) => {
+    researchUpload.single('file')(req, res, (err) => {
+      if (err) return res.status(400).json({ error: err.message || 'Upload failed' })
+      next()
+    })
+  },
+  asyncHandler(async (req, res) => {
+    const body = req.body || {}
+    const title = String(body.title || '').trim()
+    const abstract = String(body.abstract || '').trim()
+    const adviserName = String(body.adviserName || '').trim()
+    const adviserFacultyId = body.adviserFacultyId ? Number(body.adviserFacultyId) : null
+    const year = body.year != null ? Number(body.year) : NaN
+    const course = String(body.course || '').trim()
+    const category = String(body.category || '').trim()
+    const researchType = String(body.researchType || 'capstone').trim()
+    let keywords = []
+    try {
+      keywords = body.keywords ? JSON.parse(body.keywords) : []
+    } catch {
+      keywords = String(body.keywords || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    }
+    let coAuthorIds = []
+    try {
+      coAuthorIds = body.coAuthorUserIds ? JSON.parse(body.coAuthorUserIds) : []
+    } catch {
+      coAuthorIds = []
+    }
+    if (!Array.isArray(coAuthorIds)) coAuthorIds = []
+
+    const status = resolveNewResearchStatus(body, req.user)
+    if (status !== 'draft' && !title) return res.status(400).json({ error: 'Title is required' })
+    if (status !== 'draft' && !abstract) return res.status(400).json({ error: 'Abstract is required' })
+    if (!Number.isFinite(year) || year < 1970 || year > 2100) {
+      return res.status(400).json({ error: 'Valid year is required' })
+    }
+    if (!['CS', 'IT'].includes(course)) return res.status(400).json({ error: 'Course must be CS or IT' })
+    if (req.user.role === 'student' && status === 'under_faculty_review') {
+      if (!adviserFacultyId) return res.status(400).json({ error: 'Adviser is required for student submissions' })
+    }
+    if (status !== 'draft' && !req.file) {
+      return res.status(400).json({ error: 'PDF file is required for submission' })
+    }
+
+    const { authors, co_author_user_ids } = await buildResearchAuthors(store, req.user, coAuthorIds)
+    let advName = adviserName
+    if (adviserFacultyId) {
+      const adv = await store.getUserByIdForAuth(adviserFacultyId)
+      if (adv) advName = researchCreatorLabel(adv)
+    }
+
+    const now = new Date().toISOString()
+    let repository_ref
+    const yNow = new Date(now).getFullYear()
+    if (status === 'published') {
+      repository_ref = await store.nextResearchRepositoryRef(yNow)
+    }
+    const submission_ref = await store.nextResearchSubmissionRef(yNow)
+
+    const doc = await store.createResearchPublication({
+      title,
+      abstract,
+      adviser_name: advName || null,
+      adviser_faculty_id: adviserFacultyId || null,
+      year,
+      course,
+      category: category || 'General',
+      research_type: researchType,
+      keywords,
+      authors,
+      co_author_user_ids,
+      file_stored_name: req.file ? req.file.filename : null,
+      file_original_name: req.file ? req.file.originalname : null,
+      status,
+      created_by_user_id: userNumId(req.user),
+      created_by_role: req.user.role,
+      reviewed_by_faculty_id: null,
+      review_comments: null,
+      approved_by_user_id: null,
+      approval_comments: null,
+      published_at: status === 'published' ? now : null,
+      submission_ref,
+      ...(repository_ref ? { repository_ref } : {}),
+    })
+
+    await store.createLog({
+      type: 'CREATE',
+      action: 'Research record created',
+      details: `Research "${title}" (${status}) id ${doc.id}`,
+      userId: userNumId(req.user),
+      userName: researchCreatorLabel(req.user),
+      userIp: req.ip,
+    })
+
+    res.status(201).json({ ok: true, item: researchForClient(doc) })
+  }),
+)
+
+app.patch(
+  '/api/research/:id',
+  authMiddleware,
+  authorize(PERMISSIONS.COLLEGE_RESEARCH_VIEW),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id)
+    const item = await store.findResearchPublicationById(id)
+    if (!item) return res.status(404).json({ error: 'Not found' })
+    if (!canEditResearchItem(req.user, item)) return res.status(403).json({ error: 'Forbidden' })
+
+    const patch = {}
+    if (req.body.title !== undefined) patch.title = String(req.body.title || '').trim()
+    if (req.body.abstract !== undefined) patch.abstract = String(req.body.abstract || '').trim()
+    if (req.body.adviserName !== undefined) patch.adviser_name = String(req.body.adviserName || '').trim() || null
+    if (req.body.adviserFacultyId !== undefined) {
+      const af = req.body.adviserFacultyId ? Number(req.body.adviserFacultyId) : null
+      patch.adviser_faculty_id = af
+      if (af) {
+        const adv = await store.getUserByIdForAuth(af)
+        if (adv) patch.adviser_name = researchCreatorLabel(adv)
+      }
+    }
+    if (req.body.year !== undefined) {
+      const y = Number(req.body.year)
+      if (Number.isFinite(y)) patch.year = y
+    }
+    if (req.body.course !== undefined && ['CS', 'IT'].includes(String(req.body.course))) patch.course = String(req.body.course)
+    if (req.body.category !== undefined) patch.category = String(req.body.category || '').trim()
+    if (req.body.researchType !== undefined) patch.research_type = String(req.body.researchType || '').trim()
+    if (req.body.keywords !== undefined) {
+      if (Array.isArray(req.body.keywords)) patch.keywords = req.body.keywords.map((k) => String(k).trim()).filter(Boolean)
+    }
+    if (req.body.coAuthorUserIds !== undefined && Array.isArray(req.body.coAuthorUserIds)) {
+      const creatorRow = await store.getUserByIdForAuth(item.created_by_user_id)
+      if (!creatorRow) return res.status(400).json({ error: 'Primary author not found' })
+      const built = await buildResearchAuthors(store, creatorRow, req.body.coAuthorUserIds)
+      patch.authors = built.authors
+      patch.co_author_user_ids = built.co_author_user_ids
+    }
+    if (req.body.status !== undefined) {
+      const next = String(req.body.status || '').toLowerCase()
+      if (next === 'submitted' && item.status === 'draft') {
+        if (!item.file_stored_name) return res.status(400).json({ error: 'Upload a PDF before submitting' })
+        if (item.created_by_role === 'student') {
+          const adv = patch.adviser_faculty_id ?? item.adviser_faculty_id
+          if (!adv) return res.status(400).json({ error: 'Assign an adviser before submitting' })
+          patch.status = 'under_faculty_review'
+        }
+        else if (['secretary', 'admin'].includes(req.user.role)) {
+          patch.status = resolveNewResearchStatus({ status: 'submitted', requireApproval: req.body.requireApproval }, req.user)
+        } else patch.status = 'pending_approval'
+      }
+      if (next === 'draft' && ['draft', 'rejected'].includes(item.status)) patch.status = 'draft'
+      if (
+        next === 'resubmit' &&
+        item.status === 'rejected' &&
+        item.created_by_user_id === userNumId(req.user)
+      ) {
+        if (!item.file_stored_name) return res.status(400).json({ error: 'PDF required to resubmit' })
+        patch.status = item.created_by_role === 'student' ? 'under_faculty_review' : 'pending_approval'
+      }
+    }
+
+    const patchWithRef = await assignRepositoryRefIfPublishing(store, item, patch)
+    const updated = await store.updateResearchPublication(id, patchWithRef)
+    res.json({ ok: true, item: researchForClient(updated) })
+  }),
+)
+
+app.post(
+  '/api/research/:id/pdf',
+  authMiddleware,
+  authorize(PERMISSIONS.COLLEGE_RESEARCH_VIEW),
+  (req, res, next) => {
+    researchUpload.single('file')(req, res, (err) => {
+      if (err) return res.status(400).json({ error: err.message || 'Upload failed' })
+      next()
+    })
+  },
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id)
+    const item = await store.findResearchPublicationById(id)
+    if (!item) return res.status(404).json({ error: 'Not found' })
+    if (!canEditResearchItem(req.user, item)) return res.status(403).json({ error: 'Forbidden' })
+    if (!req.file) return res.status(400).json({ error: 'PDF required' })
+    if (item.file_stored_name) deleteResearchStoredFile(item.file_stored_name)
+    const updated = await store.updateResearchPublication(id, {
+      file_stored_name: req.file.filename,
+      file_original_name: req.file.originalname,
+    })
+    res.json({ ok: true, item: researchForClient(updated) })
+  }),
+)
+
+app.post(
+  '/api/research/:id/faculty-review',
+  authMiddleware,
+  authorize(PERMISSIONS.DOC_APPROVE),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id)
+    const item = await store.findResearchPublicationById(id)
+    if (!item) return res.status(404).json({ error: 'Not found' })
+    if (item.status !== 'under_faculty_review') return res.status(400).json({ error: 'Not awaiting faculty review' })
+    const uid = userNumId(req.user)
+    if (Number(item.adviser_faculty_id) !== uid && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only the assigned adviser can review' })
+    }
+    const action = String(req.body?.action || '').toLowerCase()
+    const comments = String(req.body?.comments || '').trim() || null
+    if (action === 'reject') {
+      const updated = await store.updateResearchPublication(id, {
+        status: 'rejected',
+        reviewed_by_faculty_id: uid,
+        review_comments: comments,
+      })
+      await store.pushResearchWorkflow(id, { at: new Date().toISOString(), action: 'rejected_by_adviser', by_user_id: uid, note: comments })
+      return res.json({ ok: true, item: researchForClient(updated) })
+    }
+    if (action === 'approve') {
+      const updated = await store.updateResearchPublication(id, {
+        status: 'pending_approval',
+        reviewed_by_faculty_id: uid,
+        review_comments: comments,
+      })
+      await store.pushResearchWorkflow(id, { at: new Date().toISOString(), action: 'forwarded_to_chair_dean', by_user_id: uid, note: comments })
+      return res.json({ ok: true, item: researchForClient(updated) })
+    }
+    return res.status(400).json({ error: 'Invalid action' })
+  }),
+)
+
+app.post(
+  '/api/research/:id/final-approval',
+  authMiddleware,
+  authorize(PERMISSIONS.DOC_APPROVE),
+  asyncHandler(async (req, res) => {
+    if (!['dean', 'department_chair', 'admin'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Only Chair or Dean can finalize approval' })
+    }
+    const id = Number(req.params.id)
+    const item = await store.findResearchPublicationById(id)
+    if (!item) return res.status(404).json({ error: 'Not found' })
+    if (item.status !== 'pending_approval') return res.status(400).json({ error: 'Not pending approval' })
+    const action = String(req.body?.action || '').toLowerCase()
+    const comments = String(req.body?.comments || '').trim() || null
+    const uid = userNumId(req.user)
+    if (action === 'reject') {
+      const updated = await store.updateResearchPublication(id, {
+        status: 'rejected',
+        approved_by_user_id: uid,
+        approval_comments: comments,
+      })
+      await store.pushResearchWorkflow(id, { at: new Date().toISOString(), action: 'rejected_final', by_user_id: uid, note: comments })
+      return res.json({ ok: true, item: researchForClient(updated) })
+    }
+    if (action === 'approve') {
+      const now = new Date().toISOString()
+      const y = new Date(now).getFullYear()
+      const repository_ref = item.repository_ref || (await store.nextResearchRepositoryRef(y))
+      const updated = await store.updateResearchPublication(id, {
+        status: 'published',
+        approved_by_user_id: uid,
+        approval_comments: comments,
+        published_at: now,
+        repository_ref,
+      })
+      await store.pushResearchWorkflow(id, { at: now, action: 'published', by_user_id: uid, note: comments })
+      return res.json({ ok: true, item: researchForClient(updated) })
+    }
+    return res.status(400).json({ error: 'Invalid action' })
+  }),
+)
+
+app.delete(
+  '/api/research/:id',
+  authMiddleware,
+  requireRole(ROLES.ADMIN),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id)
+    const item = await store.findResearchPublicationById(id)
+    if (!item) return res.status(404).json({ error: 'Not found' })
+    if (item.file_stored_name) deleteResearchStoredFile(item.file_stored_name)
+    await store.deleteResearchPublication(id)
+    res.json({ ok: true })
+  }),
+)
+
+// Evaluations
+app.get('/api/evaluations', authMiddleware, asyncHandler(async (req, res) => {
+  const facultyId = req.query.facultyId || (req.user.role === 'faculty' ? req.user.id : null)
+  if (!facultyId) return res.status(400).json({ error: 'Faculty ID required' })
+  const list = await store.listEvaluations(facultyId)
+  res.json({ ok: true, evaluations: list })
 }))
 
-app.post('/api/instructions', authMiddleware, authorize(PERMISSIONS.INSTRUCTIONS_MANAGE), asyncHandler(async (req, res) => {
-  if (!req.body.title || !req.body.type) {
-    return res.status(400).json({ error: 'Title and Type are required' })
-  }
-  const id = await store.createInstruction({
-    type: String(req.body.type || 'lesson'),
-    title: String(req.body.title || ''),
-    course: String(req.body.course || ''),
-    subject: String(req.body.subject || ''),
-    description: String(req.body.description || ''),
-    status: String(req.body.status || 'Draft'),
-    author: String(req.body.author || req.user.full_name || 'Administrator'),
-    link: String(req.body.link || ''),
-    created_at: nowIso(),
-    updated_at: nowIso()
+app.post('/api/evaluations', authMiddleware, asyncHandler(async (req, res) => {
+  const { facultyId, rating, feedback } = req.body
+  if (!facultyId || !rating) return res.status(400).json({ error: 'Faculty ID and rating are required' })
+  const ev = await store.createEvaluation({
+    faculty_id: Number(facultyId),
+    student_id: req.user.id,
+    rating: Number(rating),
+    feedback
   })
-  res.status(201).json({ ok: true, id })
+  res.status(201).json({ ok: true, evaluation: ev })
 }))
 
-app.put('/api/instructions/:id', authMiddleware, authorize(PERMISSIONS.INSTRUCTIONS_MANAGE), asyncHandler(async (req, res) => {
-  const existing = await store.getInstructionById(req.params.id)
-  if (!existing) return res.status(404).json({ error: 'Instruction not found' })
+// Faculty Profile update (specialized)
+app.patch('/api/faculty/profile', authMiddleware, authorize(PERMISSIONS.FACULTY_MY_PROFILE), asyncHandler(async (req, res) => {
+  const p = await store.updateFacultyProfile(req.user.id, req.body)
+  res.json({ ok: true, profile: p })
+}))
+
+// --- Events Module API ---
+
+app.get('/api/events', authMiddleware, authorize(PERMISSIONS.EVENTS_VIEW), asyncHandler(async (req, res) => {
+  const query = req.query || {}
+  const list = await store.listEvents(query)
 
   // Apply visibility filters based on user role/dept if not admin
   const filtered = list.filter(event => {
@@ -827,202 +1624,37 @@ app.put('/api/instructions/:id', authMiddleware, authorize(PERMISSIONS.INSTRUCTI
     if (event.department && event.department === req.user.department) return true
     return false
   })
-  res.json({ ok: true })
+
+  res.json({ ok: true, events: filtered })
 }))
 
-app.delete('/api/instructions/:id', authMiddleware, authorize(PERMISSIONS.INSTRUCTIONS_MANAGE), asyncHandler(async (req, res) => {
-  await store.deleteInstruction(req.params.id)
-  res.json({ ok: true })
-}))
-
-// --- SCHEDULING Endpoints ---
-
-app.get('/api/scheduling', authMiddleware, asyncHandler(async (req, res) => {
-  const schedules = await store.listSchedules()
-  res.json({ ok: true, schedules })
-}))
-
-app.get('/api/scheduling/:id', authMiddleware, asyncHandler(async (req, res) => {
-  const schedule = await store.getScheduleById(req.params.id)
-  if (!schedule) return res.status(404).json({ error: 'Schedule not found' })
-  res.json({ ok: true, schedule })
-}))
-
-app.post('/api/scheduling', authMiddleware, authorize(PERMISSIONS.SCHEDULING_MANAGE), asyncHandler(async (req, res) => {
-  const id = await store.createSchedule({
-    ...req.body,
-    created_at: nowIso(),
-    updated_at: nowIso()
-  })
-  res.status(201).json({ ok: true, id })
-}))
-
-app.put('/api/scheduling/:id', authMiddleware, authorize(PERMISSIONS.SCHEDULING_MANAGE), asyncHandler(async (req, res) => {
-  const existing = await store.getScheduleById(req.params.id)
-  if (!existing) return res.status(404).json({ error: 'Schedule not found' })
-
-  await store.updateSchedule(req.params.id, {
-    ...req.body,
-    updated_at: nowIso()
-  })
-  res.json({ ok: true })
-}))
-
-app.delete('/api/scheduling/:id', authMiddleware, authorize(PERMISSIONS.SCHEDULING_MANAGE), asyncHandler(async (req, res) => {
-  await store.deleteSchedule(req.params.id)
-  res.json({ ok: true })
-}))
-
-// --- COLLEGE RESEARCH Endpoints ---
-
-app.get('/api/research', authMiddleware, asyncHandler(async (req, res) => {
-  const query = {
-    scope: req.query.scope || 'repository',
-    year: req.query.year,
-    course: req.query.course,
-    author: req.query.author,
-    keyword: req.query.keyword,
-    userId: req.user.id
-  }
-  const research = await store.listResearch(query)
-  res.json({ ok: true, research })
-}))
-
-app.get('/api/research/analytics', authMiddleware, asyncHandler(async (req, res) => {
-  const analytics = await store.getResearchAnalytics()
-  res.json({ ok: true, analytics })
-}))
-
-app.get('/api/research/advisers', authMiddleware, asyncHandler(async (req, res) => {
-  const advisers = await store.listResearchAdvisers()
-  res.json({ ok: true, advisers })
-}))
-
-app.get('/api/research/authors/suggestions', authMiddleware, asyncHandler(async (req, res) => {
-  const q = req.query.q || ''
-  const limit = Number(req.query.limit || 10)
-  const course = req.query.course
-  const suggestions = await store.suggestResearchAuthors(q, limit, course)
-  res.json({ ok: true, suggestions })
-}))
-
-app.get('/api/research/:id', authMiddleware, asyncHandler(async (req, res) => {
-  const research = await store.getResearchById(req.params.id)
-  if (!research) return res.status(404).json({ error: 'Research record not found' })
-  res.json({ ok: true, research })
-}))
-
-app.post('/api/research', authMiddleware, authorize(PERMISSIONS.COLLEGE_RESEARCH_MANAGE), asyncHandler(async (req, res) => {
-  const data = {
-    ...req.body,
-    created_by_user_id: req.user.id,
-    created_at: nowIso(),
-    updated_at: nowIso()
-  }
-  const id = await store.createResearch(data)
-  res.status(201).json({ ok: true, id })
-}))
-
-app.patch('/api/research/:id', authMiddleware, authorize(PERMISSIONS.COLLEGE_RESEARCH_MANAGE), asyncHandler(async (req, res) => {
-  const existing = await store.getResearchById(req.params.id)
-  if (!existing) return res.status(404).json({ error: 'Research record not found' })
-
-  // Faculty review logic
-  if (req.body.status === 'under_faculty_review' && !req.body.adviser_faculty_id) {
-    return res.status(400).json({ error: 'Adviser is required for faculty review' })
-  }
-
-  await store.updateResearch(req.params.id, {
-    ...req.body,
-    updated_at: nowIso()
-  })
-  res.json({ ok: true })
-}))
-
-app.delete('/api/research/:id', authMiddleware, authorize(PERMISSIONS.COLLEGE_RESEARCH_MANAGE), asyncHandler(async (req, res) => {
-  await store.deleteResearch(req.params.id)
-  res.json({ ok: true })
-}))
-
-// --- FILE UPLOAD (Common) ---
-
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB limit
-  fileFilter(_req, file, cb) {
-    const allowed = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'application/msword', 'application/vnd.ms-powerpoint', 'image/jpeg', 'image/png']
-    if (allowed.includes(file.mimetype) || file.originalname.match(/\.(pdf|docx|pptx|doc|ppt|jpg|jpeg|png)$/i)) {
-      cb(null, true)
-    } else {
-      cb(new Error('File type not allowed. Please upload PDF, DOCX, PPTX, or image files.'))
-    }
-  }
-})
-
-
-app.post('/api/research/upload', authMiddleware, authorize(PERMISSIONS.COLLEGE_RESEARCH_MANAGE), upload.single('file'), asyncHandler(async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No file provided' })
-  if (!store.researchFilesBucket) return res.status(500).json({ error: 'File storage not available' })
-
-  const bucket = store.researchFilesBucket
-  const filename = `${Date.now()}-research-${req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`
-
-  const fileId = await new Promise((resolve, reject) => {
-    const uploadStream = bucket.openUploadStream(filename, {
-      contentType: req.file.mimetype,
-      metadata: { originalName: req.file.originalname, uploadedBy: req.user.id }
-    })
-    uploadStream.on('finish', () => resolve(uploadStream.id))
-    uploadStream.on('error', reject)
-    uploadStream.end(req.file.buffer)
-  })
-
-  res.status(201).json({
-    ok: true,
-    fileId: fileId.toString(),
-    filename: req.file.originalname,
-    mimeType: req.file.mimetype
-  })
-}))
-
-app.get('/api/research/file/:fileId', authMiddleware, asyncHandler(async (req, res) => {
-  if (!store.researchFilesBucket) return res.status(500).json({ error: 'File storage not available' })
-
-  let objectId
-  try {
-    objectId = new ObjectId(req.params.fileId)
-  } catch {
-    return res.status(400).json({ error: 'Invalid file ID' })
-  }
-
-  const bucket = store.researchFilesBucket
-  const files = await bucket.find({ _id: objectId }).toArray()
-  if (!files.length) return res.status(404).json({ error: 'File not found' })
-
-  const file = files[0]
-  res.setHeader('Content-Type', file.contentType || 'application/pdf')
-  res.setHeader('Content-Disposition', `inline; filename="${file.filename}"`)
-
-  const downloadStream = bucket.openDownloadStream(objectId)
-  downloadStream.pipe(res)
-}))
-
-// --- EVENTS Endpoints ---
-
-app.get('/api/events', authMiddleware, asyncHandler(async (req, res) => {
-  const events = await store.listEvents()
-  res.json({ ok: true, events })
+app.get('/api/events/:id', authMiddleware, authorize(PERMISSIONS.EVENTS_VIEW), asyncHandler(async (req, res) => {
+  const id = Number(req.params.id)
+  const event = await store.getEventById(id)
+  if (!event) return res.status(404).json({ error: 'Event not found' })
+  res.json({ ok: true, event })
 }))
 
 app.post('/api/events', authMiddleware, authorize(PERMISSIONS.EVENTS_MANAGE), asyncHandler(async (req, res) => {
-  const data = {
+  const { title, date_time } = req.body
+  if (!title) return res.status(400).json({ error: 'Event title is required' })
+
+  const event = await store.createEvent({
     ...req.body,
-    created_by_user_id: req.user.id
-  }
-  const result = await store.createEvent(data)
-  res.status(201).json(result)
+    created_by: req.user.id,
+    status: req.user.role === 'admin' ? 'approved' : 'pending'
+  })
+
+  await store.createLog({
+    type: 'CREATE',
+    action: 'Event Created',
+    details: `Event "${title}" created by ${req.user.full_name || req.user.identifier}`,
+    userId: req.user.id,
+    userName: req.user.full_name || req.user.identifier,
+    userIp: req.ip
+  })
+
+  res.status(201).json({ ok: true, event })
 }))
 
 app.patch('/api/events/:id', authMiddleware, authorize(PERMISSIONS.EVENTS_MANAGE), asyncHandler(async (req, res) => {
@@ -1074,97 +1706,23 @@ app.delete('/api/events/:id', authMiddleware, authorize(PERMISSIONS.EVENTS_MANAG
 }))
 
 app.patch('/api/events/:id/approve', authMiddleware, authorize(PERMISSIONS.EVENTS_MANAGE), asyncHandler(async (req, res) => {
-  const result = await store.approveEvent(req.params.id)
-  res.json(result)
-}))
+  const id = Number(req.params.id)
+  const target = await store.getEventById(id)
+  if (!target) return res.status(404).json({ error: 'Event not found' })
 
-app.delete('/api/events/:id', authMiddleware, authorize(PERMISSIONS.EVENTS_MANAGE), asyncHandler(async (req, res) => {
-  const result = await store.deleteEvent(req.params.id)
-  res.json(result)
-}))
+  const updated = await store.approveEvent(id, req.user.id)
 
-app.post('/api/instructions/upload', authMiddleware, authorize(PERMISSIONS.INSTRUCTIONS_MANAGE), upload.single('file'), asyncHandler(async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No file provided' })
-  if (!store.gridFsBucket) return res.status(500).json({ error: 'File storage not available (MongoDB only)' })
-
-  const bucket = store.gridFsBucket
-  const filename = `${Date.now()}-${req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`
-
-  await new Promise((resolve, reject) => {
-    const uploadStream = bucket.openUploadStream(filename, {
-      contentType: req.file.mimetype,
-      metadata: { originalName: req.file.originalname, uploadedBy: req.user.id }
-    })
-    uploadStream.on('finish', () => resolve(uploadStream.id))
-    uploadStream.on('error', reject)
-    uploadStream.end(req.file.buffer)
-  }).then((fileId) => {
-    res.status(201).json({
-      ok: true,
-      fileId: fileId.toString(),
-      filename: req.file.originalname,
-      size: req.file.size,
-      mimeType: req.file.mimetype
-    })
+  await store.createLog({
+    type: 'UPDATE',
+    action: 'Event Approved',
+    details: `Event "${target.title}" approved by ${req.user.full_name || req.user.identifier}`,
+    userId: req.user.id,
+    userName: req.user.full_name || req.user.identifier,
+    userIp: req.ip
   })
+
+  res.json({ ok: true, event: updated })
 }))
-
-app.get('/api/instructions/file/:fileId', authMiddleware, asyncHandler(async (req, res) => {
-  if (!store.gridFsBucket) return res.status(500).json({ error: 'File storage not available' })
-
-  let objectId
-  try {
-    objectId = new ObjectId(req.params.fileId)
-  } catch {
-    return res.status(400).json({ error: 'Invalid file ID' })
-  }
-
-  const bucket = store.gridFsBucket
-  const files = await bucket.find({ _id: objectId }).toArray()
-  if (!files.length) return res.status(404).json({ error: 'File not found' })
-
-  const file = files[0]
-  const isPreview = req.query.preview === '1'
-
-  // Robust MIME Type detection: check GridFS fields and map by extension as fallback
-  let contentType = file.contentType || (file.metadata && file.metadata.contentType)
-
-  if (!contentType || contentType === 'application/octet-stream') {
-    const ext = file.filename.split('.').pop().toLowerCase()
-    const mimeMap = {
-      'pdf': 'application/pdf',
-      'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'doc': 'application/msword',
-      'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'ppt': 'application/vnd.ms-powerpoint',
-      'jpg': 'image/jpeg',
-      'jpeg': 'image/jpeg',
-      'png': 'image/png',
-      'gif': 'image/gif',
-      'webp': 'image/webp',
-      'svg': 'image/svg+xml'
-    }
-    if (mimeMap[ext]) contentType = mimeMap[ext]
-  }
-
-  res.setHeader('Content-Type', contentType || 'application/octet-stream')
-  res.setHeader('X-Content-Type-Options', 'nosniff')
-  res.setHeader('Cache-Control', 'private, max-age=3600')
-
-  if (isPreview) {
-    // For previews, we omit the filename entirely to prevent the browser from auto-downloading.
-    res.setHeader('Content-Disposition', 'inline')
-  } else {
-    // For direct downloads, we include the attachment filename.
-    res.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`)
-  }
-
-
-  const downloadStream = bucket.openDownloadStream(objectId)
-  downloadStream.on('error', () => res.status(404).json({ error: 'File not found' }))
-  downloadStream.pipe(res)
-}))
-
 
 app.use((err, req, res, _next) => {
   // eslint-disable-next-line no-console
@@ -1194,9 +1752,5 @@ function startListening(port, triesLeft) {
   })
 }
 
-if (!process.env.VERCEL) {
-  startListening(PORT, MAX_PORT_TRIES)
-}
-
-export default app
+startListening(PORT, MAX_PORT_TRIES)
 

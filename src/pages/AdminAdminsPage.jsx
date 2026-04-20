@@ -439,54 +439,54 @@ export default function AdminAdminsPage() {
                         const listName = adminFullNameListDisplay(u)
                         const initial = (parts.first || parts.last || listName).charAt(0).toUpperCase() || '?'
                         return (
-                        <tr
-                          key={u.id}
-                          className="admin-student-table-row-enter admin-admins-table-row hover:bg-[rgba(0,0,0,0.02)] dark:hover:bg-[rgba(255,255,255,0.02)] transition-colors"
-                          style={{ '--row-enter-delay': `${Math.min(i, 12) * 0.04}s` }}
-                        >
-                          <td className="px-5 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="h-10 w-10 rounded-xl bg-[var(--accent-soft)] flex items-center justify-center text-[var(--accent)] font-bold text-sm shrink-0">
-                                {initial}
-                              </div>
-                              <div>
-                                <div className="font-semibold text-[var(--text)] flex flex-wrap items-center gap-2">
-                                  {listName}
-                                  {isYou(u) && (
-                                    <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/25">
-                                      You
-                                    </span>
-                                  )}
+                          <tr
+                            key={u.id}
+                            className="admin-student-table-row-enter admin-admins-table-row hover:bg-[rgba(0,0,0,0.02)] dark:hover:bg-[rgba(255,255,255,0.02)] transition-colors"
+                            style={{ '--row-enter-delay': `${Math.min(i, 12) * 0.04}s` }}
+                          >
+                            <td className="px-5 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 rounded-xl bg-[var(--accent-soft)] flex items-center justify-center text-[var(--accent)] font-bold text-sm shrink-0">
+                                  {initial}
                                 </div>
-                                <div className="text-[11px] text-[var(--text-muted)] font-mono mt-0.5">ID {u.id}</div>
+                                <div>
+                                  <div className="font-semibold text-[var(--text)] flex flex-wrap items-center gap-2">
+                                    {listName}
+                                    {isYou(u) && (
+                                      <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[var(--accent)]/15 text-[var(--accent)] border border-[var(--accent)]/25">
+                                        You
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-[11px] text-[var(--text-muted)] font-mono mt-0.5">ID {u.id}</div>
+                                </div>
                               </div>
-                            </div>
-                          </td>
-                          <td className="px-5 py-4 text-sm text-[var(--text-muted)]">{adminLoginLabel(u)}</td>
-                          <td className="px-5 py-4">
-                            {isUserActive(u) ? (
-                              <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                                Active
-                              </span>
-                            ) : (
-                              <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-slate-500/10 text-slate-500 border border-slate-500/20">
-                                Inactive
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-5 py-4">
-                            {u.twofa_enabled ? (
-                              <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-violet-500/10 text-violet-600 border border-violet-500/20 inline-flex items-center gap-1.5">
-                                <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                                </svg>
-                                2FA
-                              </span>
-                            ) : (
-                              <span className="text-[10px] text-[var(--text-muted)]">Standard</span>
-                            )}
-                          </td>
-                        </tr>
+                            </td>
+                            <td className="px-5 py-4 text-sm text-[var(--text-muted)]">{adminLoginLabel(u)}</td>
+                            <td className="px-5 py-4">
+                              {isUserActive(u) ? (
+                                <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                                  Active
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-slate-500/10 text-slate-500 border border-slate-500/20">
+                                  Inactive
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-5 py-4">
+                              {u.twofa_enabled ? (
+                                <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-violet-500/10 text-violet-600 border border-violet-500/20 inline-flex items-center gap-1.5">
+                                  <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                                  </svg>
+                                  2FA
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-[var(--text-muted)]">Standard</span>
+                              )}
+                            </td>
+                          </tr>
                         )
                       })}
                     </tbody>

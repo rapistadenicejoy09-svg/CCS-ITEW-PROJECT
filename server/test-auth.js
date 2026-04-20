@@ -23,7 +23,7 @@ async function request(path, options = {}) {
 
 async function runTests() {
   console.log('--- Starting Auth/RBAC Tests ---')
-  
+
   // 1. Register User
   console.log('1. Registering user...')
   let res = await request('/auth/register', {

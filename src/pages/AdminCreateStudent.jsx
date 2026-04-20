@@ -34,7 +34,7 @@ const FSelect = ({ children, className = '', ...props }) => (
     </select>
     <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
       <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M1 1L5 5L9 1" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M1 1L5 5L9 1" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     </div>
   </div>
@@ -319,7 +319,7 @@ export default function AdminCreateStudent() {
               </div>
               <div>
                 <Label>Phone</Label>
-                <FInput inputMode="numeric" maxLength={11} value={fd.personalInformation.phone} 
+                <FInput inputMode="numeric" maxLength={11} value={fd.personalInformation.phone}
                   onChange={e => pi({ phone: e.target.value.replace(/\D/g, '').slice(0, 11) })} placeholder="09XXXXXXXXX" />
               </div>
               <div>
@@ -367,9 +367,9 @@ export default function AdminCreateStudent() {
               </div>
               <div>
                 <Label required>Section</Label>
-                <FSelect 
+                <FSelect
                   disabled={!fd.academicInfo.year_level}
-                  value={fd.classSection || ''} 
+                  value={fd.classSection || ''}
                   onChange={e => pf({ classSection: e.target.value })}>
                   <option value="">{fd.academicInfo.year_level ? 'Select section' : 'Choose year first'}</option>
                   {fd.academicInfo.year_level === '1st Year' && (

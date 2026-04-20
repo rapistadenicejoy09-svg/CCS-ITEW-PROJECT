@@ -126,9 +126,6 @@ export default function StudentLogin() {
           </button>
         </form>
 
-        <div className="auth-footer-text">
-          Student accounts are created by the administrator.
-        </div>
       </div>
     </div>
   )

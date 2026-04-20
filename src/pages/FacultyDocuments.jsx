@@ -33,7 +33,7 @@ export default function FacultyDocuments() {
 
   async function handleUpload() {
     if (!loadId || !fileUrl) return alert('Subject and URL are required')
-    
+
     // Find the correct subjectId from the teaching load
     const selectedLoad = loads.find(l => String(l.id) === String(loadId))
     if (!selectedLoad) return alert('Invalid subject selected')
@@ -78,7 +78,7 @@ export default function FacultyDocuments() {
 
       <div className="content-panel">
         <div className="content-header">
-           <h3 className="content-title">Upload New Material</h3>
+          <h3 className="content-title">Upload New Material</h3>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginTop: '12px' }}>
           <div className="auth-field">
@@ -110,7 +110,7 @@ export default function FacultyDocuments() {
 
       <div className="content-panel">
         <div className="content-header">
-           <h3 className="content-title">Recently Uploaded Files</h3>
+          <h3 className="content-title">Recently Uploaded Files</h3>
         </div>
         <div className="table-wrapper">
           <table className="data-table">

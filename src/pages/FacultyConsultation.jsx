@@ -26,8 +26,8 @@ export default function FacultyConsultation() {
 
       <div className="content-panel">
         <div className="content-header">
-           <h3 className="content-title">Set Consultation Schedule</h3>
-           <p className="content-subtitle">Students will see these times as available for meetings.</p>
+          <h3 className="content-title">Set Consultation Schedule</h3>
+          <p className="content-subtitle">Students will see these times as available for meetings.</p>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginTop: '12px' }}>
           <div className="auth-field">
@@ -49,14 +49,14 @@ export default function FacultyConsultation() {
             <input type="text" className="search-input" style={{ borderRadius: 'var(--radius-md)', padding: '10px' }} placeholder="e.g. Faculty Office" />
           </div>
           <div className="auth-field" style={{ justifyContent: 'flex-end' }}>
-             <button className="btn btn-primary" style={{ width: '100%', padding: '10px' }}>Save Slot</button>
+            <button className="btn btn-primary" style={{ width: '100%', padding: '10px' }}>Save Slot</button>
           </div>
         </div>
       </div>
 
       <div className="content-panel">
         <div className="content-header">
-           <h3 className="content-title">Active Consultation Hours</h3>
+          <h3 className="content-title">Active Consultation Hours</h3>
         </div>
         <div className="table-wrapper">
           <table className="data-table">

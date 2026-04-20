@@ -62,8 +62,8 @@ export default function AdminEventForm({ event, onClose, onSuccess }) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       {/* Optimized overlay with NO blur for maximum performance */}
-      <div 
-        className="absolute inset-0 bg-black/45 cursor-default transition-opacity" 
+      <div
+        className="absolute inset-0 bg-black/45 cursor-default transition-opacity"
         onClick={onClose}
       />
       <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] w-full max-w-2xl overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200">
@@ -99,13 +99,13 @@ export default function AdminEventForm({ event, onClose, onSuccess }) {
               <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide mb-2 flex items-center gap-2">
                 <Type size={14} className="opacity-70" /> Event Title
               </label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 required
                 className="search-input w-full px-4 rounded-[var(--radius-md)] h-10 transition-all focus:ring-2 focus:ring-[var(--accent-soft)]"
                 placeholder="e.g. CCS Research Colloquium"
                 value={formData.title}
-                onChange={e => setFormData({...formData, title: e.target.value})}
+                onChange={e => setFormData({ ...formData, title: e.target.value })}
               />
             </div>
 
@@ -113,12 +113,12 @@ export default function AdminEventForm({ event, onClose, onSuccess }) {
               <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide mb-2 flex items-center gap-2">
                 <AlignLeft size={14} className="opacity-70" /> Description
               </label>
-              <textarea 
+              <textarea
                 rows="3"
                 className="search-input w-full px-4 py-2.5 rounded-[var(--radius-md)] min-h-[90px] transition-all focus:ring-2 focus:ring-[var(--accent-soft)]"
                 placeholder="Details about the event..."
                 value={formData.description}
-                onChange={e => setFormData({...formData, description: e.target.value})}
+                onChange={e => setFormData({ ...formData, description: e.target.value })}
               />
             </div>
 
@@ -126,12 +126,12 @@ export default function AdminEventForm({ event, onClose, onSuccess }) {
               <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide mb-2 flex items-center gap-2">
                 <Calendar size={14} className="opacity-70" /> Event Type
               </label>
-              <input 
+              <input
                 list="eventTypes"
                 className="search-input w-full px-4 rounded-[var(--radius-md)] h-10 transition-all focus:ring-2 focus:ring-[var(--accent-soft)]"
                 placeholder="Type or select..."
                 value={formData.type}
-                onChange={e => setFormData({...formData, type: e.target.value})}
+                onChange={e => setFormData({ ...formData, type: e.target.value })}
               />
               <datalist id="eventTypes">
                 <option value="Academic">Academic</option>
@@ -146,13 +146,13 @@ export default function AdminEventForm({ event, onClose, onSuccess }) {
               <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide mb-2 flex items-center gap-2">
                 <MapPin size={14} className="opacity-70" /> Location
               </label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 required
                 className="search-input w-full px-4 rounded-[var(--radius-md)] h-10 transition-all focus:ring-2 focus:ring-[var(--accent-soft)]"
                 placeholder="Physical room or Virtual link"
                 value={formData.location}
-                onChange={e => setFormData({...formData, location: e.target.value})}
+                onChange={e => setFormData({ ...formData, location: e.target.value })}
               />
             </div>
 
@@ -160,12 +160,12 @@ export default function AdminEventForm({ event, onClose, onSuccess }) {
               <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide mb-2 flex items-center gap-2">
                 <Clock size={14} className="opacity-70" /> Start Date & Time
               </label>
-              <input 
-                type="datetime-local" 
+              <input
+                type="datetime-local"
                 required
                 className="search-input w-full px-4 rounded-[var(--radius-md)] h-10 transition-all focus:ring-2 focus:ring-[var(--accent-soft)]"
                 value={formData.start_time}
-                onChange={e => setFormData({...formData, start_time: e.target.value})}
+                onChange={e => setFormData({ ...formData, start_time: e.target.value })}
               />
             </div>
 
@@ -173,12 +173,12 @@ export default function AdminEventForm({ event, onClose, onSuccess }) {
               <label className="block text-[10px] font-bold text-[var(--text-muted)] uppercase tracking-wide mb-2 flex items-center gap-2">
                 <Clock size={14} className="opacity-70" /> End Date & Time
               </label>
-              <input 
-                type="datetime-local" 
+              <input
+                type="datetime-local"
                 required
                 className="search-input w-full px-4 rounded-[var(--radius-md)] h-10 transition-all focus:ring-2 focus:ring-[var(--accent-soft)]"
                 value={formData.end_time}
-                onChange={e => setFormData({...formData, end_time: e.target.value})}
+                onChange={e => setFormData({ ...formData, end_time: e.target.value })}
               />
             </div>
 
@@ -187,10 +187,10 @@ export default function AdminEventForm({ event, onClose, onSuccess }) {
                 <Users size={14} className="opacity-70" /> Target Audience
               </label>
               <div className="relative">
-                <select 
+                <select
                   className="search-input w-full px-4 rounded-[var(--radius-md)] h-10 appearance-none cursor-pointer pr-10 transition-all focus:ring-2 focus:ring-[var(--accent-soft)]"
                   value={formData.target_audience}
-                  onChange={e => setFormData({...formData, target_audience: e.target.value})}
+                  onChange={e => setFormData({ ...formData, target_audience: e.target.value })}
                 >
                   <option value="all">All Users</option>
                   <option value="student">Students Only</option>
@@ -207,10 +207,10 @@ export default function AdminEventForm({ event, onClose, onSuccess }) {
                 <Shield size={14} className="opacity-70" /> Visibility
               </label>
               <div className="relative">
-                <select 
+                <select
                   className="search-input w-full px-4 rounded-[var(--radius-md)] h-10 appearance-none cursor-pointer pr-10 transition-all focus:ring-2 focus:ring-[var(--accent-soft)]"
                   value={formData.visibility}
-                  onChange={e => setFormData({...formData, visibility: e.target.value})}
+                  onChange={e => setFormData({ ...formData, visibility: e.target.value })}
                 >
                   <option value="public">Public</option>
                   <option value="restricted">Restricted (Roles/Dept)</option>
@@ -223,14 +223,14 @@ export default function AdminEventForm({ event, onClose, onSuccess }) {
           </div>
 
           <footer className="mt-8 flex justify-end gap-3 pt-5 border-t border-[var(--border-color)]">
-            <button 
+            <button
               type="button"
               onClick={onClose}
               className="px-4 py-1.5 font-medium text-[11px] text-[var(--text-muted)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] transition-colors rounded-md"
             >
               Discard changes
             </button>
-            <button 
+            <button
               type="submit"
               disabled={loading}
               className="px-5 py-1.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] active:scale-[0.98] disabled:opacity-50 text-white font-medium text-[11px] rounded-md shadow-sm transition-all"

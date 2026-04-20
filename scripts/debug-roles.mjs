@@ -41,10 +41,10 @@ async function debug() {
     users.forEach(u => {
       console.log(`ID: ${u.id}, Role: [${u.role}], Name: ${u.full_name}, Email: ${u.email}`)
     })
-    
+
     const students = users.filter(u => u.role === 'student')
     console.log(`Filtered students count: ${students.length}`)
-    
+
   } catch (err) {
     console.error('Debug failed:', err)
   }

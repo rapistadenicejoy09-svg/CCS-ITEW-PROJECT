@@ -48,30 +48,7 @@ function deriveStudentRootNames(personalInformation, fullNameFallback) {
   }
 }
 
-let mongoStoreInitPromise = null
-
-/**
- * Reuse one Mongo store (and underlying client) per serverless isolate to avoid connection storms on Vercel.
- */
 export async function openMongoStore() {
-  if (globalThis.__ccs_mongo_store) {
-    return globalThis.__ccs_mongo_store
-  }
-  if (!mongoStoreInitPromise) {
-    mongoStoreInitPromise = createMongoStore()
-      .then((store) => {
-        globalThis.__ccs_mongo_store = store
-        return store
-      })
-      .catch((err) => {
-        mongoStoreInitPromise = null
-        throw err
-      })
-  }
-  return mongoStoreInitPromise
-}
-
-async function createMongoStore() {
   const mongoUri = String(process.env.MONGODB_URI || '').trim()
   if (!mongoUri) {
     throw new Error('Missing MONGODB_URI. This project uses MongoDB only; set MONGODB_URI (and optional MONGODB_DB).')
@@ -83,17 +60,20 @@ async function createMongoStore() {
   }
 
   const client = new MongoClient(mongoUri)
-  console.log(`[MONGODB] Connecting to ${dbName}...`)
   await client.connect()
 
   const db = client.db(dbName)
   const users = db.collection('users')
   const loginAttempts = db.collection('login_attempts')
   const sessions = db.collection('sessions')
-   const counters = db.collection('counters')
-  const instructions = db.collection('instructions')
+  const counters = db.collection('counters')
+  const subjects = db.collection('subjects')
+  const teachingLoads = db.collection('teaching_loads')
   const schedules = db.collection('schedules')
-  const research = db.collection('research')
+  const documents = db.collection('documents')
+  const evaluations = db.collection('evaluations')
+  const logs = db.collection('logs')
+  const researchPublications = db.collection('research_publications')
   const events = db.collection('events')
 
   // Ensure uniqueness constraints for user identity and sessions.
@@ -111,96 +91,96 @@ async function createMongoStore() {
     ),
     loginAttempts.createIndex({ identifier: 1 }, { unique: true, name: 'login_attempts_identifier_unique' }),
     sessions.createIndex({ token: 1 }, { unique: true, name: 'sessions_token_unique' }),
-    instructions.createIndex({ id: 1 }, { unique: true, name: 'instructions_id_unique' }),
+    subjects.createIndex({ code: 1 }, { unique: true, name: 'subjects_code_unique' }),
+    subjects.createIndex({ id: 1 }, { unique: true, name: 'subjects_id_unique' }),
+    teachingLoads.createIndex({ id: 1 }, { unique: true, name: 'teaching_loads_id_unique' }),
+    teachingLoads.createIndex({ faculty_id: 1 }),
     schedules.createIndex({ id: 1 }, { unique: true, name: 'schedules_id_unique' }),
-    research.createIndex({ id: 1 }, { unique: true, name: 'research_id_unique' }),
-    research.createIndex({ status: 1 }, { name: 'research_status' }),
-    research.createIndex({ created_by_user_id: 1 }, { name: 'research_author' }),
+    schedules.createIndex({ teaching_load_id: 1 }),
+    documents.createIndex({ id: 1 }, { unique: true, name: 'documents_id_unique' }),
+    documents.createIndex({ faculty_id: 1, subject_id: 1 }),
+    evaluations.createIndex({ id: 1 }, { unique: true, name: 'evaluations_id_unique' }),
+    evaluations.createIndex({ faculty_id: 1 }),
+    logs.createIndex({ id: 1 }, { unique: true, name: 'logs_id_unique' }),
+    logs.createIndex({ created_at: -1 }),
+    researchPublications.createIndex({ id: 1 }, { unique: true, name: 'research_publications_id_unique' }),
+    researchPublications.createIndex({ status: 1, year: -1 }),
+    researchPublications.createIndex({ created_by_user_id: 1 }),
+    researchPublications.createIndex({ adviser_faculty_id: 1 }),
+    researchPublications.createIndex({ year: -1 }),
+    researchPublications.createIndex({ course: 1 }),
+    researchPublications.createIndex(
+      { repository_ref: 1 },
+      { unique: true, sparse: true, name: 'research_publications_repository_ref_unique' },
+    ),
+    researchPublications.createIndex(
+      { submission_ref: 1 },
+      { unique: true, sparse: true, name: 'research_publications_submission_ref_unique' },
+    ),
     events.createIndex({ id: 1 }, { unique: true, name: 'events_id_unique' }),
-    events.createIndex({ status: 1 }, { name: 'events_status' }),
+    events.createIndex({ type: 1 }),
+    events.createIndex({ department: 1 }),
+    events.createIndex({ start_time: 1 }),
   ])
 
-  async function nextUserId() {
-    const res = await counters.findOneAndUpdate(
-      { _id: 'users' },
-      { $inc: { seq: 1 } },
-      { upsert: true, returnDocument: 'after' },
-    )
-    // Support both res.value (old) and res (new) driver formats
-    const seq = res?.value?.seq ?? res?.seq
-    if (typeof seq === 'number') return seq
-    
-    // Fallback: search for the highest numeric ID, ignoring null or invalid values
-    const last = await users.find({ id: { $gt: 0 } }, { projection: { id: 1 } }).sort({ id: -1 }).limit(1).toArray()
-    const maxId = last.length > 0 ? (Number(last[0].id) || 0) : 0
-    return maxId + 1
+  async function nextId(collectionName) {
+    try {
+      const res = await counters.findOneAndUpdate(
+        { _id: collectionName },
+        { $inc: { seq: 1 } },
+        { upsert: true, returnDocument: 'after' },
+      )
+      const seq = res?.value?.seq ?? res?.seq
+      if (typeof seq === 'number') return seq
+
+      console.warn(`[DB] Fallback ID generation for ${collectionName}`)
+      const collection = db.collection(collectionName)
+      const last = await collection.find({ id: { $gt: 0 } }, { projection: { id: 1 } }).sort({ id: -1 }).limit(1).toArray()
+      const maxId = last.length > 0 ? (Number(last[0].id) || 0) : 0
+      return maxId + 1
+    } catch (err) {
+      console.error(`[DB] nextId failure for ${collectionName}:`, err)
+      throw err
+    }
   }
 
-  async function nextInstructionId() {
+  async function allocateResearchRepositoryRefForYear(publishYear) {
+    let y = Number(publishYear)
+    if (!Number.isFinite(y) || y < 1970 || y > 2100) {
+      y = new Date().getFullYear()
+    }
+    const counterId = `research_repo_ref_${y}`
     const res = await counters.findOneAndUpdate(
-      { _id: 'instructions' },
-      { $inc: { seq: 1 } },
-      { upsert: true, returnDocument: 'after' },
-    )
-    const seq = res?.value?.seq ?? res?.seq
-    if (typeof seq === 'number') return seq
-    
-    const last = await instructions.find({ id: { $gt: 0 } }, { projection: { id: 1 } }).sort({ id: -1 }).limit(1).toArray()
-    const maxId = last.length > 0 ? (Number(last[0].id) || 0) : 0
-    return maxId + 1
-  }
-
-  async function nextScheduleId() {
-    const res = await counters.findOneAndUpdate(
-      { _id: 'schedules' },
+      { _id: counterId },
       { $inc: { seq: 1 } },
       { upsert: true, returnDocument: 'after' },
     )
     const seq = res?.value?.seq ?? res?.seq
-    if (typeof seq === 'number') return seq
-    
-    const last = await schedules.find({ id: { $gt: 0 } }, { projection: { id: 1 } }).sort({ id: -1 }).limit(1).toArray()
-    const maxId = last.length > 0 ? (Number(last[0].id) || 0) : 0
-    return maxId + 1
+    if (typeof seq !== 'number') {
+      throw new Error('Failed to allocate repository reference')
+    }
+    return `CCS-CR-${y}-${String(seq).padStart(5, '0')}`
   }
 
-  async function nextResearchId() {
+  async function allocateResearchSubmissionRefForYear(publishYear) {
+    let y = Number(publishYear)
+    if (!Number.isFinite(y) || y < 1970 || y > 2100) {
+      y = new Date().getFullYear()
+    }
+    const counterId = `research_sub_ref_${y}`
     const res = await counters.findOneAndUpdate(
-      { _id: 'research' },
+      { _id: counterId },
       { $inc: { seq: 1 } },
       { upsert: true, returnDocument: 'after' },
     )
     const seq = res?.value?.seq ?? res?.seq
-    if (typeof seq === 'number') return seq
-    
-    const last = await research.find({ id: { $gt: 0 } }, { projection: { id: 1 } }).sort({ id: -1 }).limit(1).toArray()
-    const maxId = last.length > 0 ? (Number(last[0].id) || 0) : 0
-    return maxId + 1
+    if (typeof seq !== 'number') {
+      throw new Error('Failed to allocate submission reference')
+    }
+    return `CCS-SUB-${y}-${String(seq).padStart(5, '0')}`
   }
-
-  async function nextEventId() {
-    const res = await counters.findOneAndUpdate(
-      { _id: 'events' },
-      { $inc: { seq: 1 } },
-      { upsert: true, returnDocument: 'after' },
-    )
-    const seq = res?.value?.seq ?? res?.seq
-    if (typeof seq === 'number') return seq
-    
-    const last = await events.find({ id: { $gt: 0 } }, { projection: { id: 1 } }).sort({ id: -1 }).limit(1).toArray()
-    const maxId = last.length > 0 ? (Number(last[0].id) || 0) : 0
-    return maxId + 1
-  }
-
-
-
-  const gridFsBucket = new (await import('mongodb')).GridFSBucket(db, { bucketName: 'instruction_files' })
 
   return {
-    /** Expose raw db handle and GridFS bucket for file operations */
-    db,
-    gridFsBucket,
-    researchFilesBucket: new (await import('mongodb')).GridFSBucket(db, { bucketName: 'research_files' }),
     async getLoginAttempt(identifier) {
       return await loginAttempts.findOne(
         { identifier },
@@ -298,6 +278,10 @@ async function createMongoStore() {
       )
     },
 
+    async countUsersByRole(role) {
+      return await users.countDocuments({ role: String(role || '').trim() })
+    },
+
     async createUser({
       role,
       identifier,
@@ -313,12 +297,15 @@ async function createMongoStore() {
       personalInformation,
       academicInfo,
       academicHistory,
-      nonAcademicActivities,
+      non_academic_activities,
       violations,
       skills,
       affiliations,
+      department,
+      specialization,
+      bio,
     }) {
-      const id = await nextUserId()
+      const id = await nextId('users')
       const doc = {
         id,
         role,
@@ -333,6 +320,9 @@ async function createMongoStore() {
         student_type: studentType,
         student_id: studentIdStored,
         email: emailStored,
+        department: department || null,
+        specialization: specialization || null,
+        bio: bio || null,
         is_active: 1,
         profile_image_url: null,
       }
@@ -342,7 +332,7 @@ async function createMongoStore() {
         doc.personal_information = personalInformation || {}
         doc.academic_info = academicInfo || {}
         doc.academic_history = academicHistory || []
-        doc.non_academic_activities = nonAcademicActivities || []
+        doc.non_academic_activities = non_academic_activities || []
         doc.violations = violations || []
         doc.skills = skills || []
         doc.affiliations = affiliations || []
@@ -352,6 +342,18 @@ async function createMongoStore() {
         doc.last_name = names.last_name
         if (names.full_name) doc.full_name = names.full_name
         doc.must_change_password = 1
+      } else if (role !== 'student') {
+        const names = deriveStudentRootNames(personalInformation || {}, fullName)
+        doc.personal_information = {
+          ...(personalInformation || {}),
+          first_name: names.first_name || '',
+          middle_name: names.middle_name || '',
+          last_name: names.last_name || '',
+        }
+        doc.first_name = names.first_name
+        doc.middle_name = names.middle_name
+        doc.last_name = names.last_name
+        if (names.full_name) doc.full_name = names.full_name
       }
 
       await users.insertOne(doc)
@@ -389,6 +391,13 @@ async function createMongoStore() {
       await users.updateOne({ id: userId }, { $set: { twofa_enabled: 1 } })
     },
 
+    async disableTwofa(userId) {
+      await users.updateOne(
+        { $or: [{ id: Number(userId) }, { id: String(userId) }] },
+        { $set: { twofa_enabled: 0, twofa_secret: null, twofa_backup_code: null } },
+      )
+    },
+
     async listAdminUsers() {
       return await users
         .find(
@@ -418,6 +427,9 @@ async function createMongoStore() {
               first_name: 1,
               middle_name: 1,
               last_name: 1,
+              department: 1,
+              specialization: 1,
+              bio: 1,
             },
           },
         )
@@ -453,6 +465,9 @@ async function createMongoStore() {
             first_name: 1,
             middle_name: 1,
             last_name: 1,
+            department: 1,
+            specialization: 1,
+            bio: 1,
           },
         },
       )
@@ -489,6 +504,8 @@ async function createMongoStore() {
             first_name: 1,
             middle_name: 1,
             last_name: 1,
+            department: 1,
+            specialization: 1,
           },
         },
       )
@@ -515,6 +532,7 @@ async function createMongoStore() {
         'first_name',
         'middle_name',
         'last_name',
+        'department',
       ]
       const setUpdates = {}
       for (const field of allowedFields) {
@@ -526,7 +544,6 @@ async function createMongoStore() {
           }
         }
       }
-
 
       if (setUpdates.personal_information !== undefined) {
         const names = deriveStudentRootNames(setUpdates.personal_information, setUpdates.full_name)
@@ -547,19 +564,9 @@ async function createMongoStore() {
           : null
       }
 
-
-
       if (Object.keys(setUpdates).length > 0) {
-        // Try matching both as number and string for robustness
         const idQuery = { $or: [{ id: Number(userId) }, { id: String(userId) }] }
-        const result = await users.updateOne(idQuery, { $set: setUpdates })
-        
-        console.log(`[DEBUG] store: profile update for ID ${userId}:`, {
-           modifiedCount: result.modifiedCount,
-           matchedCount: result.matchedCount,
-           activeStatus: setUpdates.is_active !== undefined ? setUpdates.is_active : 'no-change'
-        })
-
+        await users.updateOne(idQuery, { $set: setUpdates })
       }
       return await this.getAdminUserById(userId)
     },
@@ -603,6 +610,9 @@ async function createMongoStore() {
             middle_name: 1,
             last_name: 1,
             must_change_password: 1,
+            department: 1,
+            specialization: 1,
+            bio: 1,
           },
         },
       )
@@ -634,24 +644,54 @@ async function createMongoStore() {
         identifier: user.identifier,
         email: user.email,
         full_name: user.full_name,
+        first_name: user.first_name ?? null,
+        middle_name: user.middle_name ?? null,
+        last_name: user.last_name ?? null,
+        personal_information: user.personal_information || {},
         twofa_enabled: !!user.twofa_enabled,
         profile_image_url: user.profile_image_url || null,
+        department: user.department || null,
+        specialization: user.specialization || null,
+        bio: user.bio || null,
       }
     },
 
     async updateAccountProfile(userId, body) {
       const idNum = Number(userId)
       const idQuery = { $or: [{ id: idNum }, { id: String(userId) }] }
+      const u = await users.findOne(idQuery, { projection: { _id: 0, role: 1, personal_information: 1 } })
+      if (!u) return null
+
       const set = {}
       if (body.profileImageUrl !== undefined) {
         set.profile_image_url = String(body.profileImageUrl || '').trim() || null
       }
-      if (body.fullName !== undefined) {
-        const u = await users.findOne(idQuery, { projection: { _id: 0, role: 1 } })
-        if (u && u.role !== 'student') {
-          set.full_name = String(body.fullName || '').trim() || null
-        }
+      if (body.bio !== undefined) {
+        set.bio = String(body.bio || '').trim() || null
       }
+      if (body.department !== undefined && u.role !== 'student') {
+        set.department = String(body.department || '').trim() || null
+      }
+      if (body.specialization !== undefined && u.role !== 'student') {
+        set.specialization = String(body.specialization || '').trim() || null
+      }
+
+      if (body.personalInformation !== undefined && u.role !== 'student') {
+        const piNext = body.personalInformation || {}
+        const piCurrent = u.personal_information || {}
+        const fn = String(piNext.first_name ?? piNext.firstName ?? piCurrent.first_name ?? '').trim()
+        const mn = String(piNext.middle_name ?? piNext.middleName ?? piCurrent.middle_name ?? '').trim()
+        const ln = String(piNext.last_name ?? piNext.lastName ?? piCurrent.last_name ?? '').trim()
+        set.personal_information = { ...piCurrent, ...piNext, first_name: fn, middle_name: mn, last_name: ln }
+        const names = deriveStudentRootNames(set.personal_information, [fn, mn, ln].filter(Boolean).join(' ') || null)
+        set.first_name = names.first_name
+        set.middle_name = names.middle_name
+        set.last_name = names.last_name
+        if (names.full_name) set.full_name = names.full_name
+      } else if (body.fullName !== undefined && u.role !== 'student') {
+        set.full_name = String(body.fullName || '').trim() || null
+      }
+
       if (Object.keys(set).length > 0) {
         await users.updateOne(idQuery, { $set: set })
       }
@@ -694,219 +734,557 @@ async function createMongoStore() {
         .toArray()
     },
 
-    async listInstructions() {
-      return await instructions.find({}, { projection: { _id: 0 } }).sort({ id: -1 }).toArray()
+    // Subjects
+    async listSubjects() {
+      return await subjects.find({}).sort({ code: 1 }).toArray()
     },
 
-    async getInstructionById(id) {
-      return await instructions.findOne({ id: Number(id) }, { projection: { _id: 0 } })
+    async createSubject(data) {
+      const id = await nextId('subjects')
+      const doc = { id, ...data, created_at: new Date().toISOString() }
+      await subjects.insertOne(doc)
+      return doc
     },
 
-    async createInstruction(data) {
-      const id = await nextInstructionId()
-      const doc = {
-        id,
-        type: data.type,
-        title: data.title,
-        course: data.course,
-        subject: data.subject,
-        description: data.description,
-        status: data.status,
-        author: data.author,
-        link: data.link,
-        created_at: data.created_at,
-        updated_at: data.updated_at
-      }
-      await instructions.insertOne(doc)
-      return id
+    async updateSubject(id, updates) {
+      await subjects.updateOne({ id: Number(id) }, { $set: updates })
+      return await subjects.findOne({ id: Number(id) })
     },
 
-    async updateInstruction(id, data) {
-      const setUpdates = {
-        type: data.type,
-        title: data.title,
-        course: data.course,
-        subject: data.subject,
-        description: data.description,
-        status: data.status,
-        author: data.author,
-        link: data.link,
-        updated_at: data.updated_at
-      }
-      await instructions.updateOne({ id: Number(id) }, { $set: setUpdates })
+    async deleteSubject(id) {
+      await subjects.deleteOne({ id: Number(id) })
     },
 
-    async deleteInstruction(id) {
-      await instructions.deleteOne({ id: Number(id) })
-    },
-    
-    async listSchedules() {
-      return await schedules.find({}, { projection: { _id: 0 } }).sort({ id: 1 }).toArray()
+    // Teaching Loads
+    async listTeachingLoads(facultyId = null) {
+      const query = facultyId ? { faculty_id: Number(facultyId) } : {}
+      return await teachingLoads.find(query).toArray()
     },
 
-    async getScheduleById(id) {
-      return await schedules.findOne({ id: Number(id) }, { projection: { _id: 0 } })
+    async createTeachingLoad(data) {
+      const id = await nextId('teaching_loads')
+      const doc = { id, ...data, created_at: new Date().toISOString() }
+      await teachingLoads.insertOne(doc)
+      return doc
+    },
+
+    async deleteTeachingLoad(id) {
+      await teachingLoads.deleteOne({ id: Number(id) })
+      // Also delete associated schedules
+      await schedules.deleteMany({ teaching_load_id: Number(id) })
+    },
+
+    // Schedules
+    async listSchedules(teachingLoadId = null) {
+      const query = teachingLoadId ? { teaching_load_id: Number(teachingLoadId) } : {}
+      return await schedules.find(query).toArray()
     },
 
     async createSchedule(data) {
-      const id = await nextScheduleId()
-      const doc = {
-        id,
-        subjectCode: data.subjectCode,
-        subjectTitle: data.subjectTitle,
-        instructor: data.instructor,
-        course: data.course,
-        yearLevel: data.yearLevel,
-        section: data.section,
-        day: data.day,
-        startTime: data.startTime,
-        endTime: data.endTime,
-        room: data.room,
-        created_at: data.created_at,
-        updated_at: data.updated_at
-      }
+      const id = await nextId('schedules')
+      const doc = { id, ...data, created_at: new Date().toISOString() }
       await schedules.insertOne(doc)
-      return id
-    },
-
-    async updateSchedule(id, data) {
-      const setUpdates = {
-        subjectCode: data.subjectCode,
-        subjectTitle: data.subjectTitle,
-        instructor: data.instructor,
-        course: data.course,
-        yearLevel: data.yearLevel,
-        section: data.section,
-        day: data.day,
-        startTime: data.startTime,
-        endTime: data.endTime,
-        room: data.room,
-        updated_at: data.updated_at
-      }
-      await schedules.updateOne({ id: Number(id) }, { $set: setUpdates })
+      return doc
     },
 
     async deleteSchedule(id) {
       await schedules.deleteOne({ id: Number(id) })
     },
 
-    async listResearch(query = {}) {
-      const { scope, year, course, author, keyword } = query
-      const filter = {}
-      if (scope === 'repository') filter.status = 'published'
-      else if (scope === 'mine') filter.created_by_user_id = query.userId
-      else if (scope === 'adviser_review') {
-        filter.status = 'under_faculty_review'
-        filter.adviser_faculty_id = query.userId
-      } else if (scope === 'pending_approval') filter.status = 'pending_approval'
-      
-      if (year) filter.year = Number(year)
-      if (course) filter.course = course
-      if (author) filter['authors.display_name'] = { $regex: author, $options: 'i' }
-      if (keyword) filter.keywords = { $in: [new RegExp(keyword, 'i')] }
-
-      return await research.find(filter).sort({ id: -1 }).toArray()
+    async findOverlappingSchedules(day, startTime, endTime, room) {
+      // Very simple overlap check: (StartA < EndB) and (EndA > StartB)
+      return await schedules.find({
+        day,
+        room,
+        $or: [
+          {
+            $and: [
+              { start_time: { $lt: endTime } },
+              { end_time: { $gt: startTime } }
+            ]
+          }
+        ]
+      }).toArray()
     },
 
-    async getResearchById(id) {
-      return await research.findOne({ id: Number(id) })
+    // Documents
+    async listDocuments(facultyId = null, subjectId = null) {
+      const query = {}
+      if (facultyId) query.faculty_id = Number(facultyId)
+      if (subjectId) query.subject_id = Number(subjectId)
+      return await documents.find(query).sort({ created_at: -1 }).toArray()
     },
 
-    async createResearch(data) {
-      const id = await nextResearchId()
+    async findDocumentById(id) {
+      return await documents.findOne({ id: Number(id) })
+    },
+
+    async createDocument(data) {
+      const id = await nextId('documents')
       const doc = {
         id,
         ...data,
-        status: data.status || 'draft',
-        created_at: data.created_at || new Date().toISOString(),
-        updated_at: data.updated_at || new Date().toISOString()
+        status: data.status || 'pending_faculty',
+        created_at: new Date().toISOString(),
+        history: [{ date: new Date().toISOString(), action: 'submitted', by: data.faculty_id || data.student_id }]
       }
-      await research.insertOne(doc)
-      return id
+      await documents.insertOne(doc)
+      return doc
     },
 
-    async updateResearch(id, updates) {
-      await research.updateOne(
+    async updateDocumentStatus(id, status, reviewerId, comments = null) {
+      await documents.updateOne(
         { id: Number(id) },
-        { $set: { ...updates, updated_at: new Date().toISOString() } }
+        {
+          $set: { status },
+          $push: {
+            history: {
+              date: new Date().toISOString(),
+              action: status,
+              by: reviewerId,
+              comments
+            }
+          }
+        }
       )
+      return await documents.findOne({ id: Number(id) })
     },
 
-    async deleteResearch(id) {
-      await research.deleteOne({ id: Number(id) })
+    async deleteDocument(id) {
+      await documents.deleteOne({ id: Number(id) })
+    },
+
+    // Evaluations
+    async listEvaluations(facultyId) {
+      return await evaluations.find({ faculty_id: Number(facultyId) }).sort({ created_at: -1 }).toArray()
+    },
+
+    async createEvaluation(data) {
+      const id = await nextId('evaluations')
+      const doc = { id, ...data, created_at: new Date().toISOString() }
+      await evaluations.insertOne(doc)
+      return doc
+    },
+
+    // Faculty specific user updates
+    async updateFacultyProfile(userId, updates) {
+      const allowedFields = [
+        'specialization',
+        'department_role',
+        'consultation_hours',
+        'full_name',
+        'email',
+        'profile_image_url'
+      ]
+      const setUpdates = {}
+      for (const field of allowedFields) {
+        if (updates[field] !== undefined) {
+          setUpdates[field] = updates[field]
+        }
+      }
+      if (Object.keys(setUpdates).length > 0) {
+        const idQuery = { $or: [{ id: Number(userId) }, { id: String(userId) }] }
+        await users.updateOne(idQuery, { $set: setUpdates })
+      }
+      return await this.getAccountProfile(userId)
+    },
+
+    // Logs
+    async listLogs(limit = 100) {
+      const logsArray = await logs.find({}).sort({ created_at: -1 }).limit(limit).toArray()
+      const userIds = [...new Set(logsArray.map(l => l.user_id).filter(Boolean))]
+      const userRows = await users.find({ id: { $in: userIds } }, { projection: { id: 1, role: 1 } }).toArray()
+      const roleMap = {}
+      for (const u of userRows) {
+        roleMap[u.id] = u.role
+      }
+      return logsArray.map(l => ({ ...l, user_role: l.user_role || roleMap[l.user_id] || 'system' }))
+    },
+
+    async listUserLogs(limit = 100, userId) {
+      if (!userId) return []
+      const logsArray = await logs.find({ user_id: userId }).sort({ created_at: -1 }).limit(limit).toArray()
+      const u = await users.findOne({ id: userId }, { projection: { role: 1 } })
+      const urole = u ? u.role : 'system'
+      return logsArray.map(l => ({ ...l, user_role: l.user_role || urole }))
+    },
+
+    async createLog({ type, action, details, userId, userName, userIp }) {
+      try {
+        const id = await nextId('logs')
+        const doc = {
+          id,
+          type, // ACCESS, CREATE, UPDATE, DELETE
+          action,
+          details,
+          user_id: userId,
+          user_name: userName || null,
+          user_ip: userIp || null,
+          created_at: new Date().toISOString(),
+        }
+        await logs.insertOne(doc)
+        console.log(`[LOG CREATED] ${action} (${type}) for User ${userName || userId}`)
+      } catch (err) {
+        console.error(`[LOG ERROR] Failed to create log ${action}:`, err)
+        return null
+      }
+    },
+
+    // --- College Research Repository ---
+    async listResearchPublications(filter = {}) {
+      return await researchPublications.find(filter).sort({ year: -1, updated_at: -1 }).toArray()
+    },
+
+    async findResearchPublicationById(id) {
+      return await researchPublications.findOne({ id: Number(id) })
+    },
+
+    async createResearchPublication(data) {
+      const id = await nextId('research_publications')
+      const now = new Date().toISOString()
+      const doc = {
+        id,
+        ...data,
+        workflow_history: data.workflow_history || [{ at: now, action: 'created', by_user_id: data.created_by_user_id, note: null }],
+        created_at: now,
+        updated_at: now,
+      }
+      await researchPublications.insertOne(doc)
+      return doc
+    },
+
+    async updateResearchPublication(id, patch) {
+      const now = new Date().toISOString()
+      await researchPublications.updateOne(
+        { id: Number(id) },
+        { $set: { ...patch, updated_at: now } },
+      )
+      return await researchPublications.findOne({ id: Number(id) })
+    },
+
+    async pushResearchWorkflow(id, entry) {
+      await researchPublications.updateOne(
+        { id: Number(id) },
+        {
+          $push: { workflow_history: entry },
+          $set: { updated_at: new Date().toISOString() },
+        },
+      )
+      return await researchPublications.findOne({ id: Number(id) })
+    },
+
+    async deleteResearchPublication(id) {
+      await researchPublications.deleteOne({ id: Number(id) })
+    },
+
+    /** Next display ID for published works: CCS-CR-{year}-00001 (per calendar year). */
+    async nextResearchRepositoryRef(publishYear) {
+      return allocateResearchRepositoryRefForYear(publishYear)
+    },
+
+    /** Default ID for submitted works before publication: CCS-SUB-{year}-00001 */
+    async nextResearchSubmissionRef(publishYear) {
+      return allocateResearchSubmissionRefForYear(publishYear)
+    },
+
+    /** Assign CCS-SUB-* IDs to any documents lacking one. */
+    async backfillSubmissionRefs() {
+      const missing = await researchPublications
+        .find({
+          $or: [{ submission_ref: { $exists: false } }, { submission_ref: null }, { submission_ref: '' }],
+        })
+        .sort({ id: 1 })
+        .toArray()
+      let count = 0
+      for (const p of missing) {
+        const at = p.created_at || new Date().toISOString()
+        const y = new Date(at).getFullYear()
+        const ref = await allocateResearchSubmissionRefForYear(y)
+        await researchPublications.updateOne(
+          { id: p.id },
+          { $set: { submission_ref: ref, updated_at: new Date().toISOString() } },
+        )
+        count += 1
+      }
+      return count
+    },
+
+    /** Assign CCS-CR-* IDs to published documents missing one (startup / migration). */
+    async backfillPublishedRepositoryRefs() {
+      const missing = await researchPublications
+        .find({
+          status: 'published',
+          $or: [{ repository_ref: { $exists: false } }, { repository_ref: null }, { repository_ref: '' }],
+        })
+        .sort({ published_at: 1, id: 1 })
+        .toArray()
+      let count = 0
+      for (const p of missing) {
+        const at = p.published_at || p.updated_at || p.created_at
+        const y = at ? new Date(at).getFullYear() : new Date().getFullYear()
+        const ref = await allocateResearchRepositoryRefForYear(y)
+        await researchPublications.updateOne(
+          { id: p.id },
+          { $set: { repository_ref: ref, updated_at: new Date().toISOString() } },
+        )
+        count += 1
+      }
+      return count
+    },
+
+    async fixMissingFacultyInformation() {
+      const missing = await users.find({ role: { $ne: 'student' } }).toArray()
+      let count = 0
+      for (const u of missing) {
+        if (!u.personal_information || Object.keys(u.personal_information).length === 0) {
+          if (u.full_name) {
+            const names = deriveStudentRootNames({}, u.full_name)
+            await users.updateOne(
+              { id: u.id },
+              {
+                $set: {
+                  personal_information: {
+                    first_name: names.first_name || '',
+                    middle_name: names.middle_name || '',
+                    last_name: names.last_name || '',
+                  },
+                  first_name: names.first_name || '',
+                  middle_name: names.middle_name || '',
+                  last_name: names.last_name || '',
+                }
+              }
+            )
+            count++
+          }
+        }
+      }
+      return count
+    },
+
+    /** Lightweight search for linking co-authors (students + faculty roles). Empty query returns a recent pool for dropdowns.
+     * When courseFilter is CS or IT, only students in that program are included; faculty/staff are always included. */
+    async searchUsersForResearchAuthors(query, limit = 20, courseFilter = null) {
+      const q = String(query || '').trim()
+      const roles = ['student', 'faculty', 'dean', 'department_chair', 'secretary', 'faculty_professor']
+      const staffRoles = ['faculty', 'dean', 'department_chair', 'secretary', 'faculty_professor']
+      const c = String(courseFilter || '').trim().toUpperCase()
+      const courseOk = c === 'CS' || c === 'IT'
+      const programAliases =
+        c === 'CS' ? ['CS', 'cs', 'BSCS', 'bscs'] : c === 'IT' ? ['IT', 'it', 'BSIT', 'bsit'] : []
+
+      const projection = {
+        _id: 0,
+        id: 1,
+        role: 1,
+        full_name: 1,
+        identifier: 1,
+        email: 1,
+        student_id: 1,
+        personal_information: 1,
+      }
+      const lim = Math.min(80, Math.max(10, Number(limit) || 20))
+
+      function authorScopeFilter(textSearch = null) {
+        const inRoles = { role: { $in: roles } }
+        if (!courseOk) {
+          return textSearch ? { $and: [inRoles, textSearch] } : inRoles
+        }
+        const studentMatchesCourse = {
+          role: 'student',
+          'academic_info.program': { $in: programAliases },
+        }
+        const courseScope = {
+          $or: [{ role: { $in: staffRoles } }, studentMatchesCourse],
+        }
+        return textSearch ? { $and: [inRoles, courseScope, textSearch] } : { $and: [inRoles, courseScope] }
+      }
+
+      let rows
+      if (q.length < 2) {
+        rows = await users
+          .find(authorScopeFilter(), { projection })
+          .sort({ full_name: 1 })
+          .limit(lim)
+          .toArray()
+      } else {
+        const esc = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const re = new RegExp(esc, 'i')
+        const textSearch = {
+          $or: [{ full_name: re }, { identifier: re }, { email: re }, { student_id: re }],
+        }
+        rows = await users.find(authorScopeFilter(textSearch), { projection }).limit(lim).toArray()
+      }
+      return rows.map((u) => {
+        const pi = u.personal_information || {}
+        const dn =
+          String(u.full_name || '').trim() ||
+          [pi.first_name, pi.middle_name, pi.last_name].filter(Boolean).join(' ') ||
+          u.identifier ||
+          u.email ||
+          `User ${u.id}`
+        return {
+          id: u.id,
+          role: u.role,
+          displayName: dn,
+          studentId: u.student_id || (u.role === 'student' ? u.identifier : null),
+        }
+      })
+    },
+
+    async listFacultyForResearchAdviser(limit = 200) {
+      const roles = ['faculty', 'dean', 'department_chair', 'faculty_professor', 'secretary']
+      const rows = await users
+        .find(
+          { role: { $in: roles } },
+          { projection: { _id: 0, id: 1, role: 1, full_name: 1, identifier: 1, email: 1, personal_information: 1 } },
+        )
+        .limit(Number(limit) || 200)
+        .toArray()
+      return rows.map((u) => {
+        const pi = u.personal_information || {}
+        const dn =
+          String(u.full_name || '').trim() ||
+          [pi.first_name, pi.middle_name, pi.last_name].filter(Boolean).join(' ') ||
+          u.identifier ||
+          u.email ||
+          `User ${u.id}`
+        return { id: u.id, role: u.role, displayName: dn }
+      })
     },
 
     async getResearchAnalytics() {
-      const total = await research.countDocuments({ status: 'published' })
-      const byType = await research.aggregate([
-        { $match: { status: 'published' } },
-        { $group: { _id: '$researchType', count: { $sum: 1 } } }
-      ]).toArray()
-      const byYear = await research.aggregate([
-        { $match: { status: 'published' } },
-        { $group: { _id: '$year', count: { $sum: 1 } } },
-        { $sort: { _id: -1 } },
-        { $limit: 5 }
-      ]).toArray()
-      return { total, byType, byYear }
-    },
+      const published = await researchPublications.find({ status: 'published' }).toArray()
+      const byYear = {}
+      const byCategory = {}
+      const adviserCounts = {}
+      const facultyAuthorCounts = {}
+      const FACULTY_ROLES = new Set(['faculty', 'dean', 'department_chair', 'faculty_professor', 'secretary'])
 
-    async listResearchAdvisers() {
-      // Find all faculty users (any academic role)
-      const facultyRoles = ['faculty', 'faculty_professor', 'dean', 'department_chair', 'secretary']
-      return await users.find({ role: { $in: facultyRoles } }, { projection: { id: 1, full_name: 1, display_name: 1, identifier: 1 } }).toArray()
-    },
-
-    async suggestResearchAuthors(q, limit = 10, course) {
-      const filter = { role: 'student' }
-      if (q) {
-        filter.$or = [
-          { full_name: { $regex: q, $options: 'i' } },
-          { identifier: { $regex: q, $options: 'i' } }
-        ]
+      for (const p of published) {
+        const y = p.year ?? 'unknown'
+        byYear[y] = (byYear[y] || 0) + 1
+        const cat = String(p.category || 'Uncategorized').trim() || 'Uncategorized'
+        byCategory[cat] = (byCategory[cat] || 0) + 1
+        const adv = p.adviser_faculty_id
+        if (adv != null) {
+          adviserCounts[adv] = (adviserCounts[adv] || 0) + 1
+        }
+        const authors = Array.isArray(p.authors) ? p.authors : []
+        for (const a of authors) {
+          if (a?.user_id != null && FACULTY_ROLES.has(String(a.user_role || ''))) {
+            const uid = Number(a.user_id)
+            facultyAuthorCounts[uid] = (facultyAuthorCounts[uid] || 0) + 1
+          }
+        }
       }
-      if (course) filter.class_section = course
-      return await users.find(filter).limit(limit).toArray()
+
+      const pipeline = await researchPublications
+        .aggregate([
+          { $group: { _id: '$status', count: { $sum: 1 } } },
+        ])
+        .toArray()
+      const byStatus = Object.fromEntries(pipeline.map((x) => [x._id, x.count]))
+
+      const userIds = new Set([
+        ...Object.keys(adviserCounts).map(Number),
+        ...Object.keys(facultyAuthorCounts).map(Number),
+      ])
+      const idToName = {}
+      if (userIds.size > 0) {
+        const urows = await users
+          .find(
+            { id: { $in: [...userIds] } },
+            { projection: { _id: 0, id: 1, full_name: 1, identifier: 1, personal_information: 1 } },
+          )
+          .toArray()
+        for (const u of urows) {
+          const pi = u.personal_information || {}
+          idToName[u.id] =
+            String(u.full_name || '').trim() ||
+            [pi.first_name, pi.middle_name, pi.last_name].filter(Boolean).join(' ') ||
+            u.identifier ||
+            `User ${u.id}`
+        }
+      }
+
+      const mergeFacultyActivity = {}
+      for (const [idStr, c] of Object.entries(adviserCounts)) {
+        const id = Number(idStr)
+        mergeFacultyActivity[id] = (mergeFacultyActivity[id] || 0) + c
+      }
+      for (const [idStr, c] of Object.entries(facultyAuthorCounts)) {
+        const id = Number(idStr)
+        mergeFacultyActivity[id] = (mergeFacultyActivity[id] || 0) + c
+      }
+      const mostActiveFaculty = Object.entries(mergeFacultyActivity)
+        .map(([userId, count]) => ({
+          userId: Number(userId),
+          displayName: idToName[userId] || `User ${userId}`,
+          count,
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 12)
+
+      return {
+        totalPublished: published.length,
+        byYear,
+        byCategory,
+        byStatus,
+        mostActiveFaculty,
+      }
+    },
+    // Events
+    async listEvents(query = {}) {
+      const filter = {}
+      if (query.type) filter.type = query.type
+      if (query.department) filter.department = query.department
+      if (query.status) filter.status = query.status
+      if (query.visibility) filter.visibility = query.visibility
+
+      return await events.find(filter).sort({ start_time: 1 }).toArray()
     },
 
-    async listEvents() {
-      return await events.find({}).sort({ start_time: 1 }).toArray()
+    async getEventById(id) {
+      return await events.findOne({ id: Number(id) })
     },
 
     async createEvent(data) {
-      const id = await nextEventId()
+      const id = await nextId('events')
       const doc = {
         id,
         ...data,
         status: data.status || 'pending',
-        created_at: nowIso(),
-        updated_at: nowIso()
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       }
       await events.insertOne(doc)
-      return { ...doc, ok: true }
+      return doc
     },
 
     async updateEvent(id, updates) {
-      await events.updateOne(
-        { id: Number(id) },
-        { $set: { ...updates, updated_at: nowIso() } }
-      )
-      return { ok: true }
-    },
-
-    async approveEvent(id) {
-      const res = await events.findOneAndUpdate(
-        { id: Number(id) },
-        { $set: { status: 'approved', updated_at: nowIso() } },
-        { returnDocument: 'after' }
-      )
-      const event = res?.value ?? res
-      return { ok: true, event }
+      const upd = { ...updates, updated_at: new Date().toISOString() }
+      await events.updateOne({ id: Number(id) }, { $set: upd })
+      return await events.findOne({ id: Number(id) })
     },
 
     async deleteEvent(id) {
       await events.deleteOne({ id: Number(id) })
-      return { ok: true }
+    },
+
+    async approveEvent(id, approvedBy) {
+      await events.updateOne(
+        { id: Number(id) },
+        {
+          $set: {
+            status: 'approved',
+            approved_by: approvedBy,
+            updated_at: new Date().toISOString()
+          }
+        }
+      )
+      return await events.findOne({ id: Number(id) })
     }
+
   }
 }
+

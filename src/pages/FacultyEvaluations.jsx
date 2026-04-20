@@ -20,7 +20,7 @@ export default function FacultyEvaluations() {
     load()
   }, [token])
 
-  const averageRating = evals.length > 0 
+  const averageRating = evals.length > 0
     ? (evals.reduce((sum, e) => sum + e.rating, 0) / evals.length).toFixed(1)
     : 'N/A'
 
@@ -56,17 +56,17 @@ export default function FacultyEvaluations() {
 
       <div className="content-panel" style={{ marginTop: '16px' }}>
         <div className="content-header">
-           <h3 className="content-title">Student Feedback</h3>
+          <h3 className="content-title">Student Feedback</h3>
         </div>
         <div className="profile-sections" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {evals.map(e => (
             <div key={e.id} className="profile-section" style={{ borderLeft: '3px solid var(--accent)' }}>
-               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span style={{ fontWeight: 'bold', fontSize: '13px' }}>Anonymous Student</span>
-                  <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>{'★'.repeat(e.rating)}{'☆'.repeat(5-e.rating)}</span>
-               </div>
-               <p style={{ fontSize: '12px', fontStyle: 'italic', opacity: 0.9 }}>&quot;{e.comments}&quot;</p>
-               <div style={{ marginTop: '8px', fontSize: '10px', opacity: 0.5, textTransform: 'uppercase' }}>{new Date(e.created_at).toLocaleDateString()}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span style={{ fontWeight: 'bold', fontSize: '13px' }}>Anonymous Student</span>
+                <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>{'★'.repeat(e.rating)}{'☆'.repeat(5 - e.rating)}</span>
+              </div>
+              <p style={{ fontSize: '12px', fontStyle: 'italic', opacity: 0.9 }}>&quot;{e.comments}&quot;</p>
+              <div style={{ marginTop: '8px', fontSize: '10px', opacity: 0.5, textTransform: 'uppercase' }}>{new Date(e.created_at).toLocaleDateString()}</div>
             </div>
           ))}
           {evals.length === 0 && <div className="empty-state">No evaluations received yet.</div>}

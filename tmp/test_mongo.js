@@ -25,7 +25,7 @@ async function test() {
   const uri = loadUri()
   console.log('Testing URI:', uri)
   if (!uri) throw new Error('No URI')
-  
+
   const client = new MongoClient(uri, { serverSelectionTimeoutMS: 5000 })
   console.log('Connecting...')
   await client.connect()
@@ -34,12 +34,12 @@ async function test() {
   console.log('Ping...')
   await db.command({ ping: 1 })
   console.log('Pong!')
-  
+
   const users = db.collection('users')
   console.log('Checking for duplicates...')
   const docs = await users.find({}).toArray()
   console.log(`Found ${docs.length} users.`)
-  
+
   await client.close()
   process.exit(0)
 }

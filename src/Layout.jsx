@@ -15,13 +15,52 @@ function studentHeaderPrimaryName(parsed) {
   )
 }
 
+/** First name, middle initial, last name — used in header for faculty and admin. */
+function staffHeaderPrimaryName(parsed, whenEmptyLabel) {
+  const fn = String(parsed?.firstName || parsed?.first_name || parsed?.personal_information?.first_name || '').trim()
+  const mn = String(parsed?.middleName || parsed?.middle_name || parsed?.personal_information?.middle_name || '').trim()
+  const ln = String(parsed?.lastName || parsed?.last_name || parsed?.personal_information?.last_name || '').trim()
+  const mi = mn ? `${mn.charAt(0).toUpperCase()}.` : ''
+  const built = [fn, mi, ln].filter(Boolean).join(' ')
+  if (built) return built
+
+  const full = String(parsed?.displayName || parsed?.fullName || parsed?.full_name || parsed?.identifier || '').trim()
+  if (!full) return whenEmptyLabel
+  const parts = full.split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) {
+    const first = parts[0]
+    const last = parts[parts.length - 1]
+    const middleParts = parts.slice(1, -1).join(' ')
+    const middleInitial = middleParts ? `${middleParts.charAt(0).toUpperCase()}.` : ''
+    return [first, middleInitial, last].filter(Boolean).join(' ')
+  }
+  return full
+}
+
+function facultyHeaderPrimaryName(parsed) {
+  return staffHeaderPrimaryName(parsed, 'Staff')
+}
+
+function adminHeaderPrimaryName(parsed) {
+  return staffHeaderPrimaryName(parsed, 'Administrator')
+}
+
 const ALL_MODULES = [
   { id: 'student-profile', code: '1.1', title: 'Student List', path: '/student-profile', icon: <svg className="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 1-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg> },
-  { id: 'faculty-profile', code: '1.2', title: 'Faculty Profile', path: '/faculty-profile', icon: <svg className="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> },
+  { id: 'faculty-profile', code: '1.2', title: 'Faculty List', path: '/admin/faculty', icon: <svg className="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> },
+  { id: 'teaching-load', code: '1.2.1', title: 'Teaching Load', path: '/faculty/teaching-load', icon: <svg className="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg> },
+  { id: 'faculty-schedule', code: '1.2.2', title: 'Schedule', path: '/faculty/schedule', icon: <svg className="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg> },
+  { id: 'faculty-docs', code: '1.2.3', title: 'Documents', path: '/faculty/documents', icon: <svg className="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg> },
+  { id: 'faculty-evals', code: '1.2.4', title: 'Evaluations', path: '/faculty/evaluations', icon: <svg className="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg> },
+  { id: 'faculty-hours', code: '1.2.5', title: 'Office Hours', path: '/faculty/consultation', icon: <svg className="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> },
+  { id: 'admin-subjects', code: '1.2.6', title: 'Master Subjects', path: '/faculty/subjects', icon: <svg className="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a4 4 0 0 0-4-4H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a4 4 0 0 1 4-4h6z"></path></svg> },
   { id: 'events', code: '1.3', title: 'Events', path: '/events', icon: <svg className="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg> },
   { id: 'scheduling', code: '1.4', title: 'Scheduling', path: '/scheduling', icon: <svg className="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> },
   { id: 'college-research', code: '1.5', title: 'College Research', path: '/college-research', icon: <svg className="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg> },
   { id: 'instructions', code: '1.6', title: 'Instructions', path: '/instructions', icon: <svg className="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a4 4 0 0 0-4-4H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a4 4 0 0 1 4-4h6z"></path></svg> },
+  { id: 'admin-admins-list', code: '1.8', title: 'Admin List', path: '/admin/admins', icon: <svg className="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg> },
+  { id: 'activity-log', code: '1.7', title: 'Activity Log', path: '/activity-log', icon: <svg className="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg> },
+  { id: 'academic-reports', code: '1.9', title: 'Reports', path: '/admin/reports', icon: <svg className="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg> },
 ]
 
 export default function Layout() {
@@ -64,6 +103,8 @@ export default function Layout() {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n))
   }
 
+  const [isFacultyExpanded, setIsFacultyExpanded] = useState(false)
+
   const refreshHeaderFromStorage = useCallback(() => {
     let role = null
     let path = null
@@ -76,7 +117,7 @@ export default function Layout() {
         parsed?.role === 'student' && (parsed?.mustChangePassword === true || parsed?.mustChangePassword === 1),
       )
       if (parsed?.role === 'admin') {
-        setPrimaryLabel(String(parsed.displayName || parsed.fullName || parsed.identifier || '').trim() || 'Administrator')
+        setPrimaryLabel(adminHeaderPrimaryName(parsed))
         setSecondaryLabel('')
         path = '/admin-profile'
         setHeaderRoleLabel('Admin')
@@ -85,11 +126,18 @@ export default function Layout() {
         setSecondaryLabel(String(parsed.studentId || parsed.identifier || '').trim())
         path = '/student-profile'
         setHeaderRoleLabel('Student')
-      } else if (parsed?.role === 'faculty') {
-        setPrimaryLabel(String(parsed.displayName || parsed.fullName || parsed.identifier || '').trim() || 'Faculty')
+      } else if (['faculty', 'dean', 'department_chair', 'secretary', 'faculty_professor'].includes(parsed?.role)) {
+        setPrimaryLabel(facultyHeaderPrimaryName(parsed))
         setSecondaryLabel('')
         path = '/faculty-my-profile'
-        setHeaderRoleLabel('Faculty')
+
+        let label = 'Faculty'
+        if (parsed.role === 'dean') label = 'Dean'
+        else if (parsed.role === 'department_chair') label = 'Chair'
+        else if (parsed.role === 'secretary') label = 'Secretary'
+        else if (parsed.role === 'faculty_professor') label = 'Professor'
+
+        setHeaderRoleLabel(label)
       } else {
         setPrimaryLabel('')
         setSecondaryLabel('')
@@ -114,6 +162,9 @@ export default function Layout() {
       return m
     })
     const allowed = getAllowedModules(roleAwareModules)
+
+    // Roles that can see the Faculty Module group
+    const academicRoles = ['admin', 'faculty', 'dean', 'department_chair', 'secretary', 'faculty_professor']
     setModules(role === 'student' ? allowed.filter((m) => m.id !== 'student-profile') : allowed)
   }, [])
 
@@ -131,16 +182,16 @@ export default function Layout() {
     const token = localStorage.getItem('authToken')
     if (!token) return
     let cancelled = false
-    ;(async () => {
-      try {
-        const res = await apiMe(token)
-        if (cancelled || !res?.user) return
-        localStorage.setItem('authUser', JSON.stringify(res.user))
-        refreshHeaderFromStorage()
-      } catch {
-        // ignore (e.g. expired session)
-      }
-    })()
+      ; (async () => {
+        try {
+          const res = await apiMe(token)
+          if (cancelled || !res?.user) return
+          localStorage.setItem('authUser', JSON.stringify(res.user))
+          refreshHeaderFromStorage()
+        } catch {
+          // ignore (e.g. expired session)
+        }
+      })()
     return () => {
       cancelled = true
     }
@@ -159,7 +210,7 @@ export default function Layout() {
             </div>
           </div>
         </div>
-        
+
         <div className="sidebar-semester-wrapper">
           {(() => {
             const now = new Date();
@@ -168,7 +219,7 @@ export default function Layout() {
             const isSecondSemester = month >= 1 && month <= 6; // roughly Feb-July
             const academicYear = isSecondSemester ? `${year - 1}-${year}` : `${year}-${year + 1}`;
             const currentTerm = isSecondSemester ? "Second Semester" : "First Semester";
-            
+
             return (
               <div className="sidebar-semester-card">
                 <div className="semester-text">{currentTerm}</div>
@@ -180,29 +231,113 @@ export default function Layout() {
 
         <nav className="sidebar-nav">
           <NavLink
-            to="/"
+            to={(() => {
+              try {
+                const u = JSON.parse(localStorage.getItem('authUser'))
+                return ['faculty', 'dean', 'department_chair', 'secretary', 'faculty_professor'].includes(u?.role) ? '/faculty-dashboard' : '/'
+              } catch {
+                return '/'
+              }
+            })()}
             end
             className={({ isActive }) => 'nav-item' + (isActive ? ' nav-item-active' : '')}
           >
-             <svg className="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-             My Dashboard
+            <svg className="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="7" height="7"></rect>
+              <rect x="14" y="3" width="7" height="7"></rect>
+              <rect x="14" y="14" width="7" height="7"></rect>
+              <rect x="3" y="14" width="7" height="7"></rect>
+            </svg>
+            My Dashboard
           </NavLink>
-          {modules.map((m) => (
-            <NavLink
-              key={m.id}
-              to={m.path}
-              className={({ isActive }) => 'nav-item' + (isActive ? ' nav-item-active' : '')}
-            >
-              {m.icon}
-              {m.title}
-            </NavLink>
-          ))}
+
+          {(() => {
+            const facultyGroup = modules.filter(
+              (m) => m.id.startsWith('faculty-') || m.id === 'teaching-load' || m.id === 'admin-subjects',
+            )
+            const facultyIds = new Set(facultyGroup.map(m => m.id))
+            const isChildActive = facultyGroup.some((m) => window.location.pathname === m.path)
+            let renderedFacultyGroup = false
+
+            return modules.map((m) => {
+              if (facultyIds.has(m.id)) {
+                if (renderedFacultyGroup) return null
+                renderedFacultyGroup = true
+                return (
+                  facultyGroup.length > 0 && (
+                    <div className="nav-group" key="faculty-module-group">
+                      <div
+                        className={`nav-item nav-group-header ${isFacultyExpanded || isChildActive ? 'expanded' : ''} ${isChildActive ? 'nav-group-header-active' : ''
+                          }`}
+                        onClick={() => setIsFacultyExpanded(!isFacultyExpanded)}
+                        role="button"
+                        tabIndex={0}
+                      >
+                        <svg
+                          className="nav-icon"
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M2 3h6a4 4 0 0 1 4 4v14a4 4 0 0 0-4-4H2z"></path>
+                          <path d="M22 3h-6a4 4 0 0 0-4 4v14a4 4 0 0 1 4-4h6z"></path>
+                        </svg>
+                        Faculty Module
+                        <svg
+                          className="nav-chevron"
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg>
+                      </div>
+                      {(isFacultyExpanded || isChildActive) && (
+                        <div className="nav-group-children">
+                          {facultyGroup.map((gm) => (
+                            <NavLink
+                              key={gm.id}
+                              to={gm.path}
+                              className={({ isActive }) => 'nav-item' + (isActive ? ' nav-item-active' : '')}
+                            >
+                              {gm.icon}
+                              {gm.title}
+                            </NavLink>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                )
+              }
+              return (
+                <NavLink
+                  key={m.id}
+                  to={m.path}
+                  className={({ isActive }) => 'nav-item' + (isActive ? ' nav-item-active' : '')}
+                >
+                  {m.icon}
+                  {m.title}
+                </NavLink>
+              )
+            })
+          })()}
         </nav>
 
         <div className="sidebar-footer">
           <div className="sidebar-footer-divider"></div>
-          <div 
-            className="nav-item nav-item-logout" 
+          <div
+            className="nav-item nav-item-logout"
             onClick={() => setShowLogoutModal(true)}
             role="button"
             tabIndex={0}
@@ -244,15 +379,15 @@ export default function Layout() {
               )}
             </button>
             <div className="notification-bell" ref={notifRef}>
-              <button 
-                className="notification-icon-btn" 
+              <button
+                className="notification-icon-btn"
                 onClick={() => setShowNotifications(!showNotifications)}
                 title="Notifications"
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
                 {unreadCount > 0 && <span className="notification-badge">{unreadCount}</span>}
               </button>
-              
+
               {showNotifications && (
                 <div className="notification-dropdown">
                   <div className="notif-header">
@@ -268,8 +403,8 @@ export default function Layout() {
                       <div className="notif-empty">No notifications</div>
                     ) : (
                       notifications.map(n => (
-                        <div 
-                          key={n.id} 
+                        <div
+                          key={n.id}
                           className={`notif-item ${!n.isRead ? 'unread' : ''}`}
                           onClick={() => markAsRead(n.id)}
                         >
@@ -301,7 +436,7 @@ export default function Layout() {
             )}
           </div>
         </div>
-        
+
         {mustChangePassword ? (
           <div className="student-password-reminder" role="status">
             <div className="student-password-reminder-inner">
@@ -328,21 +463,21 @@ export default function Layout() {
             <h3 className="modal-title">Confirm Logout</h3>
             <p className="modal-text">Are you sure you want to log out of your account?</p>
             <div className="modal-actions">
-              <button 
-                className="btn btn-secondary" 
+              <button
+                className="btn btn-secondary"
                 onClick={() => setShowLogoutModal(false)}
               >
                 Cancel
               </button>
-              <button 
-                className="btn btn-primary btn-logout-confirm" 
+              <button
+                className="btn btn-primary btn-logout-confirm"
                 onClick={() => {
                   let loginPath = '/admin/login'
                   try {
                     const raw = localStorage.getItem('authUser')
                     const u = raw ? JSON.parse(raw) : null
                     if (u?.role === 'student') loginPath = '/student/login'
-                    else if (u?.role === 'faculty') loginPath = '/faculty/login'
+                    else if (['faculty', 'dean', 'department_chair', 'secretary', 'faculty_professor'].includes(u?.role)) loginPath = '/faculty/login'
                     else if (u?.role === 'admin') loginPath = '/admin/login'
                   } catch {
                     // keep default

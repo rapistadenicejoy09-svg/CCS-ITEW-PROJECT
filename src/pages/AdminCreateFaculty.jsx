@@ -28,7 +28,7 @@ const FSelect = ({ children, className = '', ...props }) => (
       {children}
     </select>
     <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-      <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
     </div>
   </div>
 )
@@ -113,7 +113,7 @@ export default function AdminCreateFaculty() {
         },
         bio: form.bio,
       })
-      navigate('/faculty-profile')
+      navigate('/admin/faculty')
     } catch (err) {
       setError(err?.message || 'Failed to create faculty account.')
     } finally {
@@ -132,7 +132,7 @@ export default function AdminCreateFaculty() {
             <p className="main-description text-[var(--text-muted)] mt-1">Register a new faculty member and assign institutional roles.</p>
           </div>
           <div className="flex items-center gap-2">
-            <Link to="/faculty-profile" className="btn btn-secondary">← Cancel</Link>
+            <Link to="/admin/faculty" className="btn btn-secondary">← Cancel</Link>
             <button onClick={handleCreate} disabled={creating} className="btn btn-primary">
               {creating ? 'Creating Account...' : 'Save Faculty Profile'}
             </button>
@@ -146,7 +146,7 @@ export default function AdminCreateFaculty() {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 animate-reveal" style={{ animationDelay: '0.1s' }}>
-          
+
           <Card>
             <SectionTitle>Identity & Credentials</SectionTitle>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

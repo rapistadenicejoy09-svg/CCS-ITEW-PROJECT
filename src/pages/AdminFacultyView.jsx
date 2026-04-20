@@ -40,9 +40,8 @@ function ViewValue({ children, multiline }) {
   const empty = text == null || text === ''
   return (
     <div
-      className={`rounded-xl border border-dashed border-[var(--border-color)] bg-[rgba(0,0,0,0.02)] dark:bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] transition-all duration-300 hover:border-[var(--accent)]/40 hover:bg-[rgba(229,118,47,0.07)] ${
-        multiline ? 'min-h-[5.5rem] whitespace-pre-wrap' : 'min-h-[44px] flex items-center'
-      }`}
+      className={`rounded-xl border border-dashed border-[var(--border-color)] bg-[rgba(0,0,0,0.02)] dark:bg-[rgba(255,255,255,0.03)] px-4 py-3 text-sm text-[var(--text)] transition-all duration-300 hover:border-[var(--accent)]/40 hover:bg-[rgba(229,118,47,0.07)] ${multiline ? 'min-h-[5.5rem] whitespace-pre-wrap' : 'min-h-[44px] flex items-center'
+        }`}
     >
       {empty ? <span className="text-[var(--text-muted)] italic">—</span> : children}
     </div>
@@ -75,7 +74,7 @@ export default function AdminFacultyView() {
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState('')
-  
+
   const [roleDraft, setRoleDraft] = useState('')
   const [isActiveDraft, setIsActiveDraft] = useState(true)
 
@@ -133,7 +132,7 @@ export default function AdminFacultyView() {
   return (
     <div className="module-page">
       <div className="w-full space-y-5">
-        
+
         <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 admin-animate-reveal">
           <div>
             <h1 className="main-title font-extrabold text-[var(--text)] flex items-center gap-3">
@@ -146,7 +145,7 @@ export default function AdminFacultyView() {
               Institutional record for <span className="text-[var(--text)] font-semibold">{getFacultyName(u)}</span>
             </p>
           </div>
-          <Link to="/faculty-profile" className="btn btn-secondary">← Back to List</Link>
+          <Link to="/admin/faculty" className="btn btn-secondary">← Back to List</Link>
         </header>
 
         {error && (
@@ -156,7 +155,7 @@ export default function AdminFacultyView() {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 admin-animate-reveal" style={{ animationDelay: '0.1s' }}>
-          
+
           {/* Personal & Professional Info */}
           <Card>
             <SectionTitle>Professional Identity</SectionTitle>
@@ -196,12 +195,12 @@ export default function AdminFacultyView() {
           <Card>
             <SectionTitle>User Role Management</SectionTitle>
             <p className="text-xs text-[var(--text-muted)] mb-6">Administrators can adjust system access and institutional roles here.</p>
-            
+
             <form onSubmit={handleUpdateAccount} className="space-y-6">
               <div className="auth-field">
                 <Label>System Role</Label>
                 <div className="relative">
-                  <select 
+                  <select
                     className="search-input w-full appearance-none pr-10"
                     value={roleDraft}
                     onChange={e => setRoleDraft(e.target.value)}
@@ -213,18 +212,18 @@ export default function AdminFacultyView() {
                     <option value="secretary">Secretary</option>
                   </select>
                   <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-                    <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    <svg width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1L5 5L9 1" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                   </div>
                 </div>
               </div>
 
               <div className="flex items-center gap-3 p-4 rounded-xl border border-[var(--border-color)] bg-[rgba(255,255,255,0.02)]">
-                <input 
-                  id="isActive" 
+                <input
+                  id="isActive"
                   type="checkbox"
                   checked={isActiveDraft}
                   onChange={e => setIsActiveDraft(e.target.checked)}
-                  className="w-4 h-4 accent-[var(--accent)] cursor-pointer" 
+                  className="w-4 h-4 accent-[var(--accent)] cursor-pointer"
                 />
                 <label htmlFor="isActive" className="text-sm text-[var(--text)] font-medium select-none cursor-pointer">
                   Account is currently Active
@@ -280,8 +279,8 @@ export default function AdminFacultyView() {
         <Card className="admin-animate-reveal" style={{ animationDelay: '0.2s' }}>
           <SectionTitle>Professional Summary</SectionTitle>
           <div className="space-y-4">
-             <Label>Biography / Description</Label>
-             <ViewValue multiline>{u.bio || 'No biography provided.'}</ViewValue>
+            <Label>Biography / Description</Label>
+            <ViewValue multiline>{u.bio || 'No biography provided.'}</ViewValue>
           </div>
         </Card>
 

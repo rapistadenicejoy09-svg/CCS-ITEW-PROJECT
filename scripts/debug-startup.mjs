@@ -35,25 +35,25 @@ function loadEnvFile() {
 async function debugStart() {
   const env = loadEnvFile()
   console.log('--- Environment Check ---')
-  console.log('DB_PROVIDER:', env.DB_PROVIDER)
+  console.log('MONGODB_URI set:', Boolean(env.MONGODB_URI))
   console.log('--- Starting Server ---')
-  
+
   const serverPath = path.join(rootDir, 'server', 'index.js')
   const child = spawn(process.execPath, [serverPath], {
     cwd: rootDir,
     env: { ...process.env, ...env, PORT: '5005' },
     stdio: 'pipe'
   })
-  
+
   child.stdout.on('data', (d) => console.log(`[STDOUT] ${d}`))
   child.stderr.on('data', (d) => console.error(`[STDERR] ${d}`))
-  
+
   const timeout = setTimeout(() => {
     console.error('Server timed out after 10s without listening message.')
     child.kill()
     process.exit(1)
   }, 10000)
-  
+
   child.on('exit', (code) => {
     console.log(`Server exited with code ${code}`)
     process.exit(code || 0)

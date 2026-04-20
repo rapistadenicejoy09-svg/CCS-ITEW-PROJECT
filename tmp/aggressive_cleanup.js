@@ -17,16 +17,16 @@ function loadUri() {
 async function cleanup() {
   const uri = loadUri()
   if (!uri) { console.error('No URI found'); process.exit(1) }
-  
+
   const client = new MongoClient(uri)
   await client.connect()
   const db = client.db('CCSPS_db')
   const users = db.collection('users')
-  
+
   // Aggressively delete anything that doesn't have a valid number ID
   const res = await users.deleteMany({ id: { $not: { $type: "number" } } })
   console.log(`Aggressively deleted ${res.deletedCount} corrupted/legacy records.`)
-  
+
   await client.close()
   process.exit(0)
 }

@@ -34,18 +34,18 @@ function loadEnv() {
 async function debug() {
   console.log('--- Starting DB Debug ---')
   loadEnv()
-  
+
   try {
     const store = await openStore()
     console.log('✅ Connected to MongoDB')
-    
+
     // Test fetch all (projections test)
     try {
       const users = await store.listAdminUsers()
       console.log(`✅ Fetched ${users.length} users`)
       const ids = users.map(u => u.id)
       console.log('Existing IDs:', ids)
-      
+
       const nullIds = users.filter(u => u.id === null || u.id === undefined)
       if (nullIds.length > 1) {
         console.error(`❌ FOUND CORRUPTED DATA: ${nullIds.length} users have NULL/UNDEFINED IDs. This will cause duplicate key errors.`)
@@ -58,7 +58,7 @@ async function debug() {
     console.log('--- Testing Create User Logic ---')
     const testEmail = `test_${Date.now()}@example.com`
     const testId = `TEST_${Date.now()}`
-    
+
     try {
       await store.createUser({
         role: 'student',
@@ -72,7 +72,7 @@ async function debug() {
         academicInfo: { program: 'CS', year_level: '1st Year' }
       })
       console.log('✅ Successfully created test user')
-      
+
       // Cleanup
       // Since there is no store.deleteUser, we can't easily clean up via store
       // but we know creation works if it gets here.

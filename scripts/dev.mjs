@@ -135,6 +135,8 @@ async function waitForBackendReady(child, port, timeoutMs) {
     exited = code ?? 0
   }
   child.once('exit', onExit)
+  // eslint-disable-next-line no-console
+  console.log(`Waiting for backend to become healthy at ${healthUrlForPort(port)}...`)
   while (Date.now() - start < timeoutMs) {
     if (exited !== null) {
       child.removeListener('exit', onExit)
@@ -149,7 +151,7 @@ async function waitForBackendReady(child, port, timeoutMs) {
     await new Promise((r) => setTimeout(r, 250))
   }
   child.removeListener('exit', onExit)
-  throw new Error(`Backend did not start within ${timeoutMs / 1000}s. Expected ${healthUrlForPort(port)} to respond. If you are using a remote DB, it might be slow to connect.`)
+  throw new Error(`Backend did not start. Expected ${healthUrlForPort(port)} to respond.`)
 }
 
 const serverEntry = path.join(rootDir, 'server', 'index.js')

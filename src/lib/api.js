@@ -55,7 +55,7 @@ async function sameOriginHealthOk() {
 }
 
 function isLocalhostApiUrl(url) {
-  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?$/i.test(String(url || '').trim())
+  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/?\/?$/i.test(String(url || '').trim())
 }
 
 async function resolveApiBase() {
@@ -143,6 +143,33 @@ function fallbackBaseForErrorMessage() {
   return DEFAULT_API_CANDIDATES[0]
 }
 
+// --- Helper: fetch without forcing Content-Type (for multipart) ---
+async function fetchAuthNoJsonContentType(path, token, init = {}) {
+  let API_BASE = await getApiBase()
+  const doFetch = (base) =>
+    fetch(`${base}${path}`, {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(init.headers || {}),
+      },
+    })
+  let res = await doFetch(API_BASE)
+  if (!res.ok && res.status !== 400 && res.status !== 403 && res.status !== 404) {
+    clearCachedApiBase()
+    API_BASE = await getApiBase()
+    res = await doFetch(API_BASE)
+  }
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const err = new Error(data?.error || 'Request failed')
+    err.status = res.status
+    err.data = data
+    throw err
+  }
+  return data
+}
+
 export async function request(path, options = {}) {
   const { headers: optionHeaders, ...rest } = options
 
@@ -206,6 +233,8 @@ export async function request(path, options = {}) {
   return data
 }
 
+// --- Auth ---
+
 export async function apiRegister({
   role,
   identifier,
@@ -223,6 +252,10 @@ export async function apiRegister({
   violations,
   skills,
   affiliations,
+  department,
+  summary,
+  specialization,
+  bio,
 }) {
   return request('/api/auth/register', {
     method: 'POST',
@@ -243,6 +276,10 @@ export async function apiRegister({
       violations,
       skills,
       affiliations,
+      department,
+      summary,
+      specialization,
+      bio,
     }),
   })
 }
@@ -265,6 +302,65 @@ export async function apiMe(token) {
   return request('/api/me', {
     method: 'GET',
     headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export async function api2faSetup(token) {
+  return request('/api/auth/2fa/setup', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export async function api2faVerify(token, code) {
+  return request('/api/auth/2fa/verify', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ code }),
+  })
+}
+
+export async function api2faDisable(token, password) {
+  return request('/api/auth/2fa/disable', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ password }),
+  })
+}
+
+// --- Account ---
+
+export async function apiGetAccountProfile(token) {
+  return request('/api/account/profile', {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export async function apiPatchAccountProfile(token, body) {
+  return request('/api/account/profile', {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function apiChangePassword(token, body) {
+  return request('/api/account/change-password', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  })
+}
+
+// --- Admin ---
+
+/** Create an administrator account (requires an authenticated admin session). */
+export async function apiCreateAdminAccount(token, { identifier, password, fullName, enable2FA, personalInformation }) {
+  return request('/api/admin/accounts', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ identifier, password, fullName, enable2FA, personalInformation }),
   })
 }
 
@@ -301,45 +397,166 @@ export async function apiAdminStudents(token, query = {}) {
   })
 }
 
-export async function apiGetAccountProfile(token) {
-  return request('/api/account/profile', {
+export async function apiAdminLogs(token, limit = 100) {
+  return request(`/api/admin/logs?limit=${limit}`, {
     method: 'GET',
     headers: { Authorization: `Bearer ${token}` },
   })
 }
 
-export async function apiPatchAccountProfile(token, body) {
-  return request('/api/account/profile', {
+export async function apiMeLogs(token, limit = 100) {
+  return request(`/api/me/logs?limit=${limit}`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export async function apiGetReports(token) {
+  return request('/api/reports', {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+// --- Faculty Module ---
+
+export async function apiUpdateFacultyProfile(token, body) {
+  return request('/api/faculty/profile', {
     method: 'PATCH',
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify(body),
   })
 }
 
-export async function apiChangePassword(token, body) {
-  return request('/api/account/change-password', {
+export async function apiGetSubjects(token) {
+  return request('/api/subjects', {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export async function apiCreateSubject(token, body) {
+  return request('/api/subjects', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify(body),
   })
 }
 
-export async function api2faSetup(token) {
-  return request('/api/auth/2fa/setup', {
-    method: 'POST',
+export async function apiUpdateSubject(token, id, body) {
+  return request(`/api/subjects/${id}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function apiDeleteSubject(token, id) {
+  return request(`/api/subjects/${id}`, {
+    method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   })
 }
 
-export async function api2faVerify(token, code) {
-  return request('/api/auth/2fa/verify', {
-    method: 'POST',
+export async function apiGetTeachingLoads(token, facultyId = null) {
+  const url = `/api/teaching-loads${facultyId ? '?facultyId=' + facultyId : ''}`
+  return request(url, {
+    method: 'GET',
     headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ code }),
   })
 }
 
-// --- Instructions API ---
+export async function apiCreateTeachingLoad(token, body) {
+  return request('/api/teaching-loads', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function apiDeleteTeachingLoad(token, id) {
+  return request(`/api/teaching-loads/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export async function apiGetSchedules(token, teachingLoadId = null) {
+  const url = `/api/schedules${teachingLoadId ? '?teachingLoadId=' + teachingLoadId : ''}`
+  return request(url, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export async function apiCreateSchedule(token, body) {
+  return request('/api/schedules', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function apiDeleteSchedule(token, id) {
+  return request(`/api/schedules/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export async function apiGetEvaluations(token, facultyId = null) {
+  const url = `/api/evaluations${facultyId ? '?facultyId=' + facultyId : ''}`
+  return request(url, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export async function apiCreateEvaluation(token, body) {
+  return request('/api/evaluations', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  })
+}
+
+// --- Documents ---
+
+export async function apiGetDocuments(token, query = {}) {
+  const params = new URLSearchParams()
+  if (query.facultyId) params.set('facultyId', query.facultyId)
+  if (query.subjectId) params.set('subjectId', query.subjectId)
+  if (query.status) params.set('status', query.status)
+  return request(`/api/documents?${params.toString()}`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export async function apiUploadDocument(token, body) {
+  return request('/api/documents', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function apiApproveDocument(token, id, body) {
+  return request(`/api/documents/${id}/approval`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function apiDeleteDocument(token, id) {
+  return request(`/api/documents/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+// --- Instructions Module ---
 
 export async function apiGetInstructions(token) {
   return request('/api/instructions', {
@@ -473,17 +690,23 @@ export async function apiFetchInstructionFileBlob(token, fileId, { preview = fal
   return { blob, contentType }
 }
 
-// --- Research API ---
+// --- College Research ---
 
 export async function apiResearchList(token, query = {}) {
   const params = new URLSearchParams()
-  if (query.scope) params.append('scope', query.scope)
-  if (query.year) params.append('year', query.year)
-  if (query.course) params.append('course', query.course)
-  if (query.author) params.append('author', query.author)
-  if (query.keyword) params.append('keyword', query.keyword)
-  const url = `/api/research${params.toString() ? '?' + params.toString() : ''}`
-  return request(url, {
+  Object.entries(query).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && String(v).length) params.set(k, String(v))
+  })
+  const qs = params.toString()
+  // Use /api/college-research (not /api/research) for listing — some environments return 404 on the bare /api/research path.
+  return request(`/api/college-research${qs ? `?${qs}` : ''}`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export async function apiResearchGet(token, id) {
+  return request(`/api/research/${id}`, {
     method: 'GET',
     headers: { Authorization: `Bearer ${token}` },
   })
@@ -496,6 +719,19 @@ export async function apiResearchAnalytics(token) {
   })
 }
 
+export async function apiResearchAuthorSuggestions(token, q, limit = 55, course = '') {
+  const params = new URLSearchParams()
+  params.set('q', q ?? '')
+  if (limit) params.set('limit', String(limit))
+  if (course && ['CS', 'IT'].includes(String(course).toUpperCase())) {
+    params.set('course', String(course).toUpperCase())
+  }
+  return request(`/api/research/author-suggestions?${params.toString()}`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
 export async function apiResearchAdvisers(token) {
   return request('/api/research/advisers', {
     method: 'GET',
@@ -503,24 +739,8 @@ export async function apiResearchAdvisers(token) {
   })
 }
 
-export async function apiResearchAuthorSuggestions(token, query = {}) {
-  const params = new URLSearchParams()
-  if (query.q) params.append('q', query.q)
-  if (query.course) params.append('course', query.course)
-  if (query.limit) params.append('limit', String(query.limit))
-  const url = `/api/research/authors/suggestions${params.toString() ? '?' + params.toString() : ''}`
-  return request(url, {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${token}` },
-  })
-}
-
-export async function apiResearchCreate(token, body) {
-  return request('/api/research', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify(body),
-  })
+export async function apiResearchCreate(token, formData) {
+  return fetchAuthNoJsonContentType('/api/research', token, { method: 'POST', body: formData })
 }
 
 export async function apiResearchPatch(token, id, body) {
@@ -531,31 +751,24 @@ export async function apiResearchPatch(token, id, body) {
   })
 }
 
-export async function apiResearchUploadPdf(token, file) {
-  const resolvedBase = await getApiBase()
-  const formData = new FormData()
-  formData.append('file', file)
-
-  const res = await fetch(`${resolvedBase}/api/research/upload`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    body: formData,
-  })
-
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data?.error || 'Upload failed')
-  return data
+export async function apiResearchUploadPdf(token, id, formData) {
+  return fetchAuthNoJsonContentType(`/api/research/${id}/pdf`, token, { method: 'POST', body: formData })
 }
 
-export async function apiResearchDownloadBlob(token, fileId) {
-  const resolvedBase = await getApiBase()
-  const res = await fetch(`${resolvedBase}/api/research/file/${fileId}`, {
-    method: 'GET',
+export async function apiResearchFacultyReview(token, id, body) {
+  return request(`/api/research/${id}/faculty-review`, {
+    method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
   })
-  if (!res.ok) throw new Error('Download failed')
-  const blob = await res.blob()
-  return { blob, contentType: res.headers.get('Content-Type') }
+}
+
+export async function apiResearchFinalApproval(token, id, body) {
+  return request(`/api/research/${id}/final-approval`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  })
 }
 
 export async function apiResearchDelete(token, id) {
@@ -565,21 +778,41 @@ export async function apiResearchDelete(token, id) {
   })
 }
 
-export async function apiResearchFacultyReview(token, id, adviserId) {
-  return apiResearchPatch(token, id, {
-    status: 'under_faculty_review',
-    adviser_faculty_id: adviserId,
+export async function apiResearchDownloadBlob(token, id) {
+  let API_BASE = await getApiBase()
+  const headers = { Authorization: `Bearer ${token}` }
+  let res = await fetch(`${API_BASE}/api/research/${id}/file`, { headers })
+  if (!res.ok) {
+    clearCachedApiBase()
+    API_BASE = await getApiBase()
+    res = await fetch(`${API_BASE}/api/research/${id}/file`, { headers })
+  }
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}))
+    const err = new Error(data?.error || 'Download failed')
+    err.status = res.status
+    throw err
+  }
+  return await res.blob()
+}
+
+// --- Events Module ---
+
+export async function apiGetEvents(token, query = {}) {
+  const params = new URLSearchParams()
+  if (query.type) params.set('type', query.type)
+  if (query.department) params.set('department', query.department)
+  if (query.status) params.set('status', query.status)
+  if (query.visibility) params.set('visibility', query.visibility)
+
+  return request(`/api/events?${params.toString()}`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
   })
 }
 
-export async function apiResearchFinalApproval(token, id, status = 'published') {
-  return apiResearchPatch(token, id, { status })
-}
-
-// --- Events API ---
-
-export async function apiGetEvents(token) {
-  return request('/api/events', {
+export async function apiGetEvent(token, id) {
+  return request(`/api/events/${id}`, {
     method: 'GET',
     headers: { Authorization: `Bearer ${token}` },
   })
@@ -595,16 +828,9 @@ export async function apiCreateEvent(token, body) {
 
 export async function apiUpdateEvent(token, id, body) {
   return request(`/api/events/${id}`, {
-    method: 'PUT',
-    headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify(body),
-  })
-}
-
-export async function apiApproveEvent(token, id) {
-  return request(`/api/events/${id}/approve`, {
     method: 'PATCH',
     headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
   })
 }
 
@@ -615,28 +841,9 @@ export async function apiDeleteEvent(token, id) {
   })
 }
 
-// --- MISSING ENDPOINTS (MOCKED FOR DEPENDENCY RESOLUTION) ---
-export async function apiAdminLogs(token) { return request('/api/admin/logs', { headers: { Authorization: `Bearer ${token}` } }) }
-export async function apiMeLogs(token) { return request('/api/logs', { headers: { Authorization: `Bearer ${token}` } }) }
-
-export async function apiGetTeachingLoads(token) { return request('/api/faculty/teaching-loads', { headers: { Authorization: `Bearer ${token}` } }) }
-export async function apiCreateTeachingLoad(token, body) { return request('/api/faculty/teaching-loads', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) }
-export async function apiDeleteTeachingLoad(token, id) { return request(`/api/faculty/teaching-loads/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }) }
-
-export async function apiGetSubjects(token) { return request('/api/faculty/subjects', { headers: { Authorization: `Bearer ${token}` } }) }
-export async function apiCreateSubject(token, body) { return request('/api/faculty/subjects', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) }
-export async function apiDeleteSubject(token, id) { return request(`/api/faculty/subjects/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }) }
-
-export async function apiGetEvaluations(token) { return request('/api/faculty/evaluations', { headers: { Authorization: `Bearer ${token}` } }) }
-
-export async function apiGetDocuments(token) { return request('/api/faculty/documents', { headers: { Authorization: `Bearer ${token}` } }) }
-export async function apiUploadDocument(token, body) { return request('/api/faculty/documents/upload', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body }) }
-export async function apiDeleteDocument(token, id) { return request(`/api/faculty/documents/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }) }
-
-export async function apiGetSchedules(token) { return request('/api/faculty/schedules', { headers: { Authorization: `Bearer ${token}` } }) }
-export async function apiCreateSchedule(token, body) { return request('/api/faculty/schedules', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) }
-export async function apiDeleteSchedule(token, id) { return request(`/api/faculty/schedules/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }) }
-
-export async function apiCreateAdminAccount(token, body) { return request('/api/admin/users', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) }
-
-
+export async function apiApproveEvent(token, id) {
+  return request(`/api/events/${id}/approve`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}

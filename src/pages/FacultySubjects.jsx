@@ -61,7 +61,7 @@ export default function FacultySubjects() {
 
       <div className="content-panel">
         <div className="content-header">
-           <h3 className="content-title">Register New Subject</h3>
+          <h3 className="content-title">Register New Subject</h3>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginTop: '12px' }}>
           <div className="auth-field">
@@ -77,15 +77,15 @@ export default function FacultySubjects() {
             <input type="number" className="search-input" style={{ borderRadius: 'var(--radius-md)', padding: '10px' }} value={credits} onChange={e => setCredits(e.target.value)} />
           </div>
           <div className="auth-field" style={{ justifyContent: 'flex-end' }}>
-             <button onClick={handleAdd} className="btn btn-primary" style={{ width: '100%', padding: '10px' }}>Register</button>
+            <button onClick={handleAdd} className="btn btn-primary" style={{ width: '100%', padding: '10px' }}>Register</button>
           </div>
         </div>
       </div>
 
       <div className="content-panel">
         <div className="content-header">
-           <h3 className="content-title">Curriculum Subjects</h3>
-           <span className="badge-enrolled">{subjects.length} Registered</span>
+          <h3 className="content-title">Curriculum Subjects</h3>
+          <span className="badge-enrolled">{subjects.length} Registered</span>
         </div>
         <div className="table-wrapper">
           <table className="data-table">

@@ -28,14 +28,14 @@ async function sanitize() {
   await client.connect()
   const db = client.db('CCSPS_db')
   const users = db.collection('users')
-  
+
   const docs = await users.find({}).toArray()
   console.log(`Initial User Count: ${docs.length}`)
-  
+
   const seenIds = new Set()
   const seenIdentifiers = new Set()
   const toDelete = []
-  
+
   for (const doc of docs) {
     if (doc.id === null || typeof doc.id !== 'number' || seenIds.has(doc.id)) {
       console.log(`Marking Duplicate ID for deletion: ID=${doc.id}, Name=${doc.full_name}`)
@@ -50,14 +50,14 @@ async function sanitize() {
     seenIds.add(doc.id)
     seenIdentifiers.add(doc.identifier)
   }
-  
+
   if (toDelete.length > 0) {
     const res = await users.deleteMany({ _id: { $in: toDelete } })
     console.log(`Deleted ${res.deletedCount} problematic records.`)
   } else {
     console.log('No duplicates found.')
   }
-  
+
   await client.close()
 }
 

@@ -29,10 +29,10 @@ function getFacultyName(f) {
 
 function getFacultyContact(f) {
   return (
-    f.personal_information?.phone || 
-    f.personal_information?.phone_number || 
-    f.personal_information?.contact_number || 
-    f.email || 
+    f.personal_information?.phone ||
+    f.personal_information?.phone_number ||
+    f.personal_information?.contact_number ||
+    f.email ||
     'No contact'
   )
 }
@@ -121,11 +121,11 @@ export default function AdminFacultyList() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [successModal, setSuccessModal] = useState({ open: false, message: '' })
-  
+
   const [search, setSearch] = useState('')
   const [filterRole, setFilterRole] = useState('')
   const [filterDept, setFilterDept] = useState('')
-  
+
   const [showFilters, setShowFilters] = useState(false)
   const [viewMode, setViewMode] = useState('grid')
 
@@ -148,8 +148,8 @@ export default function AdminFacultyList() {
       const result = await apiAdminUsers(token)
       const users = Array.isArray(result?.users) ? result.users : []
       // Faculty characters: dean, chair, secretary, professor, faculty (Legacy)
-      const facultyOnly = users.filter(u => 
-        ['dean','department_chair','secretary','faculty_professor','faculty'].includes(u.role)
+      const facultyOnly = users.filter(u =>
+        ['dean', 'department_chair', 'secretary', 'faculty_professor', 'faculty'].includes(u.role)
       )
       setFaculty(facultyOnly.filter(isUserActive))
     } catch (err) {
@@ -225,7 +225,7 @@ export default function AdminFacultyList() {
   return (
     <div className="module-page">
       <div className="w-full space-y-6">
-        
+
         {/* Header Section */}
         <header className="module-header flex flex-col md:flex-row justify-between items-start md:items-center admin-student-list-header-enter">
           <div>
@@ -237,7 +237,7 @@ export default function AdminFacultyList() {
             </p>
           </div>
           <Link
-            to="/admin/faculty/create"
+            to="/admin/create-faculty"
             className="mt-4 md:mt-0 font-medium transition-all duration-300 text-sm px-6 py-2.5 rounded-full hover:shadow-lg hover:scale-[1.03] active:scale-[0.98]"
             style={{ background: 'var(--accent)', color: 'white', border: '1px solid var(--accent-soft)' }}
           >
@@ -257,9 +257,9 @@ export default function AdminFacultyList() {
         {/* Filters and Search Bar Section */}
         <section className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] p-5 md:p-6 shadow-sm admin-student-list-toolbar-enter">
           <div className="flex flex-col md:flex-row gap-4 items-center">
-            
+
             <div className="flex-1 w-full relative">
-              <input 
+              <input
                 type="text"
                 placeholder="Search by name or email..."
                 value={search}
@@ -267,18 +267,18 @@ export default function AdminFacultyList() {
                 className="search-input w-full"
               />
             </div>
-            
+
             <div className="flex items-center gap-3 w-full md:w-auto">
-              <button 
+              <button
                 onClick={() => setShowFilters(!showFilters)}
                 className={`btn flex items-center gap-2 ${showFilters || hasActiveFilters ? 'btn-primary' : 'btn-secondary'}`}
               >
-                <IconFilter /> Filters 
+                <IconFilter /> Filters
                 {hasActiveFilters && (
                   <span className={`w-1.5 h-1.5 rounded-full ${showFilters || hasActiveFilters ? 'bg-[#1a0d05]' : 'bg-[var(--accent)]'}`} />
                 )}
               </button>
-              
+
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => setViewMode('list')}
@@ -316,7 +316,7 @@ export default function AdminFacultyList() {
                     <option value="faculty_professor">Professor</option>
                   </select>
                 </div>
-                
+
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs text-[var(--text-muted)] uppercase tracking-wider font-semibold ml-1">Department</label>
                   <select
@@ -350,7 +350,7 @@ export default function AdminFacultyList() {
         <section className="space-y-4 admin-student-list-section-enter">
           <h2 className="text-xl font-bold px-1 flex items-center gap-2 text-[var(--text)]">
             <span className="w-6 h-[2px] bg-[var(--accent)]"></span>
-            Faculty Members 
+            Faculty Members
             {filteredFaculty.length > 0 && (
               <span className="px-2 py-0.5 bg-[var(--accent-soft)] text-[var(--accent)] rounded-full text-xs ml-2">
                 {filteredFaculty.length}

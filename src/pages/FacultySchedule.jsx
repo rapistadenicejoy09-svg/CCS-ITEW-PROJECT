@@ -114,7 +114,7 @@ export default function FacultySchedule() {
 
       <div className="content-panel">
         <div className="content-header">
-           <h3 className="content-title">Class Schedule Grid</h3>
+          <h3 className="content-title">Class Schedule Grid</h3>
         </div>
         <div className="table-wrapper">
           <table className="data-table">

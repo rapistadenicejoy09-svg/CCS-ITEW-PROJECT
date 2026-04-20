@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { apiAdminUsers } from '../lib/api'
 
 const MODULES = [
@@ -74,6 +74,7 @@ function useTodayParts() {
 
 export default function Dashboard() {
   const [role, setRole] = useState(() => getRole())
+  if (role === 'faculty') return <Navigate to="/faculty-dashboard" replace />
   const [modules, setModules] = useState(MODULES)
   const [search, setSearch] = useState('')
   const query = search.toLowerCase()
@@ -334,25 +335,25 @@ export default function Dashboard() {
             <section className="summary-row" style={{ marginTop: '24px' }}>
               {statsLoading
                 ? modules.map((m) => (
-                    <div key={m.id} className="summary-card" style={{ cursor: 'default', opacity: 0.7 }}>
-                      <div className="summary-label">{m.title}</div>
-                      <div className="summary-value">…</div>
-                      <div className="summary-hint">Loading…</div>
-                    </div>
-                  ))
+                  <div key={m.id} className="summary-card" style={{ cursor: 'default', opacity: 0.7 }}>
+                    <div className="summary-label">{m.title}</div>
+                    <div className="summary-value">…</div>
+                    <div className="summary-hint">Loading…</div>
+                  </div>
+                ))
                 : modules.map((m) => {
-                    const isLiveStudent = m.id === 'student-profile'
-                    const n = isLiveStudent ? studentCount : STATIC_MODULE_DISPLAY[m.id] ?? '—'
-                    return (
-                      <SummaryCard
-                        key={m.id}
-                        label={m.title}
-                        value={n}
-                        hint={isLiveStudent && studentCount === 0 ? 'No students yet' : undefined}
-                        link={m.path}
-                      />
-                    )
-                  })}
+                  const isLiveStudent = m.id === 'student-profile'
+                  const n = isLiveStudent ? studentCount : STATIC_MODULE_DISPLAY[m.id] ?? '—'
+                  return (
+                    <SummaryCard
+                      key={m.id}
+                      label={m.title}
+                      value={n}
+                      hint={isLiveStudent && studentCount === 0 ? 'No students yet' : undefined}
+                      link={m.path}
+                    />
+                  )
+                })}
             </section>
           )}
 
