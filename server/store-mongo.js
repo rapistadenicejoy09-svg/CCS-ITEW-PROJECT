@@ -75,6 +75,7 @@ export async function openMongoStore() {
   const logs = db.collection('logs')
   const researchPublications = db.collection('research_publications')
   const events = db.collection('events')
+  const instructions = db.collection('instructions')
 
   // Ensure uniqueness constraints for user identity and sessions.
   await Promise.all([
@@ -121,6 +122,10 @@ export async function openMongoStore() {
     events.createIndex({ type: 1 }),
     events.createIndex({ department: 1 }),
     events.createIndex({ start_time: 1 }),
+    instructions.createIndex({ id: 1 }, { unique: true, name: 'instructions_id_unique' }),
+    instructions.createIndex({ type: 1 }),
+    instructions.createIndex({ course: 1 }),
+    instructions.createIndex({ status: 1 }),
   ])
 
   async function nextId(collectionName) {
@@ -805,6 +810,58 @@ export async function openMongoStore() {
           }
         ]
       }).toArray()
+    },
+
+    // Instructions (curriculums, syllabi, lesson modules)
+    async listInstructions(query = {}) {
+      const filter = {}
+      if (query.type) filter.type = query.type
+      if (query.course) filter.course = query.course
+      if (query.status) filter.status = query.status
+      return await instructions.find(filter).sort({ updated_at: -1 }).toArray()
+    },
+
+    async findInstructionById(id) {
+      return await instructions.findOne({ id: Number(id) })
+    },
+
+    async createInstruction(data) {
+      const id = await nextId('instructions')
+      const now = new Date().toISOString()
+      const doc = {
+        id,
+        title: data.title || '',
+        type: data.type || 'curriculum',
+        course: data.course || '',
+        subject: data.subject || '',
+        description: data.description || '',
+        status: data.status || 'Draft',
+        author: data.author || '',
+        link: data.link || '',
+        created_at: now,
+        updated_at: now,
+      }
+      await instructions.insertOne(doc)
+      return doc
+    },
+
+    async updateInstruction(id, data) {
+      const now = new Date().toISOString()
+      const update = { updated_at: now }
+      if (data.title !== undefined) update.title = data.title
+      if (data.type !== undefined) update.type = data.type
+      if (data.course !== undefined) update.course = data.course
+      if (data.subject !== undefined) update.subject = data.subject
+      if (data.description !== undefined) update.description = data.description
+      if (data.status !== undefined) update.status = data.status
+      if (data.author !== undefined) update.author = data.author
+      if (data.link !== undefined) update.link = data.link
+      await instructions.updateOne({ id: Number(id) }, { $set: update })
+      return await instructions.findOne({ id: Number(id) })
+    },
+
+    async deleteInstruction(id) {
+      await instructions.deleteOne({ id: Number(id) })
     },
 
     // Documents
