@@ -487,7 +487,13 @@ async function buildResearchAuthors(store, creatorUser, coAuthorIds) {
 
 const authMiddleware = asyncHandler(async (req, res, next) => {
   const header = req.headers.authorization || ''
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null
+  let token = header.startsWith('Bearer ') ? header.slice(7) : null
+
+  // Fallback to query parameter for direct link downloads (<a> tags)
+  if (!token && req.query.token) {
+    token = String(req.query.token)
+  }
+
   if (!token) return res.status(401).json({ error: 'Missing token' })
   const session = await store.getSessionByToken(token)
   if (!session) return res.status(401).json({ error: 'Invalid token' })
@@ -1200,8 +1206,9 @@ app.get('/api/instructions/file/:fileId', authMiddleware, authorize(PERMISSIONS.
       }
       stream.pipe(res)
       return
-    } catch {
-      return res.status(404).json({ error: 'File not found' })
+    } catch (err) {
+      console.error('[DOWNLOAD_FILE_ERROR]', err)
+      return res.status(404).json({ error: 'File not found', message: err.message })
     }
   }
   res.status(404).json({ error: 'File storage not configured' })

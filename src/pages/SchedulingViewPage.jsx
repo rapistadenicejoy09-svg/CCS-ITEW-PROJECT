@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { hasPermission, PERMISSIONS } from '../lib/security'
-import { DAYS, getScheduleById, getSchedules, parseMinutes, deleteSchedule, buildTimeSlots, calculateTimetableTracks } from '../lib/schedulingStore'
+import { DAYS, getScheduleById, parseMinutes, deleteSchedule, buildTimeSlots, calculateTimetableTracks } from '../lib/schedulingStore'
 
 function Field({ label, value }) {
   return (
@@ -32,21 +32,7 @@ export default function SchedulingViewPage() {
         }
         setSchedule(item)
 
-        // Load cohort schedules (same course, year, section) for the timetable
-        const all = await getSchedules()
-        const cohort = all
-          .filter(
-            (s) =>
-              String(s.course) === String(item.course) &&
-              String(s.yearLevel) === String(item.yearLevel) &&
-              String(s.section) === String(item.section),
-          )
-          .sort((a, b) => {
-            const dayCompare = DAYS.indexOf(a.day) - DAYS.indexOf(b.day)
-            if (dayCompare !== 0) return dayCompare
-            return parseMinutes(a.startTime) - parseMinutes(b.startTime)
-          })
-        setCohortSchedules(cohort)
+        setCohortSchedules([item])
       } finally {
         setLoading(false)
       }

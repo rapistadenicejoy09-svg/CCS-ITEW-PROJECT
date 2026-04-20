@@ -1,4 +1,5 @@
-import { MongoClient } from 'mongodb'
+import { MongoClient, GridFSBucket, ObjectId } from 'mongodb'
+import { Readable } from 'stream'
 
 function normalizeForMongoIdentifier(value) {
   // Must match `normalizeIdentifier()` from `server/auth.js`: trim + lowercase.
@@ -76,6 +77,7 @@ export async function openMongoStore() {
   const researchPublications = db.collection('research_publications')
   const events = db.collection('events')
   const instructions = db.collection('instructions')
+  const bucket = new GridFSBucket(db, { bucketName: 'instruction_files' })
 
   // Ensure uniqueness constraints for user identity and sessions.
   await Promise.all([
@@ -1354,6 +1356,87 @@ export async function openMongoStore() {
         }
       )
       return await events.findOne({ id: Number(id) })
+    },
+
+    // File Storage (GridFS)
+    async uploadFile(filename, mimetype, buffer) {
+      console.log(`[STORE] Starting upload for: ${filename} (${mimetype}), size: ${buffer.length} bytes`)
+      return new Promise((resolve, reject) => {
+        const uploadStream = bucket.openUploadStream(filename, {
+          metadata: { contentType: mimetype }
+        })
+        const readable = new Readable()
+        readable._read = () => {}
+        readable.push(buffer)
+        readable.push(null)
+        readable.pipe(uploadStream)
+          .on('error', (err) => {
+            console.error('[STORE] Upload stream error:', err)
+            reject(err)
+          })
+          .on('finish', () => {
+            console.log(`[STORE] Upload finished. New fileId: ${uploadStream.id.toString()}`)
+            resolve({
+              fileId: uploadStream.id.toString(),
+              filename: filename
+            })
+          })
+      })
+    },
+
+    async downloadFile(fileId) {
+      console.log(`[STORE] Requested download for fileId: "${fileId}"`)
+      
+      // Basic validation to prevent ObjectId constructor from throwing
+      if (!fileId || typeof fileId !== 'string' || !/^[0-9a-fA-F]{24}$/.test(fileId)) {
+        console.error(`[STORE] Aborting download: Invalid ObjectId format for "${fileId}"`)
+        throw new Error(`Invalid file ID format: "${fileId}". Expected a 24-character hex string.`)
+      }
+
+      const id = new ObjectId(fileId)
+      const files = await db.collection('instruction_files.files').find({ _id: id }).toArray()
+      
+      if (!files.length) {
+        console.error(`[STORE] File NOT found in database: ${fileId}`)
+        throw new Error(`File not found in storage: ${fileId}`)
+      }
+      
+      const file = files[0]
+      console.log(`[STORE] File located: ${file.filename} (${file.length} bytes)`)
+      
+      // Smart MIME inference for legacy files missing metadata.contentType
+      let contentType = file.metadata?.contentType
+      if (!contentType || contentType === 'application/octet-stream') {
+        const ext = file.filename.split('.').pop().toLowerCase()
+        const mimeMap = {
+          'pdf': 'application/pdf',
+          'png': 'image/png',
+          'jpg': 'image/jpeg',
+          'jpeg': 'image/jpeg',
+          'gif': 'image/gif',
+          'webp': 'image/webp',
+          'svg': 'image/svg+xml',
+          'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          'doc': 'application/msword',
+          'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'xls': 'application/vnd.ms-excel',
+          'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          'ppt': 'application/vnd.ms-powerpoint',
+          'txt': 'text/plain',
+          'csv': 'text/csv'
+        }
+        if (mimeMap[ext]) {
+          contentType = mimeMap[ext]
+          console.log(`[STORE] Inferred MIME type for legacy file: ${contentType}`)
+        }
+      }
+      
+      const stream = bucket.openDownloadStream(id)
+      return {
+        stream,
+        filename: file.filename,
+        contentType: contentType || 'application/octet-stream'
+      }
     }
 
   }
