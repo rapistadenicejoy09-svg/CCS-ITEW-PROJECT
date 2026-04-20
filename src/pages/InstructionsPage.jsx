@@ -6,6 +6,25 @@ function getRole() {
   try { return JSON.parse(localStorage.getItem('authUser'))?.role } catch { return null }
 }
 
+function getStudentAssignmentFromAuth() {
+  try {
+    const raw = localStorage.getItem('authUser')
+    const user = raw ? JSON.parse(raw) : null
+    if (!user) return { course: '' }
+    const source = user.summary || user.academic_info || user.academicInfo || {}
+
+    let courseRaw = source.program || source.course || user.program || user.course || ''
+    let course = String(courseRaw).trim().toLowerCase()
+    
+    if (course === 'bsit' || course === 'it' || course.includes('information tech')) course = 'bsit'
+    else if (course === 'bscs' || course === 'cs' || course.includes('computer science')) course = 'bscs'
+    
+    return { course }
+  } catch {
+    return { course: '' }
+  }
+}
+
 function IconSearch() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -152,7 +171,22 @@ export default function InstructionsPage() {
   }, [activeTab, instructions])
 
   const filteredItems = useMemo(() => {
+    let studentCourse = ''
+    const role = getRole()
+    if (role === 'student') {
+      studentCourse = getStudentAssignmentFromAuth().course
+    }
+
     return instructions.filter((item) => {
+      if (role === 'student') {
+        if (!studentCourse) return false // Blocks everything if profile incomplete
+        
+        let itemCourse = String(item.course || '').trim().toLowerCase()
+        if (itemCourse.includes('computer science') || itemCourse === 'cs') itemCourse = 'bscs'
+        if (itemCourse.includes('information tech') || itemCourse === 'it') itemCourse = 'bsit'
+        if (itemCourse !== studentCourse) return false
+      }
+
       const matchTab = item.type === activeTab
       const matchSearch = item.title.toLowerCase().includes(search.toLowerCase()) || item.description.toLowerCase().includes(search.toLowerCase())
       const matchStatus = filterStatus ? item.status === filterStatus : true
@@ -342,10 +376,21 @@ export default function InstructionsPage() {
             </div>
           ) : filteredItems.length === 0 ? (
             <div className="text-center p-12 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)]">
-              <p className="text-[var(--text-muted)] text-sm font-semibold">No materials found.</p>
-              <p className="text-[var(--text-muted)] text-xs mt-1 opacity-70">
-                {instructions.length === 0 ? 'No materials have been added yet.' : 'Try adjusting your search or filters.'}
-              </p>
+              {getRole() === 'student' && !getStudentAssignmentFromAuth().course ? (
+                <>
+                  <p className="text-amber-500 font-bold mb-1">Incomplete Academic Profile</p>
+                  <p className="text-[var(--text-muted)] text-xs mt-2 max-w-md mx-auto">
+                    Your account does not have a registered Program. Please log out and log back in to refresh your session data, or ask an administrator to assign a course to your profile.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-[var(--text-muted)] text-sm font-semibold">No materials found.</p>
+                  <p className="text-[var(--text-muted)] text-xs mt-1 opacity-70">
+                    {instructions.length === 0 ? 'No materials have been added yet.' : 'Try adjusting your search or filters.'}
+                  </p>
+                </>
+              )}
             </div>
           ) : (
              <>
