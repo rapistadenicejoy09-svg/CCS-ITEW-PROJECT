@@ -1,16 +1,3 @@
-<<<<<<< HEAD
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
-
-// https://vite.dev/config/
-export default defineConfig({
-  plugins: [tailwindcss(), react()],
-  // Serve static files (like images) from the "images" folder
-  // next to this vite.config.js. They are then available at "/<filename>".
-  publicDir: 'images',
-})
-=======
 import process from 'node:process'
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
@@ -37,4 +24,3 @@ export default defineConfig(({ mode }) => {
     },
   }
 })
->>>>>>> cc4de6b5e7c3cb15cef6b473a925b40363e3b2aa
