@@ -236,6 +236,8 @@ export async function openMongoStore() {
             middle_name: 1,
             last_name: 1,
             must_change_password: 1,
+            academic_info: 1,
+            class_section: 1,
           },
         },
       )
@@ -263,6 +265,8 @@ export async function openMongoStore() {
             middle_name: 1,
             last_name: 1,
             must_change_password: 1,
+            academic_info: 1,
+            class_section: 1,
           },
         },
       )
@@ -790,6 +794,16 @@ export async function openMongoStore() {
       const doc = { id, ...data, created_at: new Date().toISOString() }
       await schedules.insertOne(doc)
       return doc
+    },
+
+    async getScheduleById(id) {
+      return await schedules.findOne({ id: Number(id) })
+    },
+
+    async updateSchedule(id, data) {
+      const doc = { ...data, updated_at: new Date().toISOString() }
+      await schedules.updateOne({ id: Number(id) }, { $set: doc })
+      return await schedules.findOne({ id: Number(id) })
     },
 
     async deleteSchedule(id) {

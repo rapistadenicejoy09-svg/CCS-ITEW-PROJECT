@@ -38,14 +38,20 @@ function getStudentAssignmentFromAuth() {
     if (!user) {
       return { course: '', yearLevel: '', section: '' }
     }
-    const source = user.summary || user.academicInfo || {}
+    const source = user.summary || user.academic_info || user.academicInfo || {}
+    
+    let courseRaw = source.program || source.course || user.program || user.course || ''
+    let yearRaw = source.year_level || source.yearLevel || source.year || user.year_level || user.yearLevel || user.year || ''
+    let sectRaw = user.class_section || source.class_section || source.classSection || source.section || user.classSection || ''
+    
+    let course = String(courseRaw).trim().toLowerCase()
+    if (course === 'bsit' || course === 'it' || course.includes('information tech')) course = 'bsit'
+    else if (course === 'bscs' || course === 'cs' || course.includes('computer science')) course = 'bscs'
+
     return {
-      course: formatLabelText(source.program || source.course || user.program || user.course, ''),
-      yearLevel: formatLabelText(
-        source.yearLevel || source.year || user.yearLevel || user.year,
-        '',
-      ),
-      section: formatLabelText(source.classSection || source.section || user.classSection, ''),
+      course: course,
+      yearLevel: String(yearRaw).trim(),
+      section: String(sectRaw).trim(),
     }
   } catch {
     return { course: '', yearLevel: '', section: '' }
@@ -162,16 +168,44 @@ export default function SchedulingPage() {
   )
 
   const scopedSchedules = useMemo(() => {
-    const c = normalizeText(courseFilter)
-    const y = normalizeText(yearFilter)
-    const s = normalizeText(sectionFilter)
+    let c = normalizeText(courseFilter)
+    let y = normalizeText(yearFilter)
+    let s = normalizeText(sectionFilter)
+
+    if (isStudent) {
+      const fromAuth = getStudentAssignmentFromAuth()
+      c = normalizeText(fromAuth.course)
+      y = normalizeText(fromAuth.yearLevel)
+      s = normalizeText(fromAuth.section)
+      // Normalize common names
+      if (c.includes('computer science') || c === 'cs') c = 'bscs'
+      if (c.includes('information tech') || c === 'it') c = 'bsit'
+      if (y === '1' || y === '1st') y = '1st year'
+      if (y === '2' || y === '2nd') y = '2nd year'
+      if (y === '3' || y === '3rd') y = '3rd year'
+      if (y === '4' || y === '4th') y = '4th year'
+    }
+
     return schedules.filter((item) => {
-      if (c && normalizeText(item.course) !== c) return false
+      if (isStudent) {
+        if (!c || !y || !s) return false // STRICT: Hide everything if profile is incomplete
+      }
+
+      let itemCourse = normalizeText(item.course)
+      if (itemCourse.includes('computer science') || itemCourse === 'cs') itemCourse = 'bscs'
+      if (itemCourse.includes('information tech') || itemCourse === 'it') itemCourse = 'bsit'
+
+      if (c && itemCourse !== c) return false
       if (y && normalizeText(item.yearLevel) !== y) return false
-      if (s && normalizeText(item.section) !== s) return false
+      
+      // Fuzzy Section Matching: Matches 'A' to '1A' since Year is already strictly verified above
+      let sLetter = s.replace(/[^a-z]/g, '')
+      let itemSectLetter = normalizeText(item.section).replace(/[^a-z]/g, '')
+      if (s && sLetter !== itemSectLetter) return false
+      
       return true
     })
-  }, [courseFilter, yearFilter, schedules, sectionFilter])
+  }, [courseFilter, yearFilter, schedules, sectionFilter, isStudent])
 
   const dayScoped = useMemo(() => {
     if (!filterDay) return scopedSchedules
@@ -307,7 +341,7 @@ export default function SchedulingPage() {
             <div className="pt-5 mt-1 border-t border-[var(--border-color)] flex flex-wrap gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
               <label className="flex flex-col gap-1.5 w-full md:w-[200px]">
                 <span className="text-[11px] uppercase tracking-wider font-semibold text-[var(--text-muted)]">Program</span>
-                <select className="search-input w-full !rounded-md !py-2 appearance-none" value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)}>
+                <select className="search-input w-full !rounded-md !py-2 appearance-none" value={courseFilter} disabled={isStudent} onChange={(e) => setCourseFilter(e.target.value)}>
                   <option value="">All programs</option>
                   {uniqueCourses.map((course) => (
                     <option key={course} value={course}>
@@ -318,7 +352,7 @@ export default function SchedulingPage() {
               </label>
               <label className="flex flex-col gap-1.5 w-full md:w-[200px]">
                 <span className="text-[11px] uppercase tracking-wider font-semibold text-[var(--text-muted)]">Year level</span>
-                <select className="search-input w-full !rounded-md !py-2 appearance-none" value={yearFilter} onChange={(e) => setYearFilter(e.target.value)}>
+                <select className="search-input w-full !rounded-md !py-2 appearance-none" value={yearFilter} disabled={isStudent} onChange={(e) => setYearFilter(e.target.value)}>
                   <option value="">All years</option>
                   {uniqueYears.map((year) => (
                     <option key={year} value={year}>
@@ -329,7 +363,7 @@ export default function SchedulingPage() {
               </label>
               <label className="flex flex-col gap-1.5 w-full md:w-[200px]">
                 <span className="text-[11px] uppercase tracking-wider font-semibold text-[var(--text-muted)]">Section</span>
-                <select className="search-input w-full !rounded-md !py-2 appearance-none" value={sectionFilter} onChange={(e) => setSectionFilter(e.target.value)}>
+                <select className="search-input w-full !rounded-md !py-2 appearance-none" value={sectionFilter} disabled={isStudent} onChange={(e) => setSectionFilter(e.target.value)}>
                   <option value="">All sections</option>
                   {uniqueSections.map((section) => (
                     <option key={section} value={section}>
@@ -355,14 +389,16 @@ export default function SchedulingPage() {
                     type="button"
                     onClick={() => {
                       setSearch('')
-                      setCourseFilter('')
-                      setYearFilter('')
-                      setSectionFilter('')
                       setFilterDay('')
+                      if (!isStudent) {
+                        setCourseFilter('')
+                        setYearFilter('')
+                        setSectionFilter('')
+                      }
                     }}
                     className="px-5 py-2 rounded-full border border-[var(--border-color)] bg-transparent hover:bg-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text)] text-sm font-medium transition-colors"
                   >
-                    Clear all filters
+                    Clear {isStudent ? 'search & day' : 'all filters'}
                   </button>
                 </div>
               ) : null}
@@ -383,12 +419,24 @@ export default function SchedulingPage() {
 
           {visibleSchedules.length === 0 ? (
             <div className="text-center p-12 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] admin-animate-reveal transition-shadow duration-300 hover:shadow-md">
-              <p className="text-[var(--text-muted)] text-sm font-semibold">No schedules match the current view.</p>
-              <p className="text-[var(--text-muted)] text-xs mt-1 opacity-80">
-                {schedules.length === 0
-                  ? 'No entries yet—add a class slot to seed the grid.'
-                  : 'Try clearing filters, another day tab, or a broader search.'}
-              </p>
+              {isStudent && (!courseFilter || !yearFilter || !sectionFilter) ? (
+                <>
+                  <p className="text-amber-500 text-sm font-semibold mb-2">Incomplete Student Profile Detected</p>
+                  <p className="text-[var(--text-muted)] text-xs max-w-lg mx-auto">
+                    We could not find a valid Program, Year Level, or Section assigned to your account. 
+                    Please ask your administrator to update your student profile so your schedules can securely unlock.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-[var(--text-muted)] text-sm font-semibold">No schedules match the current view.</p>
+                  <p className="text-[var(--text-muted)] text-xs mt-1 opacity-80">
+                    {schedules.length === 0
+                      ? 'No entries yet—add a class slot to seed the grid.'
+                      : 'Try clearing filters, another day tab, or a broader search.'}
+                  </p>
+                </>
+              )}
             </div>
           ) : (
             <>

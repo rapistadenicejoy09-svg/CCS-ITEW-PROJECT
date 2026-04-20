@@ -13,6 +13,14 @@ import {
 } from '../lib/schedulingStore'
 
 const inputCls = 'search-input w-full'
+const COURSE_OPTIONS = ['BSIT', 'BSCS']
+const YEAR_OPTIONS = ['1st Year', '2nd Year', '3rd Year', '4th Year']
+const SECTION_BY_YEAR = {
+  '1st Year': ['1A', '1B', '1C', '1D', '1E'],
+  '2nd Year': ['2A', '2B', '2C', '2D', '2E'],
+  '3rd Year': ['3A', '3B', '3C', '3D', '3E'],
+  '4th Year': ['4A', '4B', '4C', '4D', '4E'],
+}
 
 export default function SchedulingEditPage() {
   const { id } = useParams()
@@ -141,15 +149,45 @@ export default function SchedulingEditPage() {
             </label>
             <label className="flex flex-col gap-1.5">
               <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Course</span>
-              <input className={inputCls} value={form.course} onChange={(e) => patchForm({ course: e.target.value })} />
+              <select className={inputCls} value={form.course} onChange={(e) => patchForm({ course: e.target.value })}>
+                <option value="">Select course</option>
+                {COURSE_OPTIONS.map((course) => (
+                  <option key={course} value={course}>
+                    {course}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="flex flex-col gap-1.5">
               <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Year level</span>
-              <input className={inputCls} value={form.yearLevel} onChange={(e) => patchForm({ yearLevel: e.target.value })} />
+              <select
+                className={inputCls}
+                value={form.yearLevel}
+                onChange={(e) => patchForm({ yearLevel: e.target.value, section: '' })}
+              >
+                <option value="">Select year level</option>
+                {YEAR_OPTIONS.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="flex flex-col gap-1.5">
               <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Section</span>
-              <input className={inputCls} value={form.section} onChange={(e) => patchForm({ section: e.target.value })} />
+              <select
+                className={inputCls}
+                value={form.section}
+                disabled={!form.yearLevel}
+                onChange={(e) => patchForm({ section: e.target.value })}
+              >
+                <option value="">{form.yearLevel ? 'Select section' : 'Select year level first'}</option>
+                {(SECTION_BY_YEAR[form.yearLevel] || []).map((section) => (
+                  <option key={section} value={section}>
+                    {section}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="flex flex-col gap-1.5">
               <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Room</span>

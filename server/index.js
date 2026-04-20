@@ -344,6 +344,8 @@ function publicAuthUser(user) {
       lastName: pi.last_name,
       profileImageUrl: user.profile_image_url || null,
       mustChangePassword: studentMustChangePassword(user),
+      academic_info: user.academic_info || {},
+      class_section: user.class_section || '',
     }
   }
   const { firstName, middleName, lastName } = nonStudentNameFieldsFromDbUser(user)
@@ -1037,9 +1039,19 @@ app.get('/api/schedules', authMiddleware, asyncHandler(async (req, res) => {
   res.json({ ok: true, schedules: list })
 }))
 
+app.get('/api/schedules/:id', authMiddleware, asyncHandler(async (req, res) => {
+  const id = req.params.id
+  if (!id) return res.status(400).json({ error: 'Missing schedule ID' })
+  const schedule = await store.getScheduleById(id)
+  if (!schedule) return res.status(404).json({ error: 'Schedule not found' })
+  res.json({ ok: true, schedule })
+}))
+
 app.post('/api/schedules', authMiddleware, authorize(PERMISSIONS.SCHEDULING_MANAGE), asyncHandler(async (req, res) => {
-  const { teachingLoadId, day, startTime, endTime, room } = req.body
-  if (!teachingLoadId || !day || !startTime || !endTime) return res.status(400).json({ error: 'Missing schedule details' })
+  const { subjectCode, subjectTitle, instructor, course, yearLevel, section, day, startTime, endTime, room } = req.body
+  if (!subjectCode || !day || !startTime || !endTime) {
+    return res.status(400).json({ error: 'Missing schedule details' })
+  }
 
   // Conflict detection
   const overlaps = await store.findOverlappingSchedules(day, startTime, endTime, room)
@@ -1048,13 +1060,45 @@ app.post('/api/schedules', authMiddleware, authorize(PERMISSIONS.SCHEDULING_MANA
   }
 
   const sch = await store.createSchedule({
-    teaching_load_id: Number(teachingLoadId),
+    subjectCode,
+    subjectTitle,
+    instructor,
+    course,
+    yearLevel,
+    section,
     day,
-    start_time: startTime,
-    end_time: endTime,
+    startTime: startTime,
+    endTime: endTime,
     room
   })
   res.status(201).json({ ok: true, schedule: sch })
+}))
+
+app.put('/api/schedules/:id', authMiddleware, authorize(PERMISSIONS.SCHEDULING_MANAGE), asyncHandler(async (req, res) => {
+  const id = req.params.id
+  const { subjectCode, subjectTitle, instructor, course, yearLevel, section, day, startTime, endTime, room } = req.body
+  if (!id) return res.status(400).json({ error: 'Missing schedule ID' })
+  
+  // Minimal overlap detection (ignoring self)
+  const overlaps = await store.findOverlappingSchedules(day, startTime, endTime, room)
+  const otherOverlaps = overlaps.filter(o => String(o.id) !== String(id))
+  if (otherOverlaps.length > 0) {
+    return res.status(409).json({ error: 'Schedule conflict detected', overlaps: otherOverlaps })
+  }
+
+  const sch = await store.updateSchedule(id, {
+    subjectCode,
+    subjectTitle,
+    instructor,
+    course,
+    yearLevel,
+    section,
+    day,
+    startTime,
+    endTime,
+    room
+  })
+  res.json({ ok: true, schedule: sch })
 }))
 
 app.delete('/api/schedules/:id', authMiddleware, authorize(PERMISSIONS.SCHEDULING_MANAGE), asyncHandler(async (req, res) => {
