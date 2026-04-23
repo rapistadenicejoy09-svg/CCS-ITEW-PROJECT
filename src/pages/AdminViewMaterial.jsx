@@ -204,119 +204,7 @@ function DocumentViewerShell({
   )
 }
 
-function PdfPreview({ url, fileName, downloadUrl }) {
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [numPages, setNumPages] = useState(0)
-  const [renderedPages, setRenderedPages] = useState(0)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [scale, setScale] = useState(1.2)
-  const containerRef = useRef(null)
-  const scrollRef = useRef(null)
 
-  // Intersection Observer to track page visibility
-  useEffect(() => {
-    const scrollContainer = scrollRef.current
-    if (!scrollContainer || renderedPages === 0) return
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const pageNum = parseInt(entry.target.getAttribute('data-page'))
-            if (pageNum) setCurrentPage(pageNum)
-          }
-        })
-      },
-      { root: scrollContainer, threshold: 0.4 }
-    )
-
-    const pages = scrollContainer.querySelectorAll('.pdf-page-wrapper')
-    pages.forEach((p) => observer.observe(p))
-    return () => observer.disconnect()
-  }, [renderedPages])
-
-  useEffect(() => {
-    let active = true
-    const load = async () => {
-      try {
-        setLoading(true)
-        setRenderedPages(0)
-        const pdfjsLib = window['pdfjs-dist/build/pdf']
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
-        
-        const loadingTask = pdfjsLib.getDocument(url)
-        const pdf = await loadingTask.promise
-        if (active) setNumPages(pdf.numPages)
-
-        const container = containerRef.current
-        if (!container) return
-        container.innerHTML = '' 
-
-        for (let i = 1; i <= pdf.numPages; i++) {
-          if (!active) break
-          const page = await pdf.getPage(i)
-          const viewport = page.getViewport({ scale: scale })
-          const wrapper = document.createElement('div')
-          wrapper.className = "pdf-page-wrapper w-full flex justify-center mb-10 px-4"
-          wrapper.setAttribute('data-page', i)
-          wrapper.id = `pdf-page-${i}`
-          
-          const canvas = document.createElement('canvas')
-          canvas.className = "shadow-[0_4px_30px_rgba(0,0,0,0.5)] bg-white"
-          wrapper.appendChild(canvas)
-          container.appendChild(wrapper)
-          
-          const context = canvas.getContext('2d')
-          canvas.height = viewport.height
-          canvas.width = viewport.width
-          await page.render({ canvasContext: context, viewport: viewport }).promise
-          if (active) setRenderedPages(i)
-        }
-        if (active) setLoading(false)
-      } catch (err) {
-        if (active) { setError('Unable to load PDF'); setLoading(false); }
-      }
-    }
-    load()
-    return () => { active = false }
-  }, [url, scale])
-
-  const jumpToPage = (n) => {
-    const el = document.getElementById(`pdf-page-${n}`)
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
-
-  return (
-    <DocumentViewerShell
-      fileName={fileName}
-      url={url}
-      downloadUrl={downloadUrl}
-      numPages={numPages}
-      currentPage={currentPage}
-      scale={scale}
-      onJumpToPage={jumpToPage}
-      onZoomIn={() => setScale(s => Math.min(s + 0.2, 3))}
-      onZoomOut={() => setScale(s => Math.max(s - 0.2, 0.6))}
-      onResetZoom={() => setScale(1.2)}
-      onPrint={() => window.print()}
-      isLoading={loading}
-      loadingPages={renderedPages}
-      containerRef={scrollRef}
-    >
-       {error ? (
-         <div className="flex flex-col items-center justify-center p-20 text-rose-400 gap-4 mt-20">
-           <div className="w-16 h-16 rounded-full bg-rose-500/10 flex items-center justify-center border border-rose-500/20">
-             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-           </div>
-           <p className="text-sm font-bold tracking-tight">{error}</p>
-         </div>
-       ) : (
-         <div ref={containerRef} className="w-full flex flex-col items-center"></div>
-       )}
-    </DocumentViewerShell>
-  )
-}
 
 function FilePreview({ url, fileName, authToken, fileId, sourceDownloadUrl }) {
   const [loading, setLoading] = useState(true)
@@ -332,10 +220,13 @@ function FilePreview({ url, fileName, authToken, fileId, sourceDownloadUrl }) {
         let blob
         let type = ''
         if (fileId) {
+          console.log(`[DEBUG] Fetching file via API for ID: ${fileId}`)
           const out = await apiFetchInstructionFileBlob(authToken, fileId, { preview: true })
           blob = out.blob
           type = out.contentType
+          console.log(`[DEBUG] Received blob: size=${blob.size}, type=${type}`)
         } else {
+          console.log(`[DEBUG] Fetching file via URL: ${url}`)
           const headers = authToken ? { Authorization: `Bearer ${authToken}` } : undefined
           const res = await fetch(url, headers ? { headers } : undefined)
           if (!res.ok) {
@@ -345,8 +236,10 @@ function FilePreview({ url, fileName, authToken, fileId, sourceDownloadUrl }) {
           }
           type = res.headers.get('Content-Type') || ''
           blob = await res.blob()
+          console.log(`[DEBUG] Received legacy blob: size=${blob.size}, type=${type}`)
         }
         const bUrl = URL.createObjectURL(blob)
+        console.log(`[DEBUG] Created Blob URL: ${bUrl} for viewer`)
         if (active) { setContentType(type); setBlobUrl(bUrl); setLoading(false); }
       } catch (err) {
         if (active) { setError(`Unable to load preview (${err?.message || 'request failed'}).`); setLoading(false); }
@@ -373,7 +266,8 @@ function FilePreview({ url, fileName, authToken, fileId, sourceDownloadUrl }) {
   )
 
   const isImage = contentType.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(fileName || '')
-  const isPdf = contentType.includes('pdf') || (fileName || '').toLowerCase().endsWith('.pdf')
+  const isPdf = contentType.includes('pdf') || 
+                (fileName || '').toLowerCase().endsWith('.pdf')
 
   if (isImage) {
     return (
@@ -384,11 +278,48 @@ function FilePreview({ url, fileName, authToken, fileId, sourceDownloadUrl }) {
   }
 
   if (isPdf) {
-    return <PdfPreview url={blobUrl} fileName={fileName} downloadUrl={sourceDownloadUrl || blobUrl} />
+    return (
+      <div className="w-full h-full bg-[#1e1e1e] flex flex-col">
+        <iframe 
+          src={`${blobUrl}#view=FitH`} 
+          title={fileName || 'Document Preview'} 
+          className="flex-1 w-full border-0 min-h-[700px] bg-[#323639]" 
+          allow="fullscreen"
+        />
+      </div>
+    )
   }
 
+  const isWord = (fileName || '').toLowerCase().endsWith('.docx') || 
+                 contentType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  if (isWord) {
+    return <WordPreview url={blobUrl} fileName={fileName} />
+  }
+
+  // Final Fallback: SAFE card (prevents automatic downloads for unknown blobs)
   return (
-    <iframe src={blobUrl} title="Document Preview" className="w-full h-full border-0 min-h-[700px]" allow="fullscreen" />
+    <div className="flex flex-col items-center justify-center h-full p-12 text-center gap-6 bg-[#1e1e1e] min-h-[700px]">
+       <div className="w-20 h-20 rounded-[2rem] bg-white/5 border border-white/10 flex items-center justify-center shadow-2xl">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+       </div>
+       <div className="space-y-2">
+          <p className="text-white font-black text-lg tracking-tight">Preview Not Supported</p>
+          <p className="text-[#f1f3f4]/40 text-[11px] max-w-[280px] mx-auto leading-relaxed">
+            This file type ({contentType.split('/').pop().toUpperCase()}) cannot be viewed directly. Please download it to your device.
+          </p>
+       </div>
+       <div className="bg-black/20 p-1 px-3 rounded-full border border-white/5">
+          <p className="text-[#f1f3f4]/30 text-[9px] font-mono truncate max-w-[200px]">{fileName}</p>
+       </div>
+       <a 
+         href={sourceDownloadUrl || blobUrl} 
+         download={fileName}
+         className="flex items-center gap-3 px-8 py-3.5 rounded-2xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-black text-xs uppercase tracking-widest transition-all shadow-[0_10px_30px_rgba(229,118,47,0.2)] active:scale-95 cursor-pointer no-underline"
+       >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+          Download to View
+       </a>
+    </div>
   )
 }
 
@@ -637,6 +568,11 @@ export default function AdminViewMaterial() {
                         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                       </svg>
                       <span className="text-[10px] text-[var(--text-muted)] font-black uppercase tracking-widest mt-0.5">Focus Mode</span>
+                      {material.fileName && (
+                        <span className="text-[10px] text-[var(--accent)] font-bold truncate max-w-[200px] mt-0.5 ml-2 border-l border-[var(--border-color)] pl-2">
+                           {material.fileName}
+                        </span>
+                      )}
                    </div>
                 </div>
                 
@@ -670,53 +606,45 @@ export default function AdminViewMaterial() {
                     const safeToken = authToken ? encodeURIComponent(authToken) : ''
                     const fileDownloadUrl = `${apiBase}/api/instructions/file/${fileId}${safeToken ? `?token=${safeToken}` : ''}`
                     
-                    const normalizedMime = (material.mimeType || '').toLowerCase()
-                    const fileName = (material.fileName || '').toLowerCase()
-                    
-                    // Only show instant preview for PDF and Images
-                    const isPreviewable = normalizedMime.includes('pdf') || normalizedMime.startsWith('image/') ||
-                                     fileName.endsWith('.pdf') || /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(fileName)
-                    
-                    if (isPreviewable) {
-                      return (
-                        <FilePreview
-                          url={fileUrl}
-                          fileName={material.fileName}
-                          authToken={authToken}
-                          fileId={fileId}
-                          sourceDownloadUrl={fileDownloadUrl}
-                        />
-                      )
-                    }
-
-                    // Fallback Card for DOCX, PPT, and others from GridFS
                     return (
-                      <div className="flex flex-col items-center justify-center h-full p-12 text-center gap-6">
-                        <div className="w-24 h-24 rounded-[2.5rem] bg-[var(--accent-soft)] flex items-center justify-center shadow-inner relative transition-transform duration-500">
-                           <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                             <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
-                             <polyline points="14 2 14 8 20 8"></polyline>
-                           </svg>
-                        </div>
-                        <div className="space-y-2">
-                          <p className="text-[var(--text)] font-black text-lg">
-                            {material.fileName || 'Document Ready'}
-                          </p>
-                          <p className="text-[var(--text-muted)] text-xs max-w-[320px] mx-auto leading-relaxed font-medium">
-                            This file ({material.fileName?.split('.').pop()?.toUpperCase()}) requires internal viewing software. Click below to secure a local copy.
-                          </p>
-                        </div>
-                        <button
-                          onClick={(e) => handleOpenResource(e, fileDownloadUrl)}
-                          className="flex items-center gap-3 px-8 py-3.5 rounded-2xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white font-black text-xs uppercase tracking-widest transition-all shadow-xl shadow-[var(--accent)]/30 active:scale-95 cursor-pointer"
-                        >
-                          <IconDownload /> Download File
-                        </button>
+                      <FilePreview
+                        url={fileUrl}
+                        fileName={material.fileName || material.title}
+                        authToken={authToken}
+                        fileId={fileId}
+                        sourceDownloadUrl={fileDownloadUrl}
+                      />
+                    )
+                  }                  // EXTERNAL RESOURCES
+                  
+                  // 1. Check for Embeddable Google Drive Content
+                  const driveRegex = /\/(?:file|document|presentation|spreadsheets|forms)\/d\/([a-zA-Z0-9-_]+)/
+                  const isDrive = link.includes('drive.google.com') || link.includes('docs.google.com')
+                  const driveMatch = isDrive ? link.match(driveRegex) : null
+
+                  if (driveMatch) {
+                    const driveId = driveMatch[1]
+                    let suffix = 'file/d/'
+                    if (link.includes('document')) suffix = 'document/d/'
+                    else if (link.includes('presentation')) suffix = 'presentation/d/'
+                    else if (link.includes('spreadsheets')) suffix = 'spreadsheets/d/'
+                    else if (link.includes('forms')) suffix = 'forms/d/'
+
+                    const embedUrl = `https://docs.google.com/${suffix}${driveId}/preview`
+
+                    return (
+                      <div className="w-full h-full bg-[#1e1e1e] flex flex-col">
+                        <iframe 
+                          src={embedUrl} 
+                          title="Google Drive Preview" 
+                          className="flex-1 w-full border-0 min-h-[700px]" 
+                          allow="autoplay"
+                        />
                       </div>
                     )
                   }
 
-                  // EXTERNAL RESOURCES (Universal Link Card)
+                  // 2. Fallback: Universal Link Card
                   return (
                     <div className="flex flex-col items-center justify-center h-full p-12 bg-[#1e1e1e] text-center gap-6">
                       <div className="w-20 h-20 rounded-[2rem] bg-white/5 border border-white/10 flex items-center justify-center shadow-2xl">
@@ -813,6 +741,7 @@ export default function AdminViewMaterial() {
                 <LabelValue label="Course" value={material.course} />
                 {!isCurriculum && <LabelValue label="Subject" value={material.subject} />}
                 <LabelValue label="Date Uploaded" value={material.updated_at ? new Date(material.updated_at).toLocaleDateString() : '-'} />
+                {material.fileName && <LabelValue label="File Name" value={material.fileName} />}
                 <LabelValue label="Status" value={material.status} isStatus />
              </div>
 
