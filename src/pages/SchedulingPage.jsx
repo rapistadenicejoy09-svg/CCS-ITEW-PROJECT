@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { hasPermission, PERMISSIONS } from '../lib/security'
-import { DAYS, getSchedules, parseMinutes, buildTimeSlots, calculateTimetableTracks } from '../lib/schedulingStore'
+import { DAYS, getSchedules, parseMinutes, buildTimeSlots, calculateTimetableTracks, formatCohortLabel } from '../lib/schedulingStore'
 
 const DAY_STYLE = {
   Monday: { pill: 'bg-sky-100/15 text-sky-400 border-sky-400/25', bar: 'from-sky-500 to-sky-500/30' },
@@ -31,32 +31,6 @@ function formatLabelText(value, fallback) {
   return v || fallback
 }
 
-function getStudentAssignmentFromAuth() {
-  try {
-    const raw = localStorage.getItem('authUser')
-    const user = raw ? JSON.parse(raw) : null
-    if (!user) {
-      return { course: '', yearLevel: '', section: '' }
-    }
-    const source = user.summary || user.academic_info || user.academicInfo || {}
-    
-    let courseRaw = source.program || source.course || user.program || user.course || ''
-    let yearRaw = source.year_level || source.yearLevel || source.year || user.year_level || user.yearLevel || user.year || ''
-    let sectRaw = user.class_section || source.class_section || source.classSection || source.section || user.classSection || ''
-    
-    let course = String(courseRaw).trim().toLowerCase()
-    if (course === 'bsit' || course === 'it' || course.includes('information tech')) course = 'bsit'
-    else if (course === 'bscs' || course === 'cs' || course.includes('computer science')) course = 'bscs'
-
-    return {
-      course: course,
-      yearLevel: String(yearRaw).trim(),
-      section: String(sectRaw).trim(),
-    }
-  } catch {
-    return { course: '', yearLevel: '', section: '' }
-  }
-}
 
 
 function IconSearch() {
@@ -123,7 +97,7 @@ function IconTrash() {
 export default function SchedulingPage() {
   const role = getRole()
   const canManage = hasPermission(PERMISSIONS.SCHEDULING_MANAGE)
-  const isStudent = role === 'student'
+  const isStudent = false
 
   const [schedules, setSchedules] = useState([])
 
@@ -136,14 +110,6 @@ export default function SchedulingPage() {
   const [yearFilter, setYearFilter] = useState('')
   const [sectionFilter, setSectionFilter] = useState('')
 
-  useEffect(() => {
-    if (role === 'student') {
-      const fromAuth = getStudentAssignmentFromAuth()
-      setCourseFilter(fromAuth.course)
-      setYearFilter(fromAuth.yearLevel)
-      setSectionFilter(fromAuth.section)
-    }
-  }, [role])
 
   useEffect(() => {
     async function load() {
@@ -172,24 +138,7 @@ export default function SchedulingPage() {
     let y = normalizeText(yearFilter)
     let s = normalizeText(sectionFilter)
 
-    if (isStudent) {
-      const fromAuth = getStudentAssignmentFromAuth()
-      c = normalizeText(fromAuth.course)
-      y = normalizeText(fromAuth.yearLevel)
-      s = normalizeText(fromAuth.section)
-      // Normalize common names
-      if (c.includes('computer science') || c === 'cs') c = 'bscs'
-      if (c.includes('information tech') || c === 'it') c = 'bsit'
-      if (y === '1' || y === '1st') y = '1st year'
-      if (y === '2' || y === '2nd') y = '2nd year'
-      if (y === '3' || y === '3rd') y = '3rd year'
-      if (y === '4' || y === '4th') y = '4th year'
-    }
-
     return schedules.filter((item) => {
-      if (isStudent) {
-        if (!c || !y || !s) return false // STRICT: Hide everything if profile is incomplete
-      }
 
       let itemCourse = normalizeText(item.course)
       if (itemCourse.includes('computer science') || itemCourse === 'cs') itemCourse = 'bscs'
@@ -267,9 +216,7 @@ export default function SchedulingPage() {
             <p className="main-description text-[var(--text-muted)] mt-1 max-w-2xl">
               {canManage
                 ? 'Assign subjects, faculty, sections, and rooms.'
-                : isStudent
-                  ? 'Your weekly class map, aligned to your program, year level, and section.'
-                  : 'Browse published class schedules.'}
+                : 'Browse published class schedules.'}
             </p>
           </div>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
@@ -390,15 +337,11 @@ export default function SchedulingPage() {
                     onClick={() => {
                       setSearch('')
                       setFilterDay('')
-                      if (!isStudent) {
-                        setCourseFilter('')
-                        setYearFilter('')
-                        setSectionFilter('')
-                      }
+                      setSectionFilter('')
                     }}
                     className="px-5 py-2 rounded-full border border-[var(--border-color)] bg-transparent hover:bg-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text)] text-sm font-medium transition-colors"
                   >
-                    Clear {isStudent ? 'search & day' : 'all filters'}
+                    Clear all filters
                   </button>
                 </div>
               ) : null}
@@ -419,15 +362,6 @@ export default function SchedulingPage() {
 
           {visibleSchedules.length === 0 ? (
             <div className="text-center p-12 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] admin-animate-reveal transition-shadow duration-300 hover:shadow-md">
-              {isStudent && (!courseFilter || !yearFilter || !sectionFilter) ? (
-                <>
-                  <p className="text-amber-500 text-sm font-semibold mb-2">Incomplete Student Profile Detected</p>
-                  <p className="text-[var(--text-muted)] text-xs max-w-lg mx-auto">
-                    We could not find a valid Program, Year Level, or Section assigned to your account. 
-                    Please ask your administrator to update your student profile so your schedules can securely unlock.
-                  </p>
-                </>
-              ) : (
                 <>
                   <p className="text-[var(--text-muted)] text-sm font-semibold">No schedules match the current view.</p>
                   <p className="text-[var(--text-muted)] text-xs mt-1 opacity-80">
@@ -436,7 +370,6 @@ export default function SchedulingPage() {
                       : 'Try clearing filters, another day tab, or a broader search.'}
                   </p>
                 </>
-              )}
             </div>
           ) : (
             <>
@@ -677,7 +610,7 @@ export default function SchedulingPage() {
                             >
                               <p className="font-bold text-[12px] leading-tight mb-0.5 whitespace-nowrap overflow-hidden text-ellipsis w-full">{item.subjectCode}</p>
                               <p className="text-[10px] font-bold opacity-90 mb-0.5">
-                                {item.yearLevel?.charAt(0)}{item.course?.replace('BS', '')}-{item.section}
+                                {formatCohortLabel(item.course, item.yearLevel, item.section)}
                               </p>
                               <div className="flex flex-col opacity-90 scale-90 origin-top overflow-hidden">
                                 <p className="text-[11px] font-bold mt-0.5 truncate">{item.room}</p>

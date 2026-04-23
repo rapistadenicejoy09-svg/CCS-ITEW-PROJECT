@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { hasPermission, PERMISSIONS } from '../lib/security'
+import { apiFacultyDirectory } from '../lib/api'
 import {
   DAYS,
   getScheduleById,
@@ -22,6 +23,16 @@ const SECTION_BY_YEAR = {
   '4th Year': ['4A', '4B', '4C', '4D', '4E'],
 }
 
+function getFacultyName(f) {
+  return (
+    String(f.displayName || f.fullName || f.full_name || '').trim() ||
+    String(f.personal_information?.fullName || f.personal_information?.full_name || '').trim() ||
+    [f.personal_information?.first_name, f.personal_information?.last_name].filter(Boolean).join(' ') ||
+    String(f.email || '').trim() ||
+    'Unnamed Faculty'
+  )
+}
+
 export default function SchedulingEditPage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -30,10 +41,16 @@ export default function SchedulingEditPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [facultyLoading, setFacultyLoading] = useState(true)
+  const [facultyError, setFacultyError] = useState('')
+  const [faculty, setFaculty] = useState([])
+  const [instructorSearch, setInstructorSearch] = useState('')
   const [form, setForm] = useState({
     subjectCode: '',
     subjectTitle: '',
     instructor: '',
+    instructorId: '',
+    instructorEmail: '',
     course: '',
     yearLevel: '',
     section: '',
@@ -55,6 +72,8 @@ export default function SchedulingEditPage() {
         subjectCode: existing.subjectCode || '',
         subjectTitle: existing.subjectTitle || '',
         instructor: existing.instructor || '',
+        instructorId: existing.instructorId || '',
+        instructorEmail: existing.instructorEmail || '',
         course: existing.course || '',
         yearLevel: existing.yearLevel || '',
         section: existing.section || '',
@@ -67,6 +86,49 @@ export default function SchedulingEditPage() {
     }
     load()
   }, [id])
+
+  useEffect(() => {
+    async function loadFaculty() {
+      setFacultyLoading(true)
+      setFacultyError('')
+      try {
+        const token = localStorage.getItem('authToken')
+        if (!token) throw new Error('Missing auth token.')
+        const res = await apiFacultyDirectory(token)
+        const list = Array.isArray(res?.faculty) ? res.faculty : []
+        setFaculty(list)
+      } catch (e) {
+        setFaculty([])
+        setFacultyError(e?.message || 'Failed to load faculty directory.')
+      } finally {
+        setFacultyLoading(false)
+      }
+    }
+    loadFaculty()
+  }, [])
+
+  const facultyOptions = useMemo(() => {
+    const cleaned = (faculty || [])
+      .filter((f) => f && (f.role === 'faculty' || f.role === 'dean' || f.role === 'department_chair' || f.role === 'secretary' || f.role === 'faculty_professor'))
+      .map((f) => ({
+        id: String(f.id ?? '').trim(),
+        email: String(f.email ?? '').trim().toLowerCase(),
+        name: getFacultyName(f),
+        isActive: f.is_active !== false && f.is_active !== 0,
+      }))
+      .filter((f) => f.id || f.email)
+    cleaned.sort((a, b) => a.name.localeCompare(b.name))
+    return cleaned
+  }, [faculty])
+
+  const filteredFacultyOptions = useMemo(() => {
+    const q = instructorSearch.trim().toLowerCase()
+    if (!q) return facultyOptions
+    return facultyOptions.filter((f) => {
+      const hay = `${f.name} ${f.email}`.toLowerCase()
+      return hay.includes(q)
+    })
+  }, [facultyOptions, instructorSearch])
 
   if (!canManage) {
     return <div className="p-8 text-center text-[var(--text-muted)]">You do not have access to edit schedules.</div>
@@ -127,9 +189,9 @@ export default function SchedulingEditPage() {
           </div>
         </header>
 
-        {error ? (
+        {(error || facultyError) ? (
           <div className="p-4 rounded-xl text-rose-400 bg-rose-500/10 border border-rose-500/20 text-sm font-semibold">
-            {error}
+            {error || facultyError}
           </div>
         ) : null}
 
@@ -145,7 +207,35 @@ export default function SchedulingEditPage() {
             </label>
             <label className="flex flex-col gap-1.5">
               <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Instructor</span>
-              <input className={inputCls} value={form.instructor} onChange={(e) => patchForm({ instructor: e.target.value })} />
+              <input
+                className={inputCls}
+                value={instructorSearch}
+                onChange={(e) => setInstructorSearch(e.target.value)}
+                placeholder="Search faculty name or email..."
+              />
+              <select
+                className={inputCls}
+                value={form.instructorId || ''}
+                disabled={facultyLoading || facultyOptions.length === 0}
+                onChange={(e) => {
+                  const nextId = e.target.value
+                  const selected = facultyOptions.find((x) => x.id === nextId) || null
+                  patchForm({
+                    instructorId: selected?.id || '',
+                    instructorEmail: selected?.email || '',
+                    instructor: selected?.name || form.instructor,
+                  })
+                }}
+              >
+                <option value="">
+                  {facultyLoading ? 'Loading faculty...' : facultyOptions.length ? 'Select faculty' : 'No faculty records found'}
+                </option>
+                {filteredFacultyOptions.map((f) => (
+                  <option key={f.id || f.email} value={f.id} disabled={!f.isActive}>
+                    {f.name}{!f.isActive ? ' (Inactive)' : ''}
+                  </option>
+                ))}
+              </select>
             </label>
             <label className="flex flex-col gap-1.5">
               <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Course</span>

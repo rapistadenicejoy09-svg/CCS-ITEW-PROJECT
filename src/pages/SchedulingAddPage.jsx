@@ -1,6 +1,7 @@
-import { useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { hasPermission, PERMISSIONS } from '../lib/security'
+import { apiFacultyDirectory } from '../lib/api'
 import {
   DAYS,
   getSchedules,
@@ -21,6 +22,16 @@ const SECTION_BY_YEAR = {
   '4th Year': ['4A', '4B', '4C', '4D', '4E'],
 }
 
+function getFacultyName(f) {
+  return (
+    String(f.displayName || f.fullName || f.full_name || '').trim() ||
+    String(f.personal_information?.fullName || f.personal_information?.full_name || '').trim() ||
+    [f.personal_information?.first_name, f.personal_information?.last_name].filter(Boolean).join(' ') ||
+    String(f.email || '').trim() ||
+    'Unnamed Faculty'
+  )
+}
+
 function IconClock() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -36,12 +47,21 @@ export default function SchedulingAddPage() {
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [facultyLoading, setFacultyLoading] = useState(true)
+  const [facultyError, setFacultyError] = useState('')
+  const [faculty, setFaculty] = useState([])
+  const [instructorOpen, setInstructorOpen] = useState(false)
+  const [instructorQuery, setInstructorQuery] = useState('')
+  const instructorWrapRef = useRef(null)
+  const instructorQueryRef = useRef(null)
   const startTimeRef = useRef(null)
   const endTimeRef = useRef(null)
   const [form, setForm] = useState({
     subjectCode: '',
     subjectTitle: '',
     instructor: '',
+    instructorId: '',
+    instructorEmail: '',
     course: '',
     yearLevel: '',
     section: '',
@@ -55,7 +75,84 @@ export default function SchedulingAddPage() {
     return <div className="p-8 text-center text-[var(--text-muted)]">You do not have access to add schedules.</div>
   }
 
+  useEffect(() => {
+    async function loadFaculty() {
+      setFacultyLoading(true)
+      setFacultyError('')
+      try {
+        const token = localStorage.getItem('authToken')
+        if (!token) throw new Error('Missing auth token.')
+        const res = await apiFacultyDirectory(token)
+        const list = Array.isArray(res?.faculty) ? res.faculty : []
+        setFaculty(list)
+      } catch (e) {
+        setFaculty([])
+        setFacultyError(e?.message || 'Failed to load faculty directory.')
+      } finally {
+        setFacultyLoading(false)
+      }
+    }
+    loadFaculty()
+  }, [])
+
+  const facultyOptions = useMemo(() => {
+    const cleaned = (faculty || [])
+      .filter((f) => f && (f.role === 'faculty' || f.role === 'dean' || f.role === 'department_chair' || f.role === 'secretary' || f.role === 'faculty_professor'))
+      .map((f) => ({
+        id: String(f.id ?? '').trim(),
+        email: String(f.email ?? '').trim().toLowerCase(),
+        name: getFacultyName(f),
+        isActive: f.is_active !== false && f.is_active !== 0,
+        raw: f,
+      }))
+      .filter((f) => f.id || f.email)
+    cleaned.sort((a, b) => a.name.localeCompare(b.name))
+    return cleaned
+  }, [faculty])
+
+  const filteredFacultyOptions = useMemo(() => {
+    const q = instructorQuery.trim().toLowerCase()
+    if (!q) return facultyOptions
+    return facultyOptions.filter((f) => {
+      const hay = `${f.name} ${f.email}`.toLowerCase()
+      return hay.includes(q)
+    })
+  }, [facultyOptions, instructorQuery])
+
   const patchForm = (patch) => setForm((prev) => ({ ...prev, ...patch }))
+
+  const instructorSelectedLabel = useMemo(() => {
+    if (form.instructor) return form.instructor
+    if (form.instructorId) {
+      const hit = facultyOptions.find((f) => String(f.id) === String(form.instructorId))
+      if (hit) return hit.name
+    }
+    return ''
+  }, [facultyOptions, form.instructor, form.instructorId])
+
+  useEffect(() => {
+    if (!instructorOpen) return
+    const t = setTimeout(() => instructorQueryRef.current?.focus(), 0)
+
+    function onDocMouseDown(e) {
+      const wrap = instructorWrapRef.current
+      if (!wrap) return
+      if (wrap.contains(e.target)) return
+      setInstructorOpen(false)
+    }
+
+    function onKeyDown(e) {
+      if (e.key === 'Escape') setInstructorOpen(false)
+    }
+
+    document.addEventListener('mousedown', onDocMouseDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      clearTimeout(t)
+      document.removeEventListener('mousedown', onDocMouseDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [instructorOpen])
 
   function openTimePicker(ref) {
     const input = ref?.current
@@ -98,7 +195,7 @@ export default function SchedulingAddPage() {
           <div>
             <h1 className="main-title font-extrabold text-[var(--text)]">Add Schedule</h1>
             <p className="main-description text-[var(--text-muted)] mt-1">
-              Create a new class schedule entry.
+              Create a new class schedule entry and assign it to a faculty member.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -109,14 +206,19 @@ export default function SchedulingAddPage() {
           </div>
         </header>
 
-        {error ? (
+        {(error || facultyError) ? (
           <div className="p-4 rounded-xl text-rose-400 bg-rose-500/10 border border-rose-500/20 text-sm font-semibold">
-            {error}
+            {error || facultyError}
           </div>
         ) : null}
 
-        <section className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] p-6 shadow-sm">
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <section className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] shadow-sm overflow-hidden">
+          <div className="p-6 md:p-7 border-b border-[var(--border-color)] bg-[rgba(0,0,0,0.02)] dark:bg-[rgba(255,255,255,0.02)]">
+            <h2 className="text-sm font-extrabold uppercase tracking-widest text-[var(--text)]">Schedule details</h2>
+            <p className="text-xs text-[var(--text-muted)] mt-1">Fill in the fields below. Conflicts will be checked before saving.</p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="p-6 md:p-7 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
             <label className="flex flex-col gap-1.5">
               <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Subject code</span>
               <input className={inputCls} value={form.subjectCode} onChange={(e) => patchForm({ subjectCode: e.target.value })} placeholder="e.g. CCS101" />
@@ -127,8 +229,79 @@ export default function SchedulingAddPage() {
             </label>
             <label className="flex flex-col gap-1.5">
               <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Instructor</span>
-              <input className={inputCls} value={form.instructor} onChange={(e) => patchForm({ instructor: e.target.value })} placeholder="Prof. Maria Santos" />
+              <div className="relative" ref={instructorWrapRef}>
+                <button
+                  type="button"
+                  disabled={facultyLoading || facultyOptions.length === 0}
+                  onClick={() => setInstructorOpen((v) => !v)}
+                  className={`${inputCls} flex items-center justify-between gap-2 !text-left ${facultyLoading || facultyOptions.length === 0 ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  aria-haspopup="listbox"
+                  aria-expanded={instructorOpen ? 'true' : 'false'}
+                >
+                  <span className={`truncate ${instructorSelectedLabel ? 'text-[var(--text)]' : 'text-[var(--text-muted)]'}`}>
+                    {facultyLoading
+                      ? 'Loading faculty...'
+                      : facultyOptions.length
+                        ? (instructorSelectedLabel || 'Select faculty')
+                        : 'No faculty records found'}
+                  </span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </button>
+
+                {instructorOpen ? (
+                  <div className="absolute z-50 mt-2 w-full rounded-xl border border-[var(--border-color)] bg-[var(--card-bg)] shadow-xl overflow-hidden">
+                    <div className="p-2 border-b border-[var(--border-color)] bg-[rgba(0,0,0,0.02)] dark:bg-[rgba(255,255,255,0.02)]">
+                      <input
+                        ref={instructorQueryRef}
+                        className="search-input w-full !rounded-lg"
+                        value={instructorQuery}
+                        onChange={(e) => setInstructorQuery(e.target.value)}
+                        placeholder="Search faculty name or email..."
+                      />
+                    </div>
+                    <div className="max-h-56 overflow-auto custom-scrollbar py-1" role="listbox">
+                      {filteredFacultyOptions.length ? (
+                        filteredFacultyOptions.map((f) => (
+                          <button
+                            key={f.id || f.email}
+                            type="button"
+                            disabled={!f.isActive}
+                            onClick={() => {
+                              patchForm({
+                                instructorId: f.id || '',
+                                instructorEmail: f.email || '',
+                                instructor: f.name || '',
+                              })
+                              setInstructorOpen(false)
+                              setInstructorQuery('')
+                            }}
+                            className={`w-full px-3 py-2 text-left text-sm flex items-start justify-between gap-3 hover:bg-[rgba(0,0,0,0.04)] dark:hover:bg-[rgba(255,255,255,0.04)] transition-colors ${!f.isActive ? 'opacity-60 cursor-not-allowed' : ''}`}
+                          >
+                            <span className="min-w-0">
+                              <span className="block font-semibold text-[var(--text)] truncate">{f.name}</span>
+                              <span className="block text-xs text-[var(--text-muted)] truncate">{f.email || '—'}</span>
+                            </span>
+                            {!f.isActive ? (
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-rose-500 mt-0.5 shrink-0">Inactive</span>
+                            ) : null}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-3 py-6 text-center text-xs text-[var(--text-muted)]">
+                          No matching faculty found.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+              <span className="text-[11px] text-[var(--text-muted)]">
+                {form.instructor ? `Selected: ${form.instructor}` : 'Choose from the faculty list.'}
+              </span>
             </label>
+
             <label className="flex flex-col gap-1.5">
               <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Course</span>
               <select className={inputCls} value={form.course} onChange={(e) => patchForm({ course: e.target.value })}>
@@ -229,6 +402,14 @@ export default function SchedulingAddPage() {
               </div>
             </label>
           </form>
+
+          <div className="px-6 md:px-7 pb-6 md:pb-7 -mt-2">
+            <div className="rounded-xl border border-[var(--border-color)] bg-[var(--background)] p-4">
+              <div className="text-xs text-[var(--text-muted)]">
+                <span className="font-bold text-[var(--text)]">Tip:</span> Use the instructor dropdown to ensure the schedule appears in that faculty member&apos;s “My Assigned Schedule”.
+              </div>
+            </div>
+          </div>
         </section>
       </div>
     </div>

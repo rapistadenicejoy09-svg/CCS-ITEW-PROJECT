@@ -58,6 +58,11 @@ function normalizeText(value) {
   return String(value || '').trim().toLowerCase()
 }
 
+function normalizeId(value) {
+  const v = String(value || '').trim()
+  return v ? v : ''
+}
+
 export function buildTimeSlots(startHour = 6, endHour = 22) {
   const slots = []
   for (let hour = startHour; hour < endHour; hour += 1) {
@@ -122,12 +127,32 @@ export function calculateTimetableTracks(schedules) {
   return results
 }
 
+export function formatCohortLabel(course, yearLevel, section) {
+  const courseRaw = String(course || '').trim().toUpperCase()
+  const courseShort = courseRaw.startsWith('BS') ? courseRaw.slice(2) : courseRaw
+
+  const yearRaw = String(yearLevel || '').trim()
+  const yearDigit = (yearRaw.match(/\d/) || [''])[0]
+
+  const sectionRaw = String(section || '').trim().toUpperCase()
+  const sectionLetter = (sectionRaw.match(/[A-Z]+/g) || []).join('') || sectionRaw
+
+  const left = `${yearDigit}${courseShort}`.trim()
+  const right = sectionLetter.trim()
+  if (left && right) return `${left}-${right}`
+  return left || right || ''
+}
+
 export function normalizeScheduleInput(input) {
+  const instructorId = normalizeId(input?.instructorId)
+  const instructorEmail = String(input?.instructorEmail || '').trim().toLowerCase()
   return {
     id: input?.id ? String(input.id) : String(Date.now()),
     subjectCode: String(input?.subjectCode || '').trim().toUpperCase(),
     subjectTitle: String(input?.subjectTitle || '').trim(),
     instructor: String(input?.instructor || '').trim(),
+    instructorId,
+    instructorEmail,
     course: String(input?.course || '').trim().toUpperCase(),
     yearLevel: String(input?.yearLevel || '').trim(),
     section: String(input?.section || '').trim().toUpperCase(),
@@ -142,7 +167,7 @@ export function validateScheduleRequiredFields(input) {
   if (
     !input.subjectCode ||
     !input.subjectTitle ||
-    !input.instructor ||
+    (!input.instructor && !input.instructorId) ||
     !input.course ||
     !input.yearLevel ||
     !input.section ||
@@ -172,7 +197,11 @@ export function validateScheduleConflicts(nextSchedule, allSchedules, excludeId 
     if (start == null || end == null) return
     if (!overlaps(nextStart, nextEnd, start, end)) return
 
-    const sameInstructor = normalizeText(item.instructor) === normalizeText(nextSchedule.instructor)
+    const nextInstructorId = normalizeId(nextSchedule.instructorId)
+    const itemInstructorId = normalizeId(item.instructorId)
+    const sameInstructor =
+      (nextInstructorId && itemInstructorId && nextInstructorId === itemInstructorId) ||
+      (!nextInstructorId && !itemInstructorId && normalizeText(item.instructor) === normalizeText(nextSchedule.instructor))
     const sameRoom = normalizeText(item.room) === normalizeText(nextSchedule.room)
     const sameSection =
       normalizeText(item.course) === normalizeText(nextSchedule.course) &&

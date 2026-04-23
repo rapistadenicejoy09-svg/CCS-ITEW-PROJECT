@@ -80,8 +80,13 @@ export default function FacultyFacultyList() {
   const [search, setSearch] = useState('')
   const [filterRole, setFilterRole] = useState('')
   const [filterDept, setFilterDept] = useState('')
+  const [filterStatus, setFilterStatus] = useState('active')
+  const [sortOrder, setSortOrder] = useState('asc')
+  
   const [showFilters, setShowFilters] = useState(false)
   const [viewMode, setViewMode] = useState('grid')
+
+  const [selectedFaculty, setSelectedFaculty] = useState(null)
 
   const loadFaculty = useCallback(async () => {
     const token = localStorage.getItem('authToken')
@@ -123,7 +128,8 @@ export default function FacultyFacultyList() {
 
   const filteredFaculty = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return faculty.filter((f) => {
+    
+    const filtered = faculty.filter((f) => {
       if (q) {
         const mail = String(f.email || '').toLowerCase()
         const fullName = getFacultyName(f).toLowerCase()
@@ -131,11 +137,23 @@ export default function FacultyFacultyList() {
       }
       if (filterRole && f.role !== filterRole) return false
       if (filterDept && getFacultyDept(f) !== filterDept) return false
+      
+      const isActive = f.is_active !== false && f.is_active !== 0
+      if (filterStatus === 'active' && !isActive) return false
+      if (filterStatus === 'inactive' && isActive) return false
+      
       return true
     })
-  }, [faculty, search, filterRole, filterDept])
 
-  const hasActiveFilters = Boolean(search.trim() || filterRole || filterDept)
+    return filtered.sort((a, b) => {
+      const nameA = getFacultyName(a).toLowerCase()
+      const nameB = getFacultyName(b).toLowerCase()
+      if (sortOrder === 'asc') return nameA.localeCompare(nameB)
+      return nameB.localeCompare(nameA)
+    })
+  }, [faculty, search, filterRole, filterDept, filterStatus, sortOrder])
+
+  const hasActiveFilters = Boolean(search.trim() || filterRole || filterDept || filterStatus !== 'active' || sortOrder !== 'asc')
 
   if (!isFacultyRole) {
     return <div className="p-8 text-center text-[var(--text-muted)]">Not available for your role.</div>
@@ -209,7 +227,30 @@ export default function FacultyFacultyList() {
 
           {showFilters && (
             <div className="mt-5 pt-5 border-t border-[var(--border-color)] animate-fade-in">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs text-[var(--text-muted)] uppercase tracking-wider font-semibold ml-1">Sort By</label>
+                  <select
+                    className="search-input appearance-none w-full"
+                    value={sortOrder}
+                    onChange={(e) => setSortOrder(e.target.value)}
+                  >
+                    <option value="asc">Name (A-Z)</option>
+                    <option value="desc">Name (Z-A)</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs text-[var(--text-muted)] uppercase tracking-wider font-semibold ml-1">Status</label>
+                  <select
+                    className="search-input appearance-none w-full"
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                  >
+                    <option value="all">All</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs text-[var(--text-muted)] uppercase tracking-wider font-semibold ml-1">System Role</label>
                   <select
@@ -245,7 +286,7 @@ export default function FacultyFacultyList() {
                 <div className="mt-5 flex justify-end">
                   <button
                     type="button"
-                    onClick={() => { setSearch(''); setFilterRole(''); setFilterDept(''); }}
+                    onClick={() => { setSearch(''); setFilterRole(''); setFilterDept(''); setFilterStatus('active'); setSortOrder('asc'); }}
                     className="px-5 py-2 rounded-full border border-[var(--border-color)] bg-transparent hover:bg-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text)] text-sm font-medium transition-colors"
                   >
                     Clear all filters
@@ -279,46 +320,69 @@ export default function FacultyFacultyList() {
             <>
               {viewMode === 'grid' && (
                 <div className="admin-student-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                  {filteredFaculty.map((f, idx) => (
-                    <div
-                      key={f.id}
-                      className="admin-student-card group flex flex-col bg-[var(--card-bg)] border border-[var(--border-color)] hover:border-[var(--accent)] rounded-[var(--radius-md)] overflow-hidden admin-student-card-animate"
-                      style={{ animationDelay: `${Math.min(idx, 14) * 0.055}s` }}
-                    >
-                      <div className="p-5 pb-3 border-b border-[var(--border-color)] flex justify-between items-start">
-                        <div>
-                          <h3 className="text-base font-bold text-[var(--text)] mb-0.5 leading-tight">{getFacultyName(f)}</h3>
-                          <p className="text-[var(--accent)] font-mono text-xs">{f.email || '—'}</p>
-                        </div>
-                        <span className="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                          Active
-                        </span>
-                      </div>
-
-                      <div className="p-5 flex-1 flex flex-col gap-4 text-sm">
-                        <div className="flex justify-between gap-4">
+                  {filteredFaculty.map((f, idx) => {
+                    const isActive = f.is_active !== false && f.is_active !== 0;
+                    return (
+                      <div
+                        key={f.id}
+                        className="admin-student-card group flex flex-col bg-[var(--card-bg)] border border-[var(--border-color)] hover:border-[var(--accent)] rounded-[var(--radius-md)] overflow-hidden cursor-pointer shadow-sm hover:shadow-md transition-all admin-student-card-animate"
+                        style={{ animationDelay: `${Math.min(idx, 14) * 0.055}s` }}
+                        onClick={() => setSelectedFaculty(f)}
+                      >
+                        <div className="p-5 pb-3 border-b border-[var(--border-color)] flex justify-between items-start">
                           <div>
-                            <p className="text-[var(--text-muted)] text-[10px] uppercase font-bold mb-1 tracking-wider">Academic Role</p>
-                            <p className="text-[var(--text)] text-sm font-bold">{formatFacultyRole(f.role)}</p>
+                            <h3 className="text-base font-bold text-[var(--text)] mb-0.5 leading-tight">{getFacultyName(f)}</h3>
+                            <p className="text-[var(--accent)] font-mono text-xs">{f.email || '—'}</p>
+                          </div>
+                          {isActive ? (
+                            <span className="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                              Active
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400">
+                              Inactive
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="p-5 flex-1 flex flex-col gap-4 text-sm">
+                          <div className="flex justify-between gap-4">
+                            <div>
+                              <p className="text-[var(--text-muted)] text-[10px] uppercase font-bold mb-1 tracking-wider">Academic Role</p>
+                              <p className="text-[var(--text)] text-sm font-bold">{formatFacultyRole(f.role)}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-[var(--text-muted)] text-[10px] uppercase font-bold mb-1 tracking-wider">Teaching Units</p>
+                              <p className="text-[var(--text)] text-sm font-bold">{f.units || '--'} Units</p>
+                            </div>
+                          </div>
+
+                          <div>
+                            <p className="text-[var(--text-muted)] text-[10px] uppercase font-bold mb-1 tracking-wider">Department &amp; Specialization</p>
+                            <p className="text-[var(--text)] text-sm font-semibold">{getFacultyDept(f)}</p>
+                            {getFacultySpec(f) ? (
+                              <p className="text-[var(--accent)] text-[11px] mt-0.5 italic">{getFacultySpec(f)}</p>
+                            ) : null}
+                          </div>
+                          
+                          <div className="pt-2">
+                             <p className="text-[var(--text-muted)] text-[10px] uppercase font-bold mb-1 tracking-wider">Assigned Subjects</p>
+                             <div className="flex gap-2 flex-wrap text-xs font-medium">
+                               {/* Mock Display */}
+                               <span className="px-2 py-0.5 rounded bg-[var(--background)] text-[var(--text-muted)] border border-[var(--border-color)]">N/A</span>
+                             </div>
                           </div>
                         </div>
 
-                        <div>
-                          <p className="text-[var(--text-muted)] text-[10px] uppercase font-bold mb-1 tracking-wider">Department &amp; Specialization</p>
-                          <p className="text-[var(--text)] text-sm font-semibold">{getFacultyDept(f)}</p>
-                          {getFacultySpec(f) ? (
-                            <p className="text-[var(--accent)] text-[11px] mt-0.5 italic">{getFacultySpec(f)}</p>
-                          ) : null}
+                        <div className="p-3 bg-[rgba(0,0,0,0.02)] dark:bg-[rgba(255,255,255,0.02)] flex justify-end gap-2 border-t border-[var(--border-color)]">
+                          <span className="text-[11px] text-[var(--accent)] font-semibold px-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            View Full Profile
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                          </span>
                         </div>
                       </div>
-
-                      <div className="p-3 bg-[rgba(0,0,0,0.02)] dark:bg-[rgba(255,255,255,0.02)] flex justify-end gap-2 border-t border-[var(--border-color)]">
-                        <span className="text-[11px] text-[var(--text-muted)] font-semibold px-2">
-                          View only
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
 
@@ -329,17 +393,21 @@ export default function FacultyFacultyList() {
                       <thead className="bg-[rgba(0,0,0,0.02)] dark:bg-[rgba(255,255,255,0.02)] border-b border-[var(--border-color)] text-[var(--text-muted)] text-[10px] uppercase tracking-widest font-bold">
                         <tr>
                           <th className="px-6 py-4">Name &amp; Email</th>
+                          <th className="px-6 py-4">Status</th>
                           <th className="px-6 py-4">System Role</th>
                           <th className="px-6 py-4">Department</th>
-                          <th className="px-6 py-4">Specialization</th>
+                          <th className="px-6 py-4 text-right">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[var(--border-color)]">
-                        {filteredFaculty.map((f, idx) => (
+                        {filteredFaculty.map((f, idx) => {
+                          const isActive = f.is_active !== false && f.is_active !== 0;
+                          return (
                           <tr
                             key={f.id}
-                            className="admin-student-list-row admin-student-table-row-enter hover:bg-[rgba(0,0,0,0.02)] dark:hover:bg-[rgba(255,255,255,0.01)]"
+                            className="admin-student-list-row admin-student-table-row-enter hover:bg-[rgba(0,0,0,0.02)] dark:hover:bg-[rgba(255,255,255,0.01)] cursor-pointer"
                             style={{ '--row-enter-delay': `${Math.min(idx, 16) * 0.035}s` }}
+                            onClick={() => setSelectedFaculty(f)}
                           >
                             <td className="px-6 py-4">
                               <div className="flex flex-col">
@@ -348,16 +416,23 @@ export default function FacultyFacultyList() {
                               </div>
                             </td>
                             <td className="px-6 py-4">
+                               {isActive ? (
+                                <span className="text-emerald-600 text-xs font-bold uppercase">Active</span>
+                               ) : (
+                                <span className="text-rose-600 text-xs font-bold uppercase">Inactive</span>
+                               )}
+                            </td>
+                            <td className="px-6 py-4">
                               <span className="text-[var(--text)] font-semibold">{formatFacultyRole(f.role)}</span>
                             </td>
                             <td className="px-6 py-4">
                               <span className="text-[var(--text)]">{getFacultyDept(f)}</span>
                             </td>
-                            <td className="px-6 py-4">
-                              <span className="text-[var(--text-muted)]">{getFacultySpec(f) || '—'}</span>
+                            <td className="px-6 py-4 text-right">
+                               <button className="text-xs font-semibold text-[var(--accent)] hover:underline">View Profile</button>
                             </td>
                           </tr>
-                        ))}
+                        )})}
                       </tbody>
                     </table>
                   </div>
@@ -367,7 +442,53 @@ export default function FacultyFacultyList() {
           )}
         </section>
       </div>
+
+       {/* Faculty Modal */}
+       {selectedFaculty && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 animate-fade-in" onClick={() => setSelectedFaculty(null)}>
+          <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] w-full max-w-lg shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-[var(--border-color)] flex justify-between items-start">
+              <div>
+                <h2 className="text-2xl font-extrabold text-[var(--text)]">{getFacultyName(selectedFaculty)}</h2>
+                <p className="text-[var(--text-muted)] text-sm font-medium mt-1">{selectedFaculty.email || 'No email provided'}</p>
+              </div>
+              <button onClick={() => setSelectedFaculty(null)} className="p-2 -mr-2 text-[var(--text-muted)] hover:text-[var(--text)] rounded-full hover:bg-[var(--border-color)] transition-all">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <div className="p-6 space-y-6">
+               <div className="grid grid-cols-2 gap-4">
+                 <div>
+                    <label className="text-[10px] uppercase tracking-widest font-bold text-[var(--text-muted)]">Role</label>
+                    <p className="text-[var(--text)] font-semibold text-sm">{formatFacultyRole(selectedFaculty.role)}</p>
+                 </div>
+                 <div>
+                    <label className="text-[10px] uppercase tracking-widest font-bold text-[var(--text-muted)]">Status</label>
+                    <p className="text-[var(--text)] font-semibold text-sm">
+                      {selectedFaculty.is_active !== false && selectedFaculty.is_active !== 0 ? 'Active' : 'Inactive'}
+                    </p>
+                 </div>
+                 <div className="col-span-2">
+                    <label className="text-[10px] uppercase tracking-widest font-bold text-[var(--text-muted)]">Department</label>
+                    <p className="text-[var(--text)] font-semibold text-sm">{getFacultyDept(selectedFaculty)}</p>
+                 </div>
+                 <div className="col-span-2">
+                    <label className="text-[10px] uppercase tracking-widest font-bold text-[var(--text-muted)]">Specialization</label>
+                    <p className="text-[var(--text)] font-semibold text-sm">{getFacultySpec(selectedFaculty) || '—'}</p>
+                 </div>
+                 <div className="col-span-2">
+                    <label className="text-[10px] uppercase tracking-widest font-bold text-[var(--text-muted)]">Bio</label>
+                    <p className="text-[var(--text-muted)] italic text-sm">{selectedFaculty.bio || 'No biography provided.'}</p>
+                 </div>
+               </div>
+            </div>
+            <div className="p-4 bg-[rgba(0,0,0,0.02)] border-t border-[var(--border-color)] flex justify-end">
+               <button onClick={() => setSelectedFaculty(null)} className="btn btn-secondary">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
-

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { hasPermission, PERMISSIONS } from '../lib/security'
-import { DAYS, getScheduleById, getSchedules, parseMinutes, deleteSchedule, buildTimeSlots, calculateTimetableTracks } from '../lib/schedulingStore'
+import { DAYS, getScheduleById, getSchedules, parseMinutes, deleteSchedule, buildTimeSlots, calculateTimetableTracks, formatCohortLabel } from '../lib/schedulingStore'
 
 function Field({ label, value }) {
   return (
@@ -246,7 +246,7 @@ export default function SchedulingViewPage() {
                     >
                       <p className="font-bold text-[12px] leading-tight mb-0.5 whitespace-nowrap overflow-hidden text-ellipsis w-full">{item.subjectCode}</p>
                       <p className="text-[10px] font-bold opacity-90 mb-0.5">
-                        {item.yearLevel?.charAt(0)}{item.course?.replace('BS', '')}-{item.section}
+                        {formatCohortLabel(item.course, item.yearLevel, item.section)}
                       </p>
                       <div className="flex flex-col opacity-90 scale-90 origin-top overflow-hidden">
                         <p className="text-[11px] font-bold mt-0.5 truncate">{item.room}</p>

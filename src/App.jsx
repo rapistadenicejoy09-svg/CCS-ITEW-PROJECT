@@ -35,6 +35,7 @@ import SchedulingPage from './pages/SchedulingPage'
 import SchedulingAddPage from './pages/SchedulingAddPage'
 import SchedulingViewPage from './pages/SchedulingViewPage'
 import SchedulingEditPage from './pages/SchedulingEditPage'
+import StudentSchedule from './pages/StudentSchedule'
 import { canAccessPath } from './lib/security'
 import './App.css'
 
@@ -113,6 +114,7 @@ export default function App() {
               <Route path="scheduling/add" element={<SchedulingAddPage />} />
               <Route path="scheduling/:id" element={<SchedulingViewPage />} />
               <Route path="scheduling/:id/edit" element={<SchedulingEditPage />} />
+              <Route path="student/schedule" element={<StudentSchedule />} />
               <Route path="college-research" element={<CollegeResearch />} />
               <Route path="instructions" element={<InstructionsPage />} />
               <Route path="admin/instructions/add" element={<AdminAddMaterial />} />

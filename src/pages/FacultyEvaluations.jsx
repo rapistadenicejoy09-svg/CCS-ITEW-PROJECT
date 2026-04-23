@@ -1,16 +1,29 @@
 import { useEffect, useState } from 'react'
 import { apiGetEvaluations } from '../lib/api'
 
+function getCurrentFacultyId() {
+  try {
+    const raw = localStorage.getItem('authUser')
+    if (!raw) return ''
+    const user = JSON.parse(raw)
+    return String(user?.id ?? user?._id ?? '').trim()
+  } catch {
+    return ''
+  }
+}
+
 export default function FacultyEvaluations() {
   const [evals, setEvals] = useState([])
   const [loading, setLoading] = useState(true)
   const token = localStorage.getItem('authToken')
+  const facultyId = getCurrentFacultyId()
 
   useEffect(() => {
     async function load() {
       try {
-        const res = await apiGetEvaluations(token)
-        setEvals(res.evaluations)
+        if (!facultyId) throw new Error('Faculty ID required')
+        const res = await apiGetEvaluations(token, facultyId)
+        setEvals(res.evaluations || [])
       } catch (err) {
         console.error(err)
       } finally {
@@ -18,7 +31,7 @@ export default function FacultyEvaluations() {
       }
     }
     load()
-  }, [token])
+  }, [token, facultyId])
 
   const averageRating = evals.length > 0
     ? (evals.reduce((sum, e) => sum + e.rating, 0) / evals.length).toFixed(1)

@@ -97,9 +97,15 @@ export default function Dashboard() {
     const r = getRole()
     setRole(r)
     setModules(
-      MODULES.map((m) =>
-        m.id === 'student-profile' ? { ...m, title: r === 'admin' ? 'Student List' : 'Student Profile' } : m,
-      ),
+      MODULES.map((m) => {
+        if (m.id === 'student-profile') {
+           return { ...m, title: r === 'admin' ? 'Student List' : 'Student Profile' }
+        }
+        if (m.id === 'scheduling' && r === 'student') {
+           return { ...m, path: '/student/schedule' }
+        }
+        return m
+      }),
     )
   }, [])
 
