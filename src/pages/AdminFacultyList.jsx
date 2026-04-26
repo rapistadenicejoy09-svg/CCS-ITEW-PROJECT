@@ -235,8 +235,7 @@ export default function AdminFacultyList() {
           </div>
           <Link
             to="/admin/create-faculty"
-            className="mt-4 md:mt-0 font-medium transition-all duration-300 text-sm px-6 py-2.5 rounded-full hover:shadow-lg hover:scale-[1.03] active:scale-[0.98]"
-            style={{ background: 'var(--accent)', color: 'white', border: '1px solid var(--accent-soft)' }}
+            className="mt-4 md:mt-0 btn btn-primary !rounded-full"
           >
             + Create Faculty Profile
           </Link>
@@ -430,7 +429,7 @@ export default function AdminFacultyList() {
 
                       <div className="p-3 bg-[rgba(0,0,0,0.02)] flex justify-end gap-2 border-t border-[var(--border-color)]">
                         <button
-                          className="flex items-center justify-center px-3 py-1.5 bg-rose-50/50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 rounded-lg border border-rose-200 transition-all font-medium text-xs disabled:opacity-30"
+                          className="btn btn-danger btn-sm"
                           onClick={() => setDeleteTarget(f)}
                           disabled={f.is_legacy}
                           title={f.is_legacy ? "Cannot deactivate schedule-only record" : "Deactivate Account"}
@@ -439,13 +438,13 @@ export default function AdminFacultyList() {
                         </button>
                         <Link
                           to={`/faculty/teaching-load?facultyId=${f.id}`}
-                          className="px-3 py-1.5 bg-[var(--accent)] text-white hover:bg-[var(--accent)]/90 rounded text-xs font-semibold shadow-sm transition-all flex items-center gap-1.5"
+                          className="btn btn-primary btn-sm"
                         >
                           Manage Load
                         </Link>
                         <Link
                           to={`/admin/faculty/${f.id}`}
-                          className="px-3 py-1.5 bg-transparent hover:bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--border-color)] hover:border-[var(--accent)] rounded text-xs font-semibold transition-all flex items-center gap-1.5"
+                          className="btn btn-secondary btn-sm"
                         >
                           <IconEye />
                         </Link>

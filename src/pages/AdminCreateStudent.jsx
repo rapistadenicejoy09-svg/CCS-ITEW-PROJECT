@@ -66,8 +66,7 @@ const AddRowBtn = ({ onClick, label }) => (
   <button
     type="button"
     onClick={onClick}
-    style={{ border: '1px solid var(--border-color)', color: 'var(--text)' }}
-    className="mt-4 w-full py-2 text-xs font-semibold bg-transparent rounded-xl hover:bg-[var(--accent-soft)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all duration-200"
+    className="mt-4 btn btn-secondary btn-sm w-full"
   >
     {label}
   </button>
@@ -481,7 +480,7 @@ export default function AdminCreateStudent() {
           </div>
           <div className="flex gap-2">
             <FInput value={skillInput} onChange={e => setSkillInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSkill() } }} placeholder="Add skill..." className="flex-1" />
-            <button type="button" onClick={addSkill} style={{ border: '1px solid var(--border-color)', color: 'var(--text)' }} className="px-5 py-2 bg-transparent shrink-0 rounded-xl text-xs font-semibold cursor-pointer transition-all duration-200 hover:bg-[var(--accent-soft)] hover:border-[var(--accent)] hover:text-[var(--accent)]">Add</button>
+            <button type="button" onClick={addSkill} className="btn btn-secondary btn-sm shrink-0">Add</button>
           </div>
         </Card>
 

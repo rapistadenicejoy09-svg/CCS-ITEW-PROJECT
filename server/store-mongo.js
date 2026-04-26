@@ -966,12 +966,45 @@ export async function openMongoStore() {
     },
 
     // Schedules
-    async listSchedules(teachingLoadId = null) {
-      const query = teachingLoadId ? { teaching_load_id: Number(teachingLoadId) } : {}
-      return await schedules.find(query).toArray()
+    async checkConflicts(data, excludeId = null) {
+      const { day, startTime, endTime, room, instructorId, course, section } = data
+      if (!day || !startTime || !endTime) return null
+
+      const convertToMinutes = (timeStr) => {
+        if (!timeStr) return 0
+        const [h, m] = timeStr.split(':').map(Number)
+        return h * 60 + m
+      }
+
+      const start = convertToMinutes(startTime)
+      const end = convertToMinutes(endTime)
+
+      const query = { 
+        day, 
+        id: { $ne: excludeId ? Number(excludeId) : -1 } 
+      }
+
+      const existing = await schedules.find(query).toArray()
+
+      for (const s of existing) {
+        const sStart = convertToMinutes(s.startTime)
+        const sEnd = convertToMinutes(s.endTime)
+
+        // Overlap detection: (StartA < EndB) and (EndA > StartB)
+        if (start < sEnd && end > sStart) {
+          if (room && s.room === room && room !== 'TBA') return `Room conflict: Room ${room} is already booked for ${s.subjectCode} (${s.startTime}-${s.endTime})`
+          if (instructorId && Number(s.instructorId) === Number(instructorId)) return `Instructor conflict: Professor is already scheduled for ${s.subjectCode} (${s.startTime}-${s.endTime})`
+          if (course === s.course && section === s.section) return `Section conflict: ${course} ${section} already has a subject scheduled at this time (${s.subjectCode})`
+        }
+      }
+      return null
     },
 
     async createSchedule(data) {
+      // Validate conflicts
+      const conflictMsg = await this.checkConflicts(data)
+      if (conflictMsg) throw new Error(conflictMsg)
+
       const id = await nextId('schedules')
       const doc = { 
         id,
@@ -1028,6 +1061,12 @@ export async function openMongoStore() {
     async updateSchedule(id, data) {
       const idQuery = { $or: [{ id: Number(id) }, { id: String(id) }] }
       
+      // Validate conflicts (fetching current values for missing fields in 'data')
+      const current = await schedules.findOne(idQuery)
+      const merged = { ...current, ...data }
+      const conflictMsg = await this.checkConflicts(merged, id)
+      if (conflictMsg) throw new Error(conflictMsg)
+
       // Build update doc with explicit fields to prevent stripping
       const doc = { updated_at: new Date().toISOString() }
       const fields = [

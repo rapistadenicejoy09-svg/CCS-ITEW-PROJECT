@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { apiAdminUsers } from '../lib/api'
+import { apiAdminUsers, apiFacultyDirectory, apiGetSubjects, apiGetTeachingLoads } from '../lib/api'
 
 const MODULES = [
    { id: 'student-profile', code: '1.1', title: 'Student List', path: '/student-profile' },
@@ -80,7 +80,11 @@ export default function Dashboard() {
    const query = search.toLowerCase()
 
    const [studentCount, setStudentCount] = useState(0)
+   const [facultyCount, setFacultyCount] = useState(0)
+   const [subjectCount, setSubjectCount] = useState(0)
+   const [coveragePercent, setCoveragePercent] = useState(0)
    const [quickRows, setQuickRows] = useState([])
+   
    const [statsLoading, setStatsLoading] = useState(false)
    const [statsError, setStatsError] = useState('')
 
@@ -109,35 +113,45 @@ export default function Dashboard() {
       )
    }, [])
 
-   useEffect(() => {
-      if (!isAdmin) return
-      const token = localStorage.getItem('authToken')
-      if (!token) return
-      setStatsError('')
-      setStatsLoading(true)
-      apiAdminUsers(token)
-         .then((res) => {
-            const users = Array.isArray(res.users) ? res.users : []
-            const students = users.filter((u) => u.role === 'student')
-            setStudentCount(students.length)
-            setQuickRows(
-               students.map((u) => ({
-                  id: u.id,
-                  type: 'student',
-                  module: 'student-profile',
-                  detailPath: `/admin/student/${u.id}`,
-                  name: dashboardStudentDisplayName(u),
-                  meta: dashboardStudentMeta(u),
-               })),
-            )
-         })
-         .catch((e) => {
-            setStatsError(e?.message || 'Could not load student list.')
-            setStudentCount(0)
-            setQuickRows([])
-         })
-         .finally(() => setStatsLoading(false))
-   }, [isAdmin])
+  useEffect(() => {
+    if (!isAdmin) return
+    const token = localStorage.getItem('authToken')
+    if (!token) return
+    setStatsError('')
+    setStatsLoading(true)
+    
+    Promise.all([
+      apiAdminUsers(token),
+      apiFacultyDirectory(token),
+      apiGetSubjects(token),
+      apiGetTeachingLoads(token)
+    ]).then(([uRes, fRes, sRes, tRes]) => {
+      const users = Array.isArray(uRes.users) ? uRes.users : []
+      const students = users.filter(u => u.role === 'student')
+      setStudentCount(students.length)
+      setQuickRows(students.map(u => ({
+        id: u.id,
+        type: 'student',
+        module: 'student-profile',
+        detailPath: `/admin/student/${u.id}`,
+        name: dashboardStudentDisplayName(u),
+        meta: dashboardStudentMeta(u),
+      })))
+
+      const facList = fRes.faculty || []
+      setFacultyCount(facList.length)
+
+      const subList = sRes.subjects || []
+      setSubjectCount(subList.length)
+
+      const loads = tRes.teachingLoads || []
+      const assignedSubjectIds = new Set(loads.map(l => l.subject_id))
+      const coverage = subList.length > 0 ? (assignedSubjectIds.size / subList.length) * 100 : 0
+      setCoveragePercent(Math.round(coverage))
+    }).catch(e => {
+      setStatsError(e?.message || 'Could not load dashboard stats.')
+    }).finally(() => setStatsLoading(false))
+  }, [isAdmin])
 
    useEffect(() => {
       async function fetchWeather() {
@@ -339,27 +353,26 @@ export default function Dashboard() {
 
                {isAdmin && (
                   <section className="summary-row" style={{ marginTop: '24px' }}>
-                     {statsLoading
-                        ? modules.map((m) => (
-                           <div key={m.id} className="summary-card" style={{ cursor: 'default', opacity: 0.7 }}>
-                              <div className="summary-label">{m.title}</div>
-                              <div className="summary-value">…</div>
-                              <div className="summary-hint">Loading…</div>
-                           </div>
-                        ))
-                        : modules.map((m) => {
-                           const isLiveStudent = m.id === 'student-profile'
-                           const n = isLiveStudent ? studentCount : STATIC_MODULE_DISPLAY[m.id] ?? '—'
-                           return (
-                              <SummaryCard
-                                 key={m.id}
-                                 label={m.title}
-                                 value={n}
-                                 hint={isLiveStudent && studentCount === 0 ? 'No students yet' : undefined}
-                                 link={m.path}
-                              />
-                           )
-                        })}
+                     {statsLoading ? (
+                        <>
+                           <div className="summary-card" style={{ opacity: 0.7 }}><div className="summary-label">Students</div><div className="summary-value">…</div></div>
+                           <div className="summary-card" style={{ opacity: 0.7 }}><div className="summary-label">Faculty</div><div className="summary-value">…</div></div>
+                           <div className="summary-card" style={{ opacity: 0.7 }}><div className="summary-label">Subjects</div><div className="summary-value">…</div></div>
+                           <div className="summary-card" style={{ opacity: 0.7 }}><div className="summary-label">Subject Coverage</div><div className="summary-value">…</div></div>
+                        </>
+                     ) : (
+                        <>
+                           <SummaryCard label="Total Students" value={studentCount} hint="Registered profiles" link="/student-profile" />
+                           <SummaryCard label="Active Faculty" value={facultyCount} hint="Including schedule-only" link="/faculty-profile" />
+                           <SummaryCard label="Master Subjects" value={subjectCount} hint="Curriculum entries" link="/instructions" />
+                           <SummaryCard 
+                              label="Subject Coverage" 
+                              value={`${coveragePercent}%`} 
+                              hint={`${Math.round(subjectCount * coveragePercent / 100)} Assigned Subjects`} 
+                              link="/scheduling" 
+                           />
+                        </>
+                     )}
                   </section>
                )}
 
