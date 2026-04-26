@@ -248,8 +248,7 @@ export default function AdminStudentList() {
           </div>
           <Link
             to="/admin/create-student"
-            className="mt-4 md:mt-0 font-medium transition-all duration-300 text-sm px-6 py-2.5 rounded-full hover:shadow-lg hover:scale-[1.03] active:scale-[0.98]"
-            style={{ background: 'var(--accent)', color: 'white', border: '1px solid var(--accent-soft)' }}
+            className="mt-4 md:mt-0 btn btn-primary !rounded-full"
           >
             + Create Student Profile
           </Link>
@@ -280,7 +279,7 @@ export default function AdminStudentList() {
             <div className="flex items-center gap-3 w-full md:w-auto">
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className={`btn flex items-center gap-2 ${showFilters || hasActiveFilters ? 'btn-primary' : 'btn-secondary'}`}
+                className={`btn ${showFilters || hasActiveFilters ? 'btn-primary' : 'btn-secondary'}`}
               >
                 <IconFilter /> Filters
                 {(filterSection || filterType || filterSkill || filterAffiliation || filterStatus !== 'active') && (
@@ -291,14 +290,14 @@ export default function AdminStudentList() {
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => setViewMode('list')}
-                  className={`btn btn-compact flex items-center justify-center !p-1.5 ${viewMode === 'list' ? 'btn-primary' : 'btn-secondary'}`}
+                  className={`btn btn-sm !p-1.5 ${viewMode === 'list' ? 'btn-primary' : 'btn-secondary'}`}
                   title="List View"
                 >
                   <IconList />
                 </button>
                 <button
                   onClick={() => setViewMode('grid')}
-                  className={`btn btn-compact flex items-center justify-center !p-1.5 ${viewMode === 'grid' ? 'btn-primary' : 'btn-secondary'}`}
+                  className={`btn btn-sm !p-1.5 ${viewMode === 'grid' ? 'btn-primary' : 'btn-secondary'}`}
                   title="Grid View"
                 >
                   <IconGrid />
@@ -380,7 +379,7 @@ export default function AdminStudentList() {
                     onClick={() => {
                       setSearch(''); setFilterSection(''); setFilterType(''); setFilterStatus('active'); setFilterSkill(''); setFilterAffiliation('');
                     }}
-                    className="px-5 py-2 rounded-full border border-[var(--border-color)] bg-transparent hover:bg-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text)] text-sm font-medium transition-colors"
+                    className="btn btn-secondary btn-sm"
                   >
                     Clear all filters
                   </button>
@@ -496,7 +495,7 @@ export default function AdminStudentList() {
                         <div className="p-3 bg-[rgba(0,0,0,0.02)] dark:bg-[rgba(255,255,255,0.02)] flex justify-end gap-2 border-t border-[var(--border-color)]">
                           <button
                             type="button"
-                            className="flex items-center justify-center px-3 py-1.5 bg-rose-50/50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 rounded-lg border border-rose-200 hover:border-rose-400 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed"
+                            className="btn btn-danger btn-sm"
                             title="Delete Student"
                             disabled={!active}
                             onClick={() => setDeleteTarget(student)}
@@ -505,7 +504,7 @@ export default function AdminStudentList() {
                           </button>
                           <Link
                             to={`/admin/student/${student.id}`}
-                            className="px-4 py-1.5 bg-transparent hover:bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--border-color)] hover:border-[var(--accent)] rounded text-xs font-semibold transition-all duration-300 flex items-center gap-1.5 group-hover:translate-x-0.5"
+                            className="btn btn-secondary btn-sm"
                           >
                             <IconEye /> View Profile
                           </Link>
@@ -612,7 +611,7 @@ export default function AdminStudentList() {
                                 <div className="flex items-center justify-end gap-3">
                                   <button
                                     type="button"
-                                    className="flex items-center justify-center px-4 py-2 bg-rose-50/50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 rounded-lg border border-rose-200 hover:border-rose-400 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed"
+                                    className="btn btn-danger btn-sm"
                                     title="Delete Student"
                                     disabled={!active}
                                     onClick={() => setDeleteTarget(student)}
@@ -621,7 +620,7 @@ export default function AdminStudentList() {
                                   </button>
                                   <Link
                                     to={`/admin/student/${student.id}`}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--accent-soft)] hover:bg-[var(--accent)] text-[var(--accent)] hover:text-white rounded border border-transparent hover:border-[var(--accent)] transition-colors font-medium text-xs text-center"
+                                    className="btn btn-secondary btn-sm"
                                     title="View Profile"
                                   >
                                     <IconEye /> View

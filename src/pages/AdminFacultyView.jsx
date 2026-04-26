@@ -283,6 +283,58 @@ export default function AdminFacultyView() {
             <ViewValue multiline>{u.bio || 'No biography provided.'}</ViewValue>
           </div>
         </Card>
+        
+        {/* Teaching Load Integration */}
+        <Card className="admin-animate-reveal" style={{ animationDelay: '0.3s' }}>
+          <div className="flex justify-between items-center mb-5">
+            <SectionTitle>Current Teaching Load</SectionTitle>
+            <Link 
+              to={`/faculty/teaching-load?facultyId=${u.id}`}
+              className="px-4 py-1.5 bg-[var(--accent)] text-white rounded-lg text-xs font-bold hover:bg-[var(--accent)]/90 transition-all shadow-sm flex items-center gap-2"
+            >
+              Manage Full Load
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </Link>
+          </div>
+          
+          {u.teaching_loads && u.teaching_loads.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm border-collapse">
+                <thead className="bg-[rgba(0,0,0,0.02)] border-b border-[var(--border-color)]">
+                  <tr>
+                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">Code</th>
+                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">Subject Name</th>
+                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)]">Section</th>
+                    <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-[var(--text-muted)] text-right">Units</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border-color)]">
+                  {u.teaching_loads.map(l => (
+                    <tr key={l.id} className="hover:bg-[rgba(0,0,0,0.01)] transition-colors">
+                      <td className="px-4 py-3 font-bold text-[var(--accent)]">{l.subject?.code}</td>
+                      <td className="px-4 py-3 text-[var(--text)] font-medium">{l.subject?.name}</td>
+                      <td className="px-4 py-3 text-[var(--text-muted)] font-semibold">{l.section_id || l.section}</td>
+                      <td className="px-4 py-3 text-right font-mono text-[var(--text-muted)]">{l.subject?.credits || 0}</td>
+                    </tr>
+                  ))}
+                  <tr className="bg-[rgba(0,0,0,0.02)] font-bold">
+                    <td colSpan="3" className="px-4 py-3 text-right text-[var(--text-muted)] text-xs uppercase tracking-wider">Total Units</td>
+                    <td className="px-4 py-3 text-right text-[var(--text)]">
+                      {u.teaching_loads.reduce((acc, l) => acc + Number(l.subject?.credits || 0), 0)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="p-8 text-center border-2 border-dashed border-[var(--border-color)] rounded-xl bg-[rgba(0,0,0,0.01)]">
+              <p className="text-[var(--text-muted)] text-sm font-medium">No subjects assigned for the current semester.</p>
+              <Link to={`/faculty/teaching-load?facultyId=${u.id}`} className="inline-block mt-3 text-[var(--accent)] text-xs font-bold hover:underline">
+                Assign a subject now →
+              </Link>
+            </div>
+          )}
+        </Card>
 
       </div>
     </div>

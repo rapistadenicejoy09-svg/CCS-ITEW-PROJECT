@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import SuccessModal from '../components/SuccessModal'
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal'
-import { apiAdminPatchUser, apiAdminUsers } from '../lib/api'
+import { apiAdminPatchUser, apiAdminUsers, apiFacultyDirectory } from '../lib/api'
 
 function getRole() {
   try {
@@ -146,15 +146,12 @@ export default function AdminFacultyList() {
     setLoading(true)
     setError('')
     try {
-      const result = await apiAdminUsers(token)
-      const users = Array.isArray(result?.users) ? result.users : []
-      // Faculty characters: dean, chair, secretary, professor, faculty (Legacy)
-      const facultyOnly = users.filter(u =>
-        ['dean', 'department_chair', 'secretary', 'faculty_professor', 'faculty'].includes(u.role)
-      )
-      setFaculty(facultyOnly)
+      // Use unified directory API instead of raw admin users list
+      const result = await apiFacultyDirectory(token)
+      const list = Array.isArray(result?.faculty) ? result.faculty : []
+      setFaculty(list)
     } catch (err) {
-      setError(err?.message || 'Failed to load faculty.')
+      setError(err?.message || 'Failed to load faculty directory.')
     } finally {
       setLoading(false)
     }
@@ -257,8 +254,7 @@ export default function AdminFacultyList() {
           </div>
           <Link
             to="/admin/create-faculty"
-            className="mt-4 md:mt-0 font-medium transition-all duration-300 text-sm px-6 py-2.5 rounded-full hover:shadow-lg hover:scale-[1.03] active:scale-[0.98]"
-            style={{ background: 'var(--accent)', color: 'white', border: '1px solid var(--accent-soft)' }}
+            className="mt-4 md:mt-0 btn btn-primary !rounded-full"
           >
             + Create Faculty Profile
           </Link>
@@ -414,8 +410,8 @@ export default function AdminFacultyList() {
                           <h3 className="text-base font-bold text-[var(--text)] mb-0.5 leading-tight">{getFacultyName(f)}</h3>
                           <p className="text-[var(--accent)] font-mono text-xs">{f.email}</p>
                         </div>
-                        <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'}`}>
-                          {active ? 'Active' : 'Inactive'}
+                        <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${f.is_legacy ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
+                          {f.is_legacy ? 'Schedule Only' : 'Active'}
                         </span>
                       </div>
 
@@ -439,6 +435,23 @@ export default function AdminFacultyList() {
                           )}
                         </div>
 
+                        <div className="flex justify-between items-center pt-2 border-t border-[rgba(0,0,0,0.03)] dark:border-[rgba(255,255,255,0.03)]">
+                           <div>
+                             <p className="text-[var(--text-muted)] text-[10px] uppercase font-bold tracking-wider">Teaching Load</p>
+                             <p className="text-[var(--text)] text-xs font-bold">
+                               {f.teaching_loads?.reduce((acc, l) => acc + Number(l.subject?.credits || 0), 0) || 0} Units
+                             </p>
+                           </div>
+                           <div className="flex gap-1 flex-wrap justify-end max-w-[120px]">
+                             {f.teaching_loads?.slice(0, 2).map(l => (
+                               <span key={l.id} className="px-1.5 py-0.5 rounded bg-[var(--accent-soft)] text-[var(--accent)] text-[9px] font-bold border border-[var(--accent)]/10">
+                                 {l.subject?.code}
+                               </span>
+                             ))}
+                             {(f.teaching_loads?.length || 0) > 2 && <span className="text-[9px] text-[var(--text-muted)]">+{f.teaching_loads.length - 2} more</span>}
+                           </div>
+                        </div>
+
                         {f.bio && (
                           <div className="pt-3 border-t border-[rgba(0,0,0,0.03)] dark:border-[rgba(255,255,255,0.03)]">
                             <p className="text-[var(--text-muted)] text-[10px] uppercase font-bold mb-1 tracking-wider">Bio Snippet</p>
@@ -449,17 +462,24 @@ export default function AdminFacultyList() {
 
                       <div className="p-3 bg-[rgba(0,0,0,0.02)] flex justify-end gap-2 border-t border-[var(--border-color)]">
                         <button
-                          className="flex items-center justify-center px-3 py-1.5 bg-rose-50/50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 rounded-lg border border-rose-200 transition-all font-medium text-xs disabled:opacity-30"
-                          disabled={!active}
+                          className="btn btn-danger btn-sm"
                           onClick={() => setDeleteTarget(f)}
+                          disabled={f.is_legacy}
+                          title={f.is_legacy ? "Cannot deactivate schedule-only record" : "Deactivate Account"}
                         >
                           <IconTrash />
                         </button>
                         <Link
-                          to={`/admin/faculty/${f.id}`}
-                          className="px-4 py-1.5 bg-transparent hover:bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--border-color)] hover:border-[var(--accent)] rounded text-xs font-semibold transition-all flex items-center gap-1.5"
+                          to={`/faculty/teaching-load?facultyId=${f.id}`}
+                          className="btn btn-primary btn-sm"
                         >
-                          <IconEye /> View Profile
+                          Manage Load
+                        </Link>
+                        <Link
+                          to={`/admin/faculty/${f.id}`}
+                          className="btn btn-secondary btn-sm"
+                        >
+                          <IconEye />
                         </Link>
                       </div>
                     </div>
@@ -475,6 +495,7 @@ export default function AdminFacultyList() {
                       <thead className="bg-[rgba(0,0,0,0.02)] border-b border-[var(--border-color)] text-[var(--text-muted)] text-[10px] uppercase tracking-widest font-bold">
                         <tr>
                           <th className="px-6 py-4">Name &amp; Email</th>
+                          <th className="px-6 py-4">Status</th>
                           <th className="px-6 py-4">System Role</th>
                           <th className="px-6 py-4">Department</th>
                           <th className="px-6 py-4 text-right">Actions</th>
@@ -484,14 +505,19 @@ export default function AdminFacultyList() {
                         {filteredFaculty.map((f, idx) => (
                           <tr
                             key={f.id}
-                            className="admin-student-list-row admin-student-table-row-enter hover:bg-[rgba(0,0,0,0.02)]"
+                            className={`admin-student-list-row admin-student-table-row-enter hover:bg-[rgba(0,0,0,0.02)] ${f.is_legacy ? 'opacity-80' : ''}`}
                             style={{ '--row-enter-delay': `${Math.min(idx, 16) * 0.035}s` }}
                           >
                             <td className="px-6 py-4">
                               <div className="flex flex-col">
                                 <span className="font-bold text-[var(--text)]">{getFacultyName(f)}</span>
-                                <span className="text-xs text-[var(--accent)] font-mono">{f.email}</span>
+                                <span className="text-xs text-[var(--accent)] font-mono">{f.email || '—'}</span>
                               </div>
+                            </td>
+                            <td className="px-6 py-4">
+                               <span className={`text-xs font-bold uppercase ${f.is_legacy ? 'text-amber-600 font-medium' : 'text-emerald-600'}`}>
+                                 {f.is_legacy ? 'Schedule Only' : 'Active'}
+                               </span>
                             </td>
                             <td className="px-6 py-4">
                               <span className="text-[var(--text)] font-semibold">{formatFacultyRole(f.role)}</span>
@@ -499,20 +525,42 @@ export default function AdminFacultyList() {
                             <td className="px-6 py-4">
                               <span className="text-[var(--text)]">{getFacultyDept(f)}</span>
                             </td>
+                            <td className="px-6 py-4">
+                              <div className="flex flex-col gap-1">
+                                <span className="text-xs font-bold text-[var(--text)]">
+                                  {f.teaching_loads?.reduce((acc, l) => acc + Number(l.subject?.credits || 0), 0) || 0} Units
+                                </span>
+                                <div className="flex gap-1 overflow-hidden">
+                                  {f.teaching_loads?.slice(0, 3).map(l => (
+                                    <span key={l.id} className="text-[9px] px-1 bg-[var(--background)] border border-[var(--border-color)] rounded text-[var(--text-muted)]">
+                                      {l.subject?.code}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            </td>
                             <td className="px-6 py-4 text-right">
-                              <div className="flex justify-end gap-3">
+                              <div className="flex justify-end gap-2">
+                                <Link
+                                  to={`/faculty/teaching-load?facultyId=${f.id}`}
+                                  className="px-3 py-1.5 bg-[var(--accent-soft)] text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white rounded text-xs font-bold transition-all"
+                                >
+                                  Manage Load
+                                </Link>
+                                <Link
+                                  to={`/admin/faculty/${f.id}`}
+                                  className="p-1.5 text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--accent-soft)] rounded border border-transparent hover:border-[var(--accent)] transition-all"
+                                  title="View Profile"
+                                >
+                                  <IconEye />
+                                </Link>
                                 <button
                                   className="p-1.5 text-rose-600 hover:bg-rose-50 rounded border border-transparent hover:border-rose-200"
                                   onClick={() => setDeleteTarget(f)}
+                                  title="Deactivate Account"
                                 >
                                   <IconTrash />
                                 </button>
-                                <Link
-                                  to={`/admin/faculty/${f.id}`}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--accent-soft)] text-[var(--accent)] rounded hover:bg-[var(--accent)] hover:text-white transition-all text-xs font-medium"
-                                >
-                                  <IconEye /> View
-                                </Link>
                               </div>
                             </td>
                           </tr>

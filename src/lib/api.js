@@ -418,12 +418,7 @@ export async function apiMeLogs(token, limit = 100) {
   })
 }
 
-export async function apiGetReports(token) {
-  return request('/api/reports', {
-    method: 'GET',
-    headers: { Authorization: `Bearer ${token}` },
-  })
-}
+
 
 // --- Faculty Module ---
 

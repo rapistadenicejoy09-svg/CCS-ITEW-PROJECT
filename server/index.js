@@ -865,7 +865,15 @@ app.post('/api/auth/2fa/disable', authMiddleware, asyncHandler(async (req, res) 
 
 app.get('/api/admin/users', authMiddleware, authorize(PERMISSIONS.MANAGE_USERS), asyncHandler(async (req, res) => {
   const users = await store.listAdminUsers()
-  res.json({ ok: true, users })
+  // Hydrate with teaching loads if applicable (for faculty roles)
+  const allLoads = await store.listTeachingLoads(null)
+  const hydrated = users.map(u => {
+    if (['dean', 'department_chair', 'secretary', 'faculty_professor', 'faculty'].includes(u.role)) {
+      u.teaching_loads = allLoads.filter(l => l.faculty_id === u.id)
+    }
+    return u
+  })
+  res.json({ ok: true, users: hydrated })
 }))
 
 app.get(
@@ -878,15 +886,102 @@ app.get(
       ['dean', 'department_chair', 'secretary', 'faculty_professor', 'faculty'].includes(u.role),
     )
     const activeOnly = facultyOnly.filter((u) => u?.is_active !== 0 && u?.is_active !== false)
-    res.json({ ok: true, faculty: activeOnly })
+    
+    // Hydrate
+    const [allLoads, allSchedules] = await Promise.all([
+      store.listTeachingLoads(null),
+      store.listSchedules(null)
+    ])
+
+    const facultyList = [...activeOnly]
+    
+    // Distill unique instructors from schedules that aren't in activeOnly
+    const knownEmails = new Set(activeOnly.map(u => String(u.email || '').toLowerCase()).filter(e => e !== ''))
+    const knownIds = new Set(activeOnly.map(u => String(u.id)).filter(id => id !== ''))
+    const knownNames = new Set(activeOnly.map(u => String(u.full_name || u.displayName || '').toLowerCase().trim()).filter(n => n !== ''))
+    
+    const legacyFaculty = []
+    const processedKeys = new Set()
+
+    for (const s of allSchedules) {
+      if (!s.instructor) continue
+      const email = String(s.instructorEmail || '').toLowerCase().trim()
+      const sid = String(s.instructorId || '').trim()
+      const name = String(s.instructor).trim()
+      const nameLower = name.toLowerCase()
+      
+      const isKnown = (email !== '' && knownEmails.has(email)) || 
+                      (sid !== '' && knownIds.has(sid)) || 
+                      (nameLower !== '' && knownNames.has(nameLower))
+      
+      if (isKnown) continue
+      
+      const key = `${name}-${email}`
+      if (processedKeys.has(key)) continue
+      
+      legacyFaculty.push({
+        id: sid || `legacy-${name}`,
+        full_name: name,
+        displayName: name,
+        email: s.instructorEmail || '',
+        role: 'faculty',
+        is_active: true,
+        is_legacy: true,
+        teaching_loads: []
+      })
+      processedKeys.add(key)
+    }
+    
+    const combined = [...facultyList, ...legacyFaculty]
+
+    combined.forEach(f => {
+      f.teaching_loads = allLoads.filter(l => {
+        // Match by precise ID
+        if (String(l.faculty_id) === String(f.id)) return true
+        
+        // Match by name for legacy/virtual loads if IDs don't match
+        if (l.is_virtual && l.faculty_name && f.full_name) {
+          return l.faculty_name.trim().toLowerCase() === f.full_name.trim().toLowerCase()
+        }
+        
+        return false
+      })
+    })
+
+    res.json({ ok: true, faculty: combined })
   }),
 )
 
 app.get('/api/admin/users/:id', authMiddleware, authorize(PERMISSIONS.MANAGE_USERS), asyncHandler(async (req, res) => {
-  const id = Number(req.params.id)
-  if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid id' })
-  const user = await store.getAdminUserById(id)
+  const rawId = req.params.id
+  let user
+  
+  if (String(rawId).startsWith('legacy-')) {
+    const name = String(rawId).slice('legacy-'.length)
+    user = {
+      id: rawId,
+      full_name: name,
+      displayName: name,
+      role: 'faculty',
+      is_active: true,
+      is_legacy: true,
+      email: '',
+      personal_information: { fullName: name },
+      summary: { department: 'Legacy Records' }
+    }
+  } else {
+    const id = Number(rawId)
+    if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid id' })
+    user = await store.getAdminUserById(id)
+  }
+
   if (!user) return res.status(404).json({ error: 'User not found' })
+  
+  // Hydrate with loads
+  if (['dean', 'department_chair', 'secretary', 'faculty_professor', 'faculty'].includes(user.role)) {
+    user.teaching_loads = await store.listTeachingLoads(user.id)
+  }
+  
   res.json({ ok: true, user })
 }))
 
@@ -1003,8 +1098,33 @@ app.get('/api/me/logs', authMiddleware, asyncHandler(async (req, res) => {
 
 // Subjects
 app.get('/api/subjects', authMiddleware, asyncHandler(async (req, res) => {
-  const list = await store.listSubjects()
-  res.json({ ok: true, subjects: list })
+  const [list, allSchedules] = await Promise.all([
+    store.listSubjects(),
+    store.listSchedules(null)
+  ])
+
+  // Extract unique subjects from schedules not in the master list
+  const knownCodes = new Set(list.map(s => String(s.code).toUpperCase()))
+  const virtualSubjects = []
+  
+  for (const s of allSchedules) {
+    if (!s.subjectCode) continue
+    const code = String(s.subjectCode).toUpperCase()
+    if (knownCodes.has(code)) continue
+    
+    if (!virtualSubjects.find(vs => vs.code === code)) {
+      virtualSubjects.push({
+        id: s.subjectId || `vsub-${code}`,
+        code: s.subjectCode,
+        name: s.subjectTitle || s.subjectCode,
+        description: 'Synthesized from Schedule',
+        units: 3,
+        is_virtual: true
+      })
+    }
+  }
+
+  res.json({ ok: true, subjects: [...list, ...virtualSubjects] })
 }))
 
 app.post('/api/subjects', authMiddleware, authorize(PERMISSIONS.MANAGE_USERS), asyncHandler(async (req, res) => {
@@ -1028,7 +1148,8 @@ app.delete('/api/subjects/:id', authMiddleware, authorize(PERMISSIONS.MANAGE_USE
 
 // Teaching Loads
 app.get('/api/teaching-loads', authMiddleware, asyncHandler(async (req, res) => {
-  const facultyId = req.query.facultyId || (req.user.role === 'faculty' ? req.user.id : null)
+  const qId = req.query.facultyId
+  const facultyId = (qId && qId !== '') ? qId : (req.user.role === 'faculty' ? req.user.id : null)
   const list = await store.listTeachingLoads(facultyId)
   res.json({ ok: true, teachingLoads: list })
 }))

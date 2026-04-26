@@ -231,7 +231,7 @@ export default function ActivityLog() {
                       <td colSpan="5" className="p-12">
                         <div className="text-center">
                           <p className="text-rose-500 text-sm font-medium">Error: {error}</p>
-                          <button onClick={loadLogs} className="mt-4 text-xs font-bold uppercase tracking-widest text-[var(--accent)] hover:underline">Retry Connection</button>
+                          <button onClick={loadLogs} className="btn btn-primary btn-sm mt-4">Retry Connection</button>
                         </div>
                       </td>
                     </tr>

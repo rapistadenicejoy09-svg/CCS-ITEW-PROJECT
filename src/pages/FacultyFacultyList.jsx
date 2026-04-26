@@ -334,7 +334,11 @@ export default function FacultyFacultyList() {
                             <h3 className="text-base font-bold text-[var(--text)] mb-0.5 leading-tight">{getFacultyName(f)}</h3>
                             <p className="text-[var(--accent)] font-mono text-xs">{f.email || '—'}</p>
                           </div>
-                          {isActive ? (
+                          {f.is_legacy ? (
+                            <span className="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                              Schedule Only
+                            </span>
+                          ) : isActive ? (
                             <span className="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
                               Active
                             </span>
@@ -353,7 +357,9 @@ export default function FacultyFacultyList() {
                             </div>
                             <div className="text-right">
                               <p className="text-[var(--text-muted)] text-[10px] uppercase font-bold mb-1 tracking-wider">Teaching Units</p>
-                              <p className="text-[var(--text)] text-sm font-bold">{f.units || '--'} Units</p>
+                              <p className="text-[var(--text)] text-sm font-bold">
+                                {f.teaching_loads?.reduce((acc, l) => acc + Number(l.subject?.credits || 0), 0) || 0} Units
+                              </p>
                             </div>
                           </div>
 
@@ -365,13 +371,20 @@ export default function FacultyFacultyList() {
                             ) : null}
                           </div>
                           
-                          <div className="pt-2">
-                             <p className="text-[var(--text-muted)] text-[10px] uppercase font-bold mb-1 tracking-wider">Assigned Subjects</p>
-                             <div className="flex gap-2 flex-wrap text-xs font-medium">
-                               {/* Mock Display */}
-                               <span className="px-2 py-0.5 rounded bg-[var(--background)] text-[var(--text-muted)] border border-[var(--border-color)]">N/A</span>
-                             </div>
-                          </div>
+                           <div className="pt-2">
+                              <p className="text-[var(--text-muted)] text-[10px] uppercase font-bold mb-1 tracking-wider">Assigned Subjects</p>
+                              <div className="flex gap-2 flex-wrap text-xs font-medium">
+                                {f.teaching_loads && f.teaching_loads.length > 0 ? (
+                                  f.teaching_loads.map(l => (
+                                    <span key={l.id} className="px-2 py-0.5 rounded bg-[var(--accent-soft)] text-[var(--accent)] border border-[rgba(229,118,47,0.15)]">
+                                      {l.subject?.code || 'Subj'}
+                                    </span>
+                                  ))
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded bg-[var(--background)] text-[var(--text-muted)] border border-[var(--border-color)]">No assignment</span>
+                                )}
+                              </div>
+                           </div>
                         </div>
 
                         <div className="p-3 bg-[rgba(0,0,0,0.02)] dark:bg-[rgba(255,255,255,0.02)] flex justify-end gap-2 border-t border-[var(--border-color)]">
@@ -416,7 +429,9 @@ export default function FacultyFacultyList() {
                               </div>
                             </td>
                             <td className="px-6 py-4">
-                               {isActive ? (
+                               {f.is_legacy ? (
+                                <span className="text-amber-600 text-xs font-bold uppercase">Schedule Only</span>
+                               ) : isActive ? (
                                 <span className="text-emerald-600 text-xs font-bold uppercase">Active</span>
                                ) : (
                                 <span className="text-rose-600 text-xs font-bold uppercase">Inactive</span>

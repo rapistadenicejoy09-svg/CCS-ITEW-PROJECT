@@ -100,7 +100,7 @@ export default function App() {
               <Route path="admin/create-faculty" element={<AdminCreateFaculty />} />
               <Route path="admin/admins" element={<AdminAdminsPage />} />
               <Route path="activity-log" element={<ActivityLog />} />
-              <Route path="admin/reports" element={<ModulePage />} />
+
               <Route path="faculty-my-profile" element={<FacultyProfile />} />
               <Route path="faculty/teaching-load" element={<FacultyTeachingLoad />} />
               <Route path="faculty/schedule" element={<FacultySchedule />} />
