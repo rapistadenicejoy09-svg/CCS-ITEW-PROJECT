@@ -22,6 +22,24 @@ function getRole() {
   }
 }
 
+/** Returns the student's course/year/section from their auth profile for auto-filtering */
+function getStudentInfo() {
+  try {
+    const raw = localStorage.getItem('authUser')
+    const user = raw ? JSON.parse(raw) : null
+    if (!user) return null
+    const src = user.summary || user.academic_info || user.academicInfo || {}
+    let course = String(src.program || src.course || user.program || user.course || '').trim().toLowerCase()
+    if (course === 'bsit' || course === 'it' || course.includes('information tech')) course = 'bsit'
+    else if (course === 'bscs' || course === 'cs' || course.includes('computer science')) course = 'bscs'
+    const yearLevel = String(src.year_level || src.yearLevel || src.year || user.year_level || user.yearLevel || user.year || '').trim()
+    const section = String(user.class_section || src.class_section || src.classSection || src.section || user.classSection || '').trim()
+    return { course, yearLevel, section }
+  } catch {
+    return null
+  }
+}
+
 function normalizeText(value) {
   return String(value || '').trim().toLowerCase()
 }
@@ -97,19 +115,21 @@ function IconTrash() {
 export default function SchedulingPage() {
   const role = getRole()
   const canManage = hasPermission(PERMISSIONS.SCHEDULING_MANAGE)
-  const isStudent = false
+  const isStudent = role === 'student'
+
+  // For students: pre-populate filters from their profile
+  const studentInfo = isStudent ? (getStudentInfo() || {}) : {}
 
   const [schedules, setSchedules] = useState([])
 
   const [search, setSearch] = useState('')
   const [showFilters, setShowFilters] = useState(false)
-  const [viewMode, setViewMode] = useState('grid')
+  const [viewMode, setViewMode] = useState('timetable')
   const [filterDay, setFilterDay] = useState('')
 
-  const [courseFilter, setCourseFilter] = useState('')
-  const [yearFilter, setYearFilter] = useState('')
-  const [sectionFilter, setSectionFilter] = useState('')
-
+  const [courseFilter, setCourseFilter] = useState(isStudent ? (studentInfo.course || '') : '')
+  const [yearFilter, setYearFilter] = useState(isStudent ? (studentInfo.yearLevel || '') : '')
+  const [sectionFilter, setSectionFilter] = useState(isStudent ? (studentInfo.section || '') : '')
 
   useEffect(() => {
     async function load() {

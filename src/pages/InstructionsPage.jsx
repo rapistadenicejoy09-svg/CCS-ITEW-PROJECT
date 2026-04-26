@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { apiGetInstructions, apiDeleteInstruction } from '../lib/api'
 
@@ -15,10 +16,10 @@ function getStudentAssignmentFromAuth() {
 
     let courseRaw = source.program || source.course || user.program || user.course || ''
     let course = String(courseRaw).trim().toLowerCase()
-    
+
     if (course === 'bsit' || course === 'it' || course.includes('information tech')) course = 'bsit'
     else if (course === 'bscs' || course === 'cs' || course.includes('computer science')) course = 'bscs'
-    
+
     return { course }
   } catch {
     return { course: '' }
@@ -110,7 +111,7 @@ export default function InstructionsPage() {
   const [activeTab, setActiveTab] = useState('curriculum')
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState('grid')
-  
+
   const [showFilters, setShowFilters] = useState(false)
   const [filterStatus, setFilterStatus] = useState('')
   const [filterAuthor, setFilterAuthor] = useState('')
@@ -120,6 +121,10 @@ export default function InstructionsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const isAdmin = getRole() === 'admin'
+
+  // Archive confirmation modal state
+  const [archiveTarget, setArchiveTarget] = useState(null) // { id, title }
+  const [archiving, setArchiving] = useState(false)
 
   const fetchInstructions = async () => {
     try {
@@ -139,13 +144,16 @@ export default function InstructionsPage() {
   }, [])
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to archive this material?')) return
+    setArchiving(true)
     try {
       const token = localStorage.getItem('authToken')
       await apiDeleteInstruction(token, id)
       fetchInstructions()
     } catch (err) {
       alert(err.message)
+    } finally {
+      setArchiving(false)
+      setArchiveTarget(null)
     }
   }
 
@@ -180,7 +188,7 @@ export default function InstructionsPage() {
     return instructions.filter((item) => {
       if (role === 'student') {
         if (!studentCourse) return false // Blocks everything if profile incomplete
-        
+
         let itemCourse = String(item.course || '').trim().toLowerCase()
         if (itemCourse.includes('computer science') || itemCourse === 'cs') itemCourse = 'bscs'
         if (itemCourse.includes('information tech') || itemCourse === 'it') itemCourse = 'bsit'
@@ -201,7 +209,7 @@ export default function InstructionsPage() {
   return (
     <div className="module-page">
       <div className="w-full space-y-6">
-        
+
         {/* Header Section */}
         <header className="module-header flex flex-col md:flex-row justify-between items-start md:items-center">
           <div>
@@ -226,7 +234,7 @@ export default function InstructionsPage() {
         {/* Tab & Search Bar Section */}
         <section className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] p-5 shadow-sm space-y-5 flex flex-col">
           <div className="flex flex-col xl:flex-row gap-4 justify-between xl:items-center">
-            
+
             {/* Tabs */}
             <div className="flex w-full xl:w-auto p-1 bg-[rgba(0,0,0,0.2)] dark:bg-[rgba(255,255,255,0.03)] border border-[var(--border-color)] rounded-lg overflow-x-auto hide-scrollbar shrink-0">
               {tabs.map((tab) => {
@@ -241,11 +249,10 @@ export default function InstructionsPage() {
                       setFilterAuthor('')
                       setFilterSubject('')
                     }}
-                    className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-all whitespace-nowrap ${
-                      isActive 
-                        ? 'bg-[var(--accent)] text-white shadow-md' 
+                    className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-all whitespace-nowrap ${isActive
+                        ? 'bg-[var(--accent)] text-white shadow-md'
                         : 'text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[rgba(255,255,255,0.05)]'
-                    }`}
+                      }`}
                   >
                     {tab.icon && <span className={isActive ? 'opacity-100' : 'opacity-70'}>{tab.icon}</span>}
                     {tab.label}
@@ -260,7 +267,7 @@ export default function InstructionsPage() {
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[var(--text-muted)]">
                   <IconSearch />
                 </div>
-                <input 
+                <input
                   type="text"
                   placeholder={`Search ${tabs.find(t => t.id === activeTab)?.label.toLowerCase()}...`}
                   value={search}
@@ -393,143 +400,217 @@ export default function InstructionsPage() {
               )}
             </div>
           ) : (
-             <>
-               {/* GRID VIEW */}
-               {viewMode === 'grid' && (
-                 <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
-                   {filteredItems.map((item) => (
-                     <div key={item.id} className="group relative flex flex-col bg-[var(--card-bg)] border border-[var(--border-color)] hover:border-[var(--accent)] rounded-[var(--radius-md)] overflow-hidden transition-all duration-300 hover:shadow-[0_8px_24px_-8px_rgba(229,118,47,0.2)]">
-                        
-                        {/* Card Top / Banner */}
-                        <div className="h-1 bg-[rgba(255,255,255,0.05)] w-full">
-                           <div className="h-full bg-gradient-to-r from-[var(--accent)] to-[rgba(229,118,47,0.4)] w-1/3 opacity-0 group-hover:opacity-100 transition-all duration-500 rounded-r-full"></div>
-                        </div>
+            <>
+              {/* GRID VIEW */}
+              {viewMode === 'grid' && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
+                  {filteredItems.map((item) => (
+                    <div key={item.id} className="group relative flex flex-col bg-[var(--card-bg)] border border-[var(--border-color)] hover:border-[var(--accent)] rounded-[var(--radius-md)] overflow-hidden transition-all duration-300 hover:shadow-[0_8px_24px_-8px_rgba(229,118,47,0.2)]">
 
-                        <div className="p-5 flex flex-col flex-1 gap-3">
-                          <div className="flex justify-between items-start">
-                            <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider ${
-                              item.type === 'curriculum' 
-                                ? 'bg-blue-100/10 text-blue-400 border border-blue-400/20'
-                                : item.type === 'syllabus'
+                      {/* Card Top / Banner */}
+                      <div className="h-1 bg-[rgba(255,255,255,0.05)] w-full">
+                        <div className="h-full bg-gradient-to-r from-[var(--accent)] to-[rgba(229,118,47,0.4)] w-1/3 opacity-0 group-hover:opacity-100 transition-all duration-500 rounded-r-full"></div>
+                      </div>
+
+                      <div className="p-5 flex flex-col flex-1 gap-3">
+                        <div className="flex justify-between items-start">
+                          <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider ${item.type === 'curriculum'
+                              ? 'bg-blue-100/10 text-blue-400 border border-blue-400/20'
+                              : item.type === 'syllabus'
                                 ? 'bg-emerald-100/10 text-emerald-400 border border-emerald-400/20'
                                 : 'bg-purple-100/10 text-purple-400 border border-purple-400/20'
                             }`}>
-                              {item.type}
-                            </span>
-                            
-                            <span className={`text-[10px] font-semibold flex items-center gap-1.5 ${item.status === 'Active' ? 'text-emerald-500' : 'text-[var(--text-muted)]'}`}>
-                              <span className={`w-1.5 h-1.5 rounded-full ${item.status === 'Active' ? 'bg-emerald-500' : 'bg-[var(--text-muted)]'}`}></span>
-                              {item.status}
-                            </span>
-                          </div>
+                            {item.type}
+                          </span>
 
-                          <div className="mt-1">
-                            <h3 className="text-[var(--text)] font-bold text-lg mb-1.5 leading-snug">{item.title}</h3>
-                            <p className="text-[var(--text-muted)] text-xs leading-relaxed line-clamp-2">
-                              {item.description}
-                            </p>
-                          </div>
-
-                          <div className="mt-auto pt-4 flex items-center justify-between text-[11px] text-[var(--text-muted)]">
-                            <div className="flex flex-col">
-                              <span className="uppercase text-[9px] tracking-wider font-semibold opacity-70">Author</span>
-                              <span className="font-medium text-[var(--text)]">{item.author}</span>
-                            </div>
-                            <div className="flex flex-col text-right">
-                              <span className="uppercase text-[9px] tracking-wider font-semibold opacity-70">Last Updated</span>
-                              <span className="font-medium">{new Date(item.updated_at).toLocaleDateString()}</span>
-                            </div>
-                          </div>
+                          <span className={`text-[10px] font-semibold flex items-center gap-1.5 ${item.status === 'Active' ? 'text-emerald-500' : 'text-[var(--text-muted)]'}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${item.status === 'Active' ? 'bg-emerald-500' : 'bg-[var(--text-muted)]'}`}></span>
+                            {item.status}
+                          </span>
                         </div>
 
-                        {/* Card Actions Footer */}
-                        <div className="px-5 py-3 bg-[rgba(0,0,0,0.15)] dark:bg-[rgba(255,255,255,0.02)] border-t border-[var(--border-color)] flex justify-between items-center opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300">
-                           {isAdmin ? (
-                             <button onClick={() => handleDelete(item.id)} className="text-[var(--text-muted)] hover:text-rose-400 text-[11px] font-semibold transition-colors">
-                               Archive
-                             </button>
-                           ) : (
-                             <div></div>
-                           )}
-                           <Link to={`/admin/instructions/${item.id}`} className="flex items-center gap-1.5 text-[var(--accent)] hover:text-[var(--text)] bg-[var(--accent-soft)] hover:bg-[var(--accent)] px-3 py-1.5 rounded-md text-[11px] font-bold transition-all">
-                             <IconDownload /> View / Download
-                           </Link>
+                        <div className="mt-1">
+                          <h3 className="text-[var(--text)] font-bold text-lg mb-1.5 leading-snug">{item.title}</h3>
+                          <p className="text-[var(--text-muted)] text-xs leading-relaxed line-clamp-2">
+                            {item.description}
+                          </p>
                         </div>
 
-                     </div>
-                   ))}
-                 </div>
-               )}
+                        <div className="mt-auto pt-4 flex items-center justify-between text-[11px] text-[var(--text-muted)]">
+                          <div className="flex flex-col">
+                            <span className="uppercase text-[9px] tracking-wider font-semibold opacity-70">Author</span>
+                            <span className="font-medium text-[var(--text)]">{item.author}</span>
+                          </div>
+                          <div className="flex flex-col text-right">
+                            <span className="uppercase text-[9px] tracking-wider font-semibold opacity-70">Last Updated</span>
+                            <span className="font-medium">{new Date(item.updated_at).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                      </div>
 
-               {/* LIST VIEW */}
-               {viewMode === 'list' && (
-                 <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] overflow-hidden shadow-sm">
-                   <div className="overflow-x-auto">
-                     <table className="w-full text-left text-sm whitespace-nowrap">
-                       <thead className="bg-[rgba(0,0,0,0.02)] dark:bg-[rgba(255,255,255,0.02)] border-b border-[var(--border-color)] text-[var(--text-muted)] text-[10px] uppercase tracking-widest font-bold">
-                         <tr>
-                           <th className="px-6 py-4">Title & Description</th>
-                           <th className="px-6 py-4">Type</th>
-                           <th className="px-6 py-4">Author</th>
-                           <th className="px-6 py-4 text-center">Status</th>
-                           <th className="px-6 py-4 text-right">Last Updated</th>
-                           <th className="px-6 py-4 text-right">Actions</th>
-                         </tr>
-                       </thead>
-                       <tbody className="divide-y divide-[var(--border-color)]">
-                         {filteredItems.map((item) => (
-                           <tr key={item.id} className="hover:bg-[rgba(0,0,0,0.02)] dark:hover:bg-[rgba(255,255,255,0.01)] transition-colors">
-                             <td className="px-6 py-4">
-                               <div className="flex flex-col max-w-[300px]">
-                                 <span className="font-bold text-[var(--text)] text-sm truncate">{item.title}</span>
-                                 <span className="text-[11px] text-[var(--text-muted)] mt-0.5 truncate">{item.description}</span>
-                               </div>
-                             </td>
-                             <td className="px-6 py-4">
-                               <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider ${
-                                 item.type === 'curriculum' 
-                                   ? 'bg-blue-100/10 text-blue-400 border border-blue-400/20'
-                                   : item.type === 'syllabus'
-                                   ? 'bg-emerald-100/10 text-emerald-400 border border-emerald-400/20'
-                                   : 'bg-purple-100/10 text-purple-400 border border-purple-400/20'
-                               }`}>
-                                 {item.type}
-                               </span>
-                             </td>
-                             <td className="px-6 py-4 text-[var(--text)] text-xs font-medium">
-                               {item.author}
-                             </td>
-                             <td className="px-6 py-4 text-center">
-                               <span className={`text-[10px] font-semibold flex flex-row items-center justify-center gap-1.5 ${item.status === 'Active' ? 'text-emerald-500' : 'text-[var(--text-muted)]'}`}>
-                                 <span className={`w-1.5 h-1.5 rounded-full ${item.status === 'Active' ? 'bg-emerald-500' : 'bg-[var(--text-muted)]'}`}></span>
-                                 {item.status}
-                               </span>
-                             </td>
-                             <td className="px-6 py-4 text-right text-[11px] text-[var(--text-muted)] font-medium">
-                               {new Date(item.updated_at).toLocaleDateString()}
-                             </td>
-                             <td className="px-6 py-4 text-right flex items-center justify-end gap-3">
-                                {isAdmin && (
-                                  <button onClick={() => handleDelete(item.id)} className="text-[var(--text-muted)] hover:text-rose-400 text-[11px] font-semibold transition-colors">
-                                    Archive
-                                  </button>
-                                )}
-                                <Link to={`/admin/instructions/${item.id}`} className="flex items-center w-fit gap-1.5 text-[var(--accent)] hover:text-[var(--text)] bg-[var(--accent-soft)] hover:bg-[var(--accent)] px-3 py-1.5 rounded-md text-[11px] font-bold transition-all">
-                                  <IconDownload /> View
-                                </Link>
-                             </td>
-                           </tr>
-                         ))}
-                       </tbody>
-                     </table>
-                   </div>
-                 </div>
-               )}
-             </>
+                      {/* Card Actions Footer */}
+                      <div className="px-5 py-3 bg-[rgba(0,0,0,0.15)] dark:bg-[rgba(255,255,255,0.02)] border-t border-[var(--border-color)] flex justify-between items-center opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300">
+                        {isAdmin ? (
+                          <button
+                            onClick={() => setArchiveTarget({ id: item.id, title: item.title })}
+                            className="text-[var(--text-muted)] hover:text-rose-400 text-[11px] font-semibold transition-colors"
+                          >
+                            Archive
+                          </button>
+                        ) : (
+                          <div></div>
+                        )}
+                        <Link to={`/admin/instructions/${item.id}`} className="flex items-center gap-1.5 text-[var(--accent)] hover:text-[var(--text)] bg-[var(--accent-soft)] hover:bg-[var(--accent)] px-3 py-1.5 rounded-md text-[11px] font-bold transition-all">
+                          <IconDownload /> View / Download
+                        </Link>
+                      </div>
+
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* LIST VIEW */}
+              {viewMode === 'list' && (
+                <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] overflow-hidden shadow-sm">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm whitespace-nowrap">
+                      <thead className="bg-[rgba(0,0,0,0.02)] dark:bg-[rgba(255,255,255,0.02)] border-b border-[var(--border-color)] text-[var(--text-muted)] text-[10px] uppercase tracking-widest font-bold">
+                        <tr>
+                          <th className="px-6 py-4">Title & Description</th>
+                          <th className="px-6 py-4">Type</th>
+                          <th className="px-6 py-4">Author</th>
+                          <th className="px-6 py-4 text-center">Status</th>
+                          <th className="px-6 py-4 text-right">Last Updated</th>
+                          <th className="px-6 py-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--border-color)]">
+                        {filteredItems.map((item) => (
+                          <tr key={item.id} className="hover:bg-[rgba(0,0,0,0.02)] dark:hover:bg-[rgba(255,255,255,0.01)] transition-colors">
+                            <td className="px-6 py-4">
+                              <div className="flex flex-col max-w-[300px]">
+                                <span className="font-bold text-[var(--text)] text-sm truncate">{item.title}</span>
+                                <span className="text-[11px] text-[var(--text-muted)] mt-0.5 truncate">{item.description}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider ${item.type === 'curriculum'
+                                  ? 'bg-blue-100/10 text-blue-400 border border-blue-400/20'
+                                  : item.type === 'syllabus'
+                                    ? 'bg-emerald-100/10 text-emerald-400 border border-emerald-400/20'
+                                    : 'bg-purple-100/10 text-purple-400 border border-purple-400/20'
+                                }`}>
+                                {item.type}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-[var(--text)] text-xs font-medium">
+                              {item.author}
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <span className={`text-[10px] font-semibold flex flex-row items-center justify-center gap-1.5 ${item.status === 'Active' ? 'text-emerald-500' : 'text-[var(--text-muted)]'}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${item.status === 'Active' ? 'bg-emerald-500' : 'bg-[var(--text-muted)]'}`}></span>
+                                {item.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-right text-[11px] text-[var(--text-muted)] font-medium">
+                              {new Date(item.updated_at).toLocaleDateString()}
+                            </td>
+                            <td className="px-6 py-4 text-right flex items-center justify-end gap-3">
+                              {isAdmin && (
+                                <button
+                                  onClick={() => setArchiveTarget({ id: item.id, title: item.title })}
+                                  className="text-[var(--text-muted)] hover:text-rose-400 text-[11px] font-semibold transition-colors"
+                                >
+                                  Archive
+                                </button>
+                              )}
+
+                              <Link to={`/admin/instructions/${item.id}`} className="flex items-center w-fit gap-1.5 text-[var(--accent)] hover:text-[var(--text)] bg-[var(--accent-soft)] hover:bg-[var(--accent)] px-3 py-1.5 rounded-md text-[11px] font-bold transition-all">
+                                <IconDownload /> View
+                              </Link>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
 
       </div>
+
+      {/* ── Archive Confirmation Modal ─────────────────────────── */}
+      {archiveTarget && createPortal(
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4"
+          role="presentation"
+        >
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => { if (!archiving) setArchiveTarget(null) }}
+          />
+
+          {/* Card */}
+          <div
+            className="relative bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl w-full max-w-md shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="archive-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center gap-3 px-6 pt-6 pb-4 border-b border-[var(--border-color)]">
+              <span className="flex items-center justify-center w-9 h-9 rounded-full bg-rose-500/15 text-rose-400 shrink-0">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="21 8 21 21 3 21 3 8" />
+                  <rect x="1" y="3" width="22" height="5" />
+                  <line x1="10" y1="12" x2="10" y2="17" />
+                  <line x1="14" y1="12" x2="14" y2="17" />
+                </svg>
+              </span>
+              <div>
+                <h3 id="archive-modal-title" className="text-base font-bold text-[var(--text)]">Archive material?</h3>
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">This action will hide it from active listings.</p>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-5">
+              <p className="text-sm text-[var(--text-muted)] leading-relaxed">
+                You are about to archive{' '}
+                <span className="font-semibold text-[var(--text)]">&ldquo;{archiveTarget.title}&rdquo;</span>.
+                {' '}Archived materials are removed from the active list but can be retrieved if needed.
+              </p>
+            </div>
+
+            {/* Footer */}
+            <div className="flex gap-3 px-6 pb-6">
+              <button
+                type="button"
+                disabled={archiving}
+                onClick={() => setArchiveTarget(null)}
+                className="flex-1 px-4 py-2.5 text-sm font-semibold text-[var(--text-muted)] hover:text-[var(--text)] bg-transparent hover:bg-[rgba(255,255,255,0.05)] border border-[var(--border-color)] rounded-xl transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={archiving}
+                onClick={() => handleDelete(archiveTarget.id)}
+                className="flex-1 px-4 py-2.5 text-sm font-bold rounded-xl bg-rose-500/15 text-rose-400 hover:bg-rose-500 hover:text-white border border-rose-500/30 transition-all disabled:opacity-60"
+              >
+                {archiving ? 'Archiving…' : 'Yes, archive'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   )
 }
