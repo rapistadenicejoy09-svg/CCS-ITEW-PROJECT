@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 
-const STORAGE_KEY = 'faculty_consultations'
+const STORAGE_KEY = 'faculty_office_hours'
 
-export default function FacultyConsultation() {
+export default function FacultyOfficeHours() {
   const [loading, setLoading] = useState(true)
-  const [consultations, setConsultations] = useState([])
+  const [officeHours, setOfficeHours] = useState([])
 
   // Form states
   const [day, setDay] = useState('Monday')
@@ -17,7 +17,7 @@ export default function FacultyConsultation() {
     try {
       const stored = localStorage.getItem(STORAGE_KEY)
       if (stored) {
-        setConsultations(JSON.parse(stored))
+        setOfficeHours(JSON.parse(stored))
       }
     } catch {
       // ignore
@@ -39,8 +39,8 @@ export default function FacultyConsultation() {
       notes: notes.trim()
     }
     
-    const updated = [...consultations, newSlot]
-    setConsultations(updated)
+    const updated = [...officeHours, newSlot]
+    setOfficeHours(updated)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
     
     setTime('')
@@ -49,9 +49,9 @@ export default function FacultyConsultation() {
   }
 
   function handleRemove(id) {
-    if (!confirm('Remove this consultation slot?')) return
-    const updated = consultations.filter(c => c.id !== id)
-    setConsultations(updated)
+    if (!confirm('Remove this office hour slot?')) return
+    const updated = officeHours.filter(c => c.id !== id)
+    setOfficeHours(updated)
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
   }
 
@@ -61,17 +61,17 @@ export default function FacultyConsultation() {
     <div className="module-page">
       <header className="module-header flex justify-between items-center">
         <div>
-          <h1 className="main-title font-extrabold text-[var(--text)]">Consultation Hours</h1>
-          <p className="main-description text-[var(--text-muted)] mt-1">Manage and display your availability for student consultations.</p>
+          <h1 className="main-title font-extrabold text-[var(--text)]">Office Hours</h1>
+          <p className="main-description text-[var(--text-muted)] mt-1">Manage and display your availability for student consultations and advising.</p>
         </div>
         <div className="badge-enrolled">
-           {consultations.length} Active Slots
+           {officeHours.length} Active Slots
         </div>
       </header>
 
       <div className="content-panel shadow-sm">
         <div className="content-header !pb-2 border-b-0">
-          <h3 className="content-title text-lg flex items-center gap-2">Set Consultation Schedule</h3>
+          <h3 className="content-title text-lg flex items-center gap-2">Set Office Hours Schedule</h3>
           <p className="content-subtitle text-xs">Students will see these times as available for meetings or advising.</p>
         </div>
         
@@ -107,7 +107,7 @@ export default function FacultyConsultation() {
 
       <div className="content-panel mt-6 shadow-sm">
         <div className="content-header">
-          <h3 className="content-title">Active Consultation Hours</h3>
+          <h3 className="content-title">Active Office Hours</h3>
         </div>
         <div className="table-wrapper">
           <table className="data-table">
@@ -122,7 +122,7 @@ export default function FacultyConsultation() {
             </thead>
             <tbody className="divide-y divide-[var(--border-color)]">
               {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(d => {
-                const daySlots = consultations.filter(c => c.day === d)
+                const daySlots = officeHours.filter(c => c.day === d)
                 if (daySlots.length === 0) return null
                 return daySlots.map((c, idx) => (
                   <tr key={c.id} className="hover:bg-[rgba(0,0,0,0.01)] transition-colors">
@@ -144,8 +144,8 @@ export default function FacultyConsultation() {
                   </tr>
                 ))
               })}
-              {consultations.length === 0 && (
-                <tr><td colSpan="5" className="empty-state py-12">No consultation hours configured.</td></tr>
+              {officeHours.length === 0 && (
+                <tr><td colSpan="5" className="empty-state py-12">No office hours configured.</td></tr>
               )}
             </tbody>
           </table>

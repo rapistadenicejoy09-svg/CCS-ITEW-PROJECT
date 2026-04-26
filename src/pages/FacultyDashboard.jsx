@@ -188,7 +188,7 @@ export default function FacultyDashboard() {
               link="/faculty/schedule"
             />
             <SummaryCard label="Faculty List" value="View" hint="Directory access" link="/faculty/faculty-list" />
-            <SummaryCard label="Office Hours" value="Manage" hint="Consultation schedule" link="/faculty/consultation" />
+            <SummaryCard label="Office Hours" value="Manage" hint="Office hours schedule" link="/faculty/office-hours" />
           </section>
 
           <section className="content-panel" style={{ marginTop: '24px' }}>

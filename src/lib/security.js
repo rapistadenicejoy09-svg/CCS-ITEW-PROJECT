@@ -175,7 +175,7 @@ export const PATH_PERMISSIONS = {
   '/faculty/schedule': PERMISSIONS.FACULTY_SCHEDULE_VIEW,
   '/faculty/documents': PERMISSIONS.DOC_READ_OWN,
   '/faculty/evaluations': PERMISSIONS.DOC_READ_OWN,
-  '/faculty/consultation': PERMISSIONS.FACULTY_MY_PROFILE,
+  '/faculty/office-hours': PERMISSIONS.FACULTY_MY_PROFILE,
   '/faculty/subjects': PERMISSIONS.FACULTY_PROFILE,
   '/faculty/faculty-list': PERMISSIONS.FACULTY_DIRECTORY_VIEW,
   '/events': PERMISSIONS.EVENTS_VIEW,

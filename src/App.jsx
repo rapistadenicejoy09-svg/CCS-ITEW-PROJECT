@@ -12,7 +12,7 @@ import FacultyTeachingLoad from './pages/FacultyTeachingLoad'
 import FacultySchedule from './pages/FacultySchedule'
 import FacultyDocuments from './pages/FacultyDocuments'
 import FacultyEvaluations from './pages/FacultyEvaluations'
-import FacultyConsultation from './pages/FacultyConsultation'
+import FacultyOfficeHours from './pages/FacultyOfficeHours'
 import FacultySubjects from './pages/FacultySubjects'
 import FacultyFacultyList from './pages/FacultyFacultyList'
 import AdminLogin from './pages/AdminLogin'
@@ -106,7 +106,7 @@ export default function App() {
               <Route path="faculty/schedule" element={<FacultySchedule />} />
               <Route path="faculty/documents" element={<FacultyDocuments />} />
               <Route path="faculty/evaluations" element={<FacultyEvaluations />} />
-              <Route path="faculty/consultation" element={<FacultyConsultation />} />
+              <Route path="faculty/office-hours" element={<FacultyOfficeHours />} />
               <Route path="faculty/subjects" element={<FacultySubjects />} />
               <Route path="faculty/faculty-list" element={<FacultyFacultyList />} />
               <Route path="events" element={<AdminEventList />} />
