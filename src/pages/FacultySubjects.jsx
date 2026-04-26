@@ -1,6 +1,12 @@
 import { useEffect, useState, useMemo } from 'react'
 import { apiGetSubjects, apiCreateSubject, apiDeleteSubject } from '../lib/api'
 
+import { COURSE_OPTIONS, YEAR_OPTIONS, SEMESTER_OPTIONS, getExpectedCodes } from '../lib/curriculum'
+
+const FILTER_COURSE_OPTIONS = ['All', ...COURSE_OPTIONS]
+const FILTER_YEAR_OPTIONS = ['All', ...YEAR_OPTIONS]
+const FILTER_SEMESTER_OPTIONS = ['All', ...SEMESTER_OPTIONS]
+
 export default function FacultySubjects() {
   const [subjects, setSubjects] = useState([])
   const [loading, setLoading] = useState(true)
@@ -11,8 +17,11 @@ export default function FacultySubjects() {
   const [name, setName] = useState('')
   const [credits, setCredits] = useState(3)
   
-  // Search state
+  // Search & Filter states
   const [search, setSearch] = useState('')
+  const [filterCourse, setFilterCourse] = useState('All')
+  const [filterYear, setFilterYear] = useState('All')
+  const [filterSemester, setFilterSemester] = useState('All')
 
   useEffect(() => {
     async function load() {
@@ -64,10 +73,21 @@ export default function FacultySubjects() {
   }
 
   const filteredSubjects = useMemo(() => {
-      if (!search.trim()) return subjects;
-      const q = search.toLowerCase();
-      return subjects.filter(s => s.code.toLowerCase().includes(q) || s.name.toLowerCase().includes(q))
-  }, [subjects, search])
+      let result = subjects;
+
+      // Filter by curriculum dropdowns
+      if (filterCourse !== 'All' || filterYear !== 'All' || filterSemester !== 'All') {
+         const allowedCodes = getExpectedCodes(filterCourse, filterYear, filterSemester);
+         result = result.filter(s => allowedCodes.has(s.code.toLowerCase()));
+      }
+
+      // Filter by text search
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        result = result.filter(s => s.code.toLowerCase().includes(q) || s.name.toLowerCase().includes(q));
+      }
+      return result;
+  }, [subjects, search, filterCourse, filterYear, filterSemester])
 
   if (loading) return <div className="p-8 text-center" style={{ color: 'var(--text-muted)' }}>Loading Master Subjects...</div>
 
@@ -107,18 +127,40 @@ export default function FacultySubjects() {
       </div>
 
       <div className="content-panel mt-6 shadow-sm">
-        <div className="content-header flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <h3 className="content-title">Curriculum Subjects</h3>
-          <div className="w-full md:w-64 relative">
-             <input
-               type="text"
-               placeholder="Search by code or title..."
-               value={search}
-               onChange={(e) => setSearch(e.target.value)}
-               className="search-input w-full text-sm"
-               style={{ paddingLeft: '32px' }}
-             />
-             <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
+        <div className="content-header flex flex-col items-start gap-4">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center w-full gap-4">
+            <h3 className="content-title whitespace-nowrap">Curriculum Subjects</h3>
+            <div className="w-full md:w-64 relative">
+               <input
+                 type="text"
+                 placeholder="Search by code or title..."
+                 value={search}
+                 onChange={(e) => setSearch(e.target.value)}
+                 className="search-input w-full text-sm"
+                 style={{ paddingLeft: '32px' }}
+               />
+               <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 w-full bg-[rgba(0,0,0,0.01)] p-3 rounded-lg border border-[var(--border-color)]">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-[var(--text-muted)] uppercase">Course:</span>
+              <select className="search-input text-sm py-1 !rounded-md" value={filterCourse} onChange={e => setFilterCourse(e.target.value)}>
+                {FILTER_COURSE_OPTIONS.map(o => <option key={o} value={o}>{o === 'All' ? 'All Courses' : o}</option>)}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-[var(--text-muted)] uppercase">Year:</span>
+              <select className="search-input text-sm py-1 !rounded-md" value={filterYear} onChange={e => setFilterYear(e.target.value)}>
+                {FILTER_YEAR_OPTIONS.map(o => <option key={o} value={o}>{o === 'All' ? 'All Years' : o}</option>)}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-[var(--text-muted)] uppercase">Sem:</span>
+              <select className="search-input text-sm py-1 !rounded-md" value={filterSemester} onChange={e => setFilterSemester(e.target.value)}>
+                {FILTER_SEMESTER_OPTIONS.map(o => <option key={o} value={o}>{o === 'All' ? 'All Semesters' : o}</option>)}
+              </select>
+            </div>
           </div>
         </div>
         <div className="table-wrapper">

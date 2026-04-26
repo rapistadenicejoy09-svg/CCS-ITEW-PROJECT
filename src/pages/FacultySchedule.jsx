@@ -129,9 +129,9 @@ export default function FacultySchedule() {
   const hasActiveFilters = Boolean(search.trim() || courseFilter || yearFilter || sectionFilter || filterDay)
 
   /* ── Timetable ─────────────────────────────────────────────── */
-  const hourSlots    = useMemo(() => buildTimeSlots(6, 22), [])
+  const hourSlots     = useMemo(() => buildTimeSlots(6, 22), [])
   const timetableData = useMemo(() => calculateTimetableTracks(visibleSchedules), [visibleSchedules])
-  const dayTracks    = useMemo(() => {
+  const dayTracks     = useMemo(() => {
     const counts = {}
     DAYS.forEach((d) => (counts[d] = 1))
     timetableData.forEach((item) => { counts[item.day] = Math.max(counts[item.day], item.totalCols || 1) })

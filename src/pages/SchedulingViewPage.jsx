@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { hasPermission, PERMISSIONS } from '../lib/security'
-import { DAYS, getScheduleById, getSchedules, parseMinutes, deleteSchedule, buildTimeSlots, calculateTimetableTracks, formatCohortLabel } from '../lib/schedulingStore'
+import { DAYS, getScheduleById, parseMinutes, deleteSchedule, buildTimeSlots, calculateTimetableTracks, formatCohortLabel } from '../lib/schedulingStore'
 
 function Field({ label, value }) {
   return (
@@ -34,7 +34,6 @@ export default function SchedulingViewPage() {
 
   const [loading, setLoading] = useState(true)
   const [schedule, setSchedule] = useState(null)
-  const [cohortSchedules, setCohortSchedules] = useState([])
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -47,22 +46,6 @@ export default function SchedulingViewPage() {
           return
         }
         setSchedule(item)
-
-        // Load cohort schedules (same course, year, section) for the timetable
-        const all = await getSchedules()
-        const cohort = all
-          .filter(
-            (s) =>
-              String(s.course) === String(item.course) &&
-              String(s.yearLevel) === String(item.yearLevel) &&
-              String(s.section) === String(item.section),
-          )
-          .sort((a, b) => {
-            const dayCompare = DAYS.indexOf(a.day) - DAYS.indexOf(b.day)
-            if (dayCompare !== 0) return dayCompare
-            return parseMinutes(a.startTime) - parseMinutes(b.startTime)
-          })
-        setCohortSchedules(cohort)
       } finally {
         setLoading(false)
       }
@@ -71,7 +54,8 @@ export default function SchedulingViewPage() {
   }, [id])
 
   const hourSlots = buildTimeSlots(6, 22)
-  const timetableData = calculateTimetableTracks(cohortSchedules)
+  // Show only this schedule in the timetable (not the whole cohort)
+  const timetableData = schedule ? calculateTimetableTracks([schedule]) : []
 
   const dayTracks = (() => {
     const counts = {}
