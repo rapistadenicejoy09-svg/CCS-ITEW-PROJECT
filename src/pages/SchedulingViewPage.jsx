@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { hasPermission, PERMISSIONS } from '../lib/security'
 import { DAYS, getScheduleById, getSchedules, parseMinutes, deleteSchedule, buildTimeSlots, calculateTimetableTracks, formatCohortLabel } from '../lib/schedulingStore'
@@ -16,11 +17,26 @@ export default function SchedulingViewPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const canManage = hasPermission(PERMISSIONS.SCHEDULING_MANAGE)
-  const canView = hasPermission(PERMISSIONS.SCHEDULING_VIEW)
+  const canView = hasPermission(PERMISSIONS.SCHEDULING_VIEW) || hasPermission(PERMISSIONS.FACULTY_SCHEDULE_VIEW)
+
+  // Faculty/faculty_professor go back to their own schedule page
+  function getBackPath() {
+    try {
+      const raw = localStorage.getItem('authUser')
+      const u = raw ? JSON.parse(raw) : null
+      const facultyRoles = ['faculty', 'faculty_professor', 'dean', 'department_chair', 'secretary']
+      return facultyRoles.includes(u?.role) ? '/faculty/schedule' : '/scheduling'
+    } catch {
+      return '/scheduling'
+    }
+  }
+  const backPath = getBackPath()
 
   const [loading, setLoading] = useState(true)
   const [schedule, setSchedule] = useState(null)
   const [cohortSchedules, setCohortSchedules] = useState([])
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -84,7 +100,7 @@ export default function SchedulingViewPage() {
         <div className="p-6 rounded-xl bg-rose-500/10 border border-rose-500/20 text-center">
           <h2 className="text-rose-400 font-bold mb-2">Not found</h2>
           <p className="text-sm text-[var(--text-muted)] mb-4">Schedule entry does not exist or was removed.</p>
-          <Link to="/scheduling" className="btn btn-secondary">← Back to Scheduling</Link>
+          <Link to={backPath} className="btn btn-secondary">&larr; Back to Schedule</Link>
         </div>
       </div>
     )
@@ -92,12 +108,14 @@ export default function SchedulingViewPage() {
 
   async function handleDelete() {
     if (!canManage) return
-    if (!window.confirm('Remove this schedule from the timetable?')) return
+    setDeleting(true)
     try {
       await deleteSchedule(id)
       navigate('/scheduling')
     } catch (err) {
       alert(err.message)
+      setDeleting(false)
+      setShowDeleteModal(false)
     }
   }
 
@@ -110,12 +128,12 @@ export default function SchedulingViewPage() {
             <p className="main-description text-[var(--text-muted)] mt-1">{schedule.subjectTitle}</p>
           </div>
           <div className="flex items-center gap-2">
-            <Link to="/scheduling" className="btn btn-secondary">← Back</Link>
+            <Link to={backPath} className="btn btn-secondary">&larr; Back</Link>
             {canManage ? (
               <>
                 <Link to={`/scheduling/${id}/edit`} className="btn btn-primary">Edit</Link>
                 <button
-                  onClick={handleDelete}
+                  onClick={() => setShowDeleteModal(true)}
                   className="btn btn-secondary !border-rose-500/30 !text-rose-500 hover:!bg-rose-500/10"
                 >
                   Delete
@@ -198,17 +216,17 @@ export default function SchedulingViewPage() {
               {/* Grid Background */}
               {hourSlots.map((slot, sIdx) => (
                 <div key={`row-${slot.key}`} className="contents">
-                  <div 
+                  <div
                     style={{ gridRow: sIdx + 2, gridColumn: 1 }}
                     className="sticky left-0 z-20 bg-[var(--card-bg)] border-r border-[var(--border-color)] flex items-center justify-center text-[9px] font-bold text-[var(--text-muted)] border-b border(--border-color)/30 px-1 whitespace-nowrap"
                   >
                     {slot.from}-{slot.to}
                   </div>
                   {DAYS.map((day, dIdx) => (
-                    <div 
-                      key={`${day}-${slot.key}`} 
+                    <div
+                      key={`${day}-${slot.key}`}
                       style={{ gridRow: sIdx + 2, gridColumn: dIdx + 2 }}
-                      className="border-b border-[var(--border-color)]/30 border-r border-[var(--border-color)]/30 last:border-r-0" 
+                      className="border-b border-[var(--border-color)]/30 border-r border-[var(--border-color)]/30 last:border-r-0"
                     />
                   ))}
                 </div>
@@ -222,7 +240,7 @@ export default function SchedulingViewPage() {
                 const startMin = parseMinutes(item.startTime)
                 const endMin = parseMinutes(item.endTime)
                 const baseMin = 6 * 60 // 360
-                
+
                 const gridStart = Math.floor((startMin - baseMin) / 30) + 2
                 const gridSpan = Math.max(1, Math.ceil((endMin - startMin) / 30))
 
@@ -261,6 +279,72 @@ export default function SchedulingViewPage() {
           </div>
         </section>
       </div>
+
+      {/* ── Delete Confirmation Modal ────────────────────────────── */}
+      {showDeleteModal && createPortal(
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4" role="presentation">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => { if (!deleting) setShowDeleteModal(false) }}
+          />
+
+          {/* Card */}
+          <div
+            className="relative bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl w-full max-w-md shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-schedule-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center gap-3 px-6 pt-6 pb-4 border-b border-[var(--border-color)]">
+              <span className="flex items-center justify-center w-9 h-9 rounded-full bg-rose-500/15 text-rose-400 shrink-0">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                  <path d="M10 11v6M14 11v6" />
+                  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                </svg>
+              </span>
+              <div>
+                <h3 id="delete-schedule-title" className="text-base font-bold text-[var(--text)]">Delete schedule?</h3>
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">This action cannot be undone.</p>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 py-5">
+              <p className="text-sm text-[var(--text-muted)] leading-relaxed">
+                You are about to permanently remove{' '}
+                <span className="font-semibold text-[var(--text)]">&ldquo;{schedule.subjectCode} — {schedule.subjectTitle}&rdquo;</span>{' '}
+                from the timetable. This cannot be recovered.
+              </p>
+            </div>
+
+            {/* Footer */}
+            <div className="flex gap-3 px-6 pb-6">
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => setShowDeleteModal(false)}
+                className="flex-1 px-4 py-2.5 text-sm font-semibold text-[var(--text-muted)] hover:text-[var(--text)] bg-transparent hover:bg-[rgba(255,255,255,0.05)] border border-[var(--border-color)] rounded-xl transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={handleDelete}
+                className="flex-1 px-4 py-2.5 text-sm font-bold rounded-xl bg-rose-500/15 text-rose-400 hover:bg-rose-500 hover:text-white border border-rose-500/30 transition-all disabled:opacity-60"
+              >
+                {deleting ? 'Deleting…' : 'Yes, delete'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   )
 }
