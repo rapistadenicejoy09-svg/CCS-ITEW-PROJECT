@@ -6,6 +6,11 @@ export default function FacultyTeachingLoad() {
   const [loads, setLoads] = useState([])
   const [subjects, setSubjects] = useState([])
   const [loading, setLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const handlePrint = () => {
+    window.print()
+  }
   const token = localStorage.getItem('authToken')
 
   // Form states
@@ -101,35 +106,77 @@ export default function FacultyTeachingLoad() {
   }
 
   const { groups: groupedLoads, totalUnits } = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim()
+    const filtered = loads.filter(l => {
+        if (!q) return true
+        const fac = allFaculty.find(f => String(f.id) === String(l.faculty_id))
+        const facultyName = (fac ? (fac.full_name || fac.displayName) : (l.faculty_name || '')).toLowerCase()
+        const subjectCode = (l.subject?.code || '').toLowerCase()
+        const subjectName = (l.subject?.name || '').toLowerCase()
+        return facultyName.includes(q) || subjectCode.includes(q) || subjectName.includes(q)
+    })
+
     const groups = {}
     let units = 0
-    loads.forEach(l => {
+    filtered.forEach(l => {
       const sem = l.semester || 'Unassigned Semester'
       if (!groups[sem]) groups[sem] = []
       groups[sem].push(l)
       units += Number(l.subject?.credits || 0)
     })
     return { groups, totalUnits: units }
-  }, [loads])
+  }, [loads, searchQuery, allFaculty])
 
   if (loading) return <div className="p-8 text-center" style={{ color: 'var(--text-muted)' }}>Loading Teaching Load...</div>
 
   return (
     <div className="module-page">
-      <header className="module-header flex flex-wrap justify-between items-center gap-4">
+      <style>{`
+        @media print {
+          .no-print, header, .sidebar, .top-nav, .btn, .assign-form-container, .auth-field, select, button { display: none !important; }
+          .content-area { margin: 0 !important; padding: 0 !important; box-shadow: none !important; }
+          .data-table { border-collapse: collapse !important; width: 100% !important; border: 1px solid #ddd !important; }
+          .data-table th, .data-table td { border: 1px solid #ddd !important; padding: 8px !important; text-align: left !important; }
+          .content-panel { border: none !important; margin-bottom: 20px !important; box-shadow: none !important; }
+          body { background: white !important; font-size: 11pt !important; }
+          .main-title { font-size: 18pt !important; margin-bottom: 5px !important; }
+          .status-badge { border: 1px solid #999 !important; color: black !important; }
+        }
+      `}</style>
+
+      <header className="module-header flex flex-wrap justify-between items-center gap-4 no-print">
         <div>
           <h1 className="main-title font-extrabold text-[var(--text)]">Teaching Load Management</h1>
           <p className="main-description text-[var(--text-muted)] mt-1">Oversee subject assignments and class sections.</p>
         </div>
-        <div className="bg-[var(--card-bg)] border border-[var(--border-color)] px-6 py-3 rounded-xl shadow-sm flex items-center gap-4">
-          <div>
-            <p className="text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-wider">Total Teaching Load</p>
-            <p className="text-2xl font-extrabold text-[var(--accent)] leading-none">{totalUnits} <span className="text-sm text-[var(--text)]">Units</span></p>
-          </div>
+        <div className="flex items-center gap-4">
+           <div className="relative">
+             <input 
+               type="text" 
+               placeholder="Search faculty or subject..." 
+               value={searchQuery}
+               onChange={(e) => setSearchQuery(e.target.value)}
+               className="search-input !w-[300px] !pl-10"
+               style={{ borderRadius: 'var(--radius-lg)' }}
+             />
+             <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+             </svg>
+           </div>
+           <button onClick={handlePrint} className="flex items-center gap-2 px-5 py-2.5 bg-[var(--card-bg)] border border-[var(--border-color)] text-[var(--text)] rounded-xl hover:bg-[var(--background)] transition-all shadow-sm font-bold min-w-[140px]">
+             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+             Export PDF
+           </button>
+           <div className="bg-[var(--card-bg)] border border-[var(--border-color)] px-6 py-3 rounded-xl shadow-sm flex items-center gap-4">
+              <div>
+                <p className="text-[10px] uppercase font-bold text-[var(--text-muted)] tracking-wider">Total Units</p>
+                <p className="text-2xl font-extrabold text-[var(--accent)] leading-none">{totalUnits} <span className="text-sm text-[var(--text)]">Units</span></p>
+              </div>
+           </div>
         </div>
       </header>
 
-      <div className="content-panel">
+      <div className="content-panel no-print assign-form-container">
         <div className="content-header">
           <div>
             <h3 className="content-title">Assign New Subject</h3>
