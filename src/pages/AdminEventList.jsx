@@ -312,9 +312,9 @@ export default function AdminEventList() {
                     </td>
                     <td className="p-4">
                       <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider
-                      ${event.status === 'approved' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
-                          event.status === 'pending' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
-                            'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'}`}>
+                      ${event.status === 'approved' ? 'bg-emerald-500/10 text-emerald-500' :
+                          event.status === 'pending' ? 'bg-amber-500/10 text-amber-500' :
+                            'bg-rose-500/10 text-rose-500'}`}>
                         {event.status}
                       </span>
                     </td>

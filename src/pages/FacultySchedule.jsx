@@ -226,7 +226,7 @@ export default function FacultySchedule() {
           </div>
         </div>
 
-        <div className="px-6 md:px-7 pb-4">
+        <div className="pb-4">
           <section className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] p-4 md:p-5 shadow-sm space-y-4">
             <div className="flex flex-col xl:flex-row gap-4 xl:items-center">
               <div className="relative flex-1 w-full">
@@ -346,11 +346,11 @@ export default function FacultySchedule() {
             <table className="data-table">
               <thead>
                 <tr className="bg-[rgba(0,0,0,0.02)]">
-                  <th className="w-1/6">Day</th>
-                  <th className="w-1/6">Time</th>
-                  <th className="w-1/4">Subject</th>
-                  <th className="w-1/6">Section</th>
-                  <th className="w-1/6">Room</th>
+                  <th className="w-[15%]">Day</th>
+                  <th className="w-[20%]">Time</th>
+                  <th className="w-[35%]">Subject</th>
+                  <th className="w-[15%]">Section</th>
+                  <th className="w-[15%]">Room</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--border-color)]">
@@ -359,31 +359,31 @@ export default function FacultySchedule() {
                   if (daySchedules.length === 0) return null
                   return daySchedules.map((s, idx) => (
                     <tr key={s.id} className="hover:bg-[rgba(0,0,0,0.01)] transition-colors">
-                      {idx === 0 ? (
-                        <td rowSpan={daySchedules.length} className="align-top font-extrabold text-[var(--accent)] bg-[rgba(var(--accent-rgb),0.02)] border-r border-[var(--border-color)]">
-                          <div className="flex flex-col gap-1 items-start py-2">
+                      <td className="align-middle">
+                        {idx === 0 ? (
+                          <div className="font-extrabold text-[var(--accent)] bg-[rgba(var(--accent-rgb),0.05)] px-3 py-2 rounded-lg inline-flex flex-col border border-[var(--accent)]/10">
                             {d}
-                            <span className="text-[10px] uppercase tracking-wider text-[var(--text-muted)] font-semibold">{daySchedules.length} Classes</span>
+                            <span className="text-[9px] uppercase tracking-wider text-[var(--text-muted)] font-semibold">{daySchedules.length} Classes</span>
                           </div>
-                        </td>
-                      ) : null}
-                      <td className="font-mono text-sm text-[var(--text-muted)] whitespace-nowrap">
+                        ) : null}
+                      </td>
+                      <td className="font-mono text-sm text-[var(--text-muted)] whitespace-nowrap align-middle">
                         <span className="font-semibold text-[var(--text)]">{s.startTime}</span> - <span>{s.endTime}</span>
                       </td>
-                      <td>
+                      <td className="align-middle">
                         <div className="flex flex-col">
                           <span className="font-bold text-[var(--text)] text-sm">{s.subjectCode}</span>
                           <span className="text-xs text-[var(--text-muted)] truncate max-w-[200px]" title={s.subjectTitle}>{s.subjectTitle}</span>
                         </div>
                       </td>
-                      <td>
+                      <td className="align-middle">
                         <div className="flex flex-col gap-1.5 items-start">
                           <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-[var(--background)] border border-[var(--border-color)] text-[var(--text)]">
                             {formatCohortLabel(s.course, s.yearLevel, s.section)}
                           </span>
                         </div>
                       </td>
-                      <td>
+                      <td className="align-middle">
                         <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/50">
                           Room: {s.room}
                         </span>
