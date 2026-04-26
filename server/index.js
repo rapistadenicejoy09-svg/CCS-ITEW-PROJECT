@@ -865,7 +865,15 @@ app.post('/api/auth/2fa/disable', authMiddleware, asyncHandler(async (req, res) 
 
 app.get('/api/admin/users', authMiddleware, authorize(PERMISSIONS.MANAGE_USERS), asyncHandler(async (req, res) => {
   const users = await store.listAdminUsers()
-  res.json({ ok: true, users })
+  // Hydrate with teaching loads if applicable (for faculty roles)
+  const allLoads = await store.listTeachingLoads(null)
+  const hydrated = users.map(u => {
+    if (['dean', 'department_chair', 'secretary', 'faculty_professor', 'faculty'].includes(u.role)) {
+      u.teaching_loads = allLoads.filter(l => l.faculty_id === u.id)
+    }
+    return u
+  })
+  res.json({ ok: true, users: hydrated })
 }))
 
 app.get(
@@ -878,7 +886,59 @@ app.get(
       ['dean', 'department_chair', 'secretary', 'faculty_professor', 'faculty'].includes(u.role),
     )
     const activeOnly = facultyOnly.filter((u) => u?.is_active !== 0 && u?.is_active !== false)
-    res.json({ ok: true, faculty: activeOnly })
+    
+    // Hydrate
+    const [allLoads, allSchedules] = await Promise.all([
+      store.listTeachingLoads(null),
+      store.listSchedules(null)
+    ])
+
+    const facultyList = [...activeOnly]
+    
+    // Distill unique instructors from schedules that aren't in activeOnly
+    const knownEmails = new Set(activeOnly.map(u => String(u.email || '').toLowerCase()))
+    const knownIds = new Set(activeOnly.map(u => String(u.id)))
+    
+    const legacyFaculty = []
+    for (const s of allSchedules) {
+      if (!s.instructor) continue
+      const email = String(s.instructorEmail || '').toLowerCase()
+      const sid = String(s.instructorId || '')
+      
+      if (knownEmails.has(email) || (sid && knownIds.has(sid))) continue
+      
+      // Found a "legacy" or "schedule-only" faculty
+      const key = email || s.instructor
+      if (legacyFaculty.find(lf => (lf.email && lf.email === email) || lf.full_name === s.instructor)) continue
+      
+      legacyFaculty.push({
+        id: sid || `legacy-${email || s.instructor}`,
+        full_name: s.instructor,
+        email: s.instructorEmail || '',
+        role: 'faculty',
+        is_active: true,
+        is_legacy: true,
+        teaching_loads: [] // Will be populated below
+      })
+    }
+    
+    const combined = [...facultyList, ...legacyFaculty]
+
+    combined.forEach(f => {
+      f.teaching_loads = allLoads.filter(l => 
+        String(l.faculty_id) === String(f.id) || 
+        (f.is_legacy && l.subject.code === f.teaching_loads_code) // Fallback for legacy
+      )
+      
+      // Specifically for legacy/virtual loads that match by name if ID/Email fails
+      if (f.is_legacy) {
+        f.teaching_loads = allLoads.filter(l => 
+          l.is_virtual && (l.faculty_id === f.id || l.subject.instructor === f.full_name)
+        )
+      }
+    })
+
+    res.json({ ok: true, faculty: combined })
   }),
 )
 
@@ -887,6 +947,12 @@ app.get('/api/admin/users/:id', authMiddleware, authorize(PERMISSIONS.MANAGE_USE
   if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid id' })
   const user = await store.getAdminUserById(id)
   if (!user) return res.status(404).json({ error: 'User not found' })
+  
+  // Hydrate with loads
+  if (['dean', 'department_chair', 'secretary', 'faculty_professor', 'faculty'].includes(user.role)) {
+    user.teaching_loads = await store.listTeachingLoads(user.id)
+  }
+  
   res.json({ ok: true, user })
 }))
 

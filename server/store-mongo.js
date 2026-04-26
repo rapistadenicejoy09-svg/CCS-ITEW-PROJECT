@@ -768,8 +768,69 @@ export async function openMongoStore() {
 
     // Teaching Loads
     async listTeachingLoads(facultyId = null) {
-      const query = facultyId ? { faculty_id: Number(facultyId) } : {}
-      return await teachingLoads.find(query).toArray()
+      // 1. Fetch explicit teaching loads
+      const match = facultyId ? { faculty_id: Number(facultyId) } : {}
+      const pipeline = [
+        { $match: match },
+        {
+          $lookup: {
+            from: 'subjects',
+            localField: 'subject_id',
+            foreignField: 'id',
+            as: 'subject_array',
+          },
+        },
+        {
+          $addFields: {
+            subject: { $arrayElemAt: ['$subject_array', 0] },
+          },
+        },
+        { $project: { subject_array: 0 } },
+        { $sort: { created_at: -1 } },
+      ]
+      const explicitLoads = await teachingLoads.aggregate(pipeline).toArray()
+
+      // 2. Fetch schedules to find "implicit" loads (legacy/manual entries)
+      // If we are filtering by facultyId, we look for both l.faculty_id matches AND s.instructorId matches
+      const schedQuery = facultyId ? { instructorId: Number(facultyId) } : {}
+      const allSchedules = await schedules.find(schedQuery).toArray()
+
+      // 3. Merge: Find schedules that don't have a teaching_load_id
+      // but correspond to a subject/faculty/section combo
+      const virtualLoads = []
+      const seenCombinations = new Set(explicitLoads.map(l => `${l.faculty_id}-${l.subject_id}-${l.section}`))
+
+      for (const s of allSchedules) {
+        // If it's already linked to a teaching load, we ignore it as it's accounted for in explicitLoads
+        if (s.teaching_load_id) continue
+
+        // Key to identify if this is a "new" load assignment we haven't seen in the explicit table
+        const key = `${s.instructorId}-${s.subjectId || s.subjectCode}-${s.course} ${s.section}`
+        if (seenCombinations.has(key)) continue
+
+        // Create a virtual load object
+        virtualLoads.push({
+          id: `v-${s.id}`,
+          faculty_id: s.instructorId || null,
+          subject_id: s.subjectId || null,
+          subject: {
+            id: s.subjectId || null,
+            code: s.subjectCode || '',
+            name: s.subjectTitle || '',
+          },
+          section: `${s.course} ${s.section}`.trim(),
+          semester: 'Unknown (From Schedule)',
+          academic_year: 'Unknown',
+          units: 3, // Default fallback
+          is_virtual: true,
+          created_at: s.created_at || new Date().toISOString()
+        })
+        seenCombinations.add(key)
+      }
+
+      return [...explicitLoads, ...virtualLoads].sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      )
     },
 
     async createTeachingLoad(data) {

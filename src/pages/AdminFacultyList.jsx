@@ -406,6 +406,23 @@ export default function AdminFacultyList() {
                           )}
                         </div>
 
+                        <div className="flex justify-between items-center pt-2 border-t border-[rgba(0,0,0,0.03)] dark:border-[rgba(255,255,255,0.03)]">
+                           <div>
+                             <p className="text-[var(--text-muted)] text-[10px] uppercase font-bold tracking-wider">Teaching Load</p>
+                             <p className="text-[var(--text)] text-xs font-bold">
+                               {f.teaching_loads?.reduce((acc, l) => acc + Number(l.subject?.credits || 0), 0) || 0} Units
+                             </p>
+                           </div>
+                           <div className="flex gap-1 flex-wrap justify-end max-w-[120px]">
+                             {f.teaching_loads?.slice(0, 2).map(l => (
+                               <span key={l.id} className="px-1.5 py-0.5 rounded bg-[var(--accent-soft)] text-[var(--accent)] text-[9px] font-bold border border-[var(--accent)]/10">
+                                 {l.subject?.code}
+                               </span>
+                             ))}
+                             {(f.teaching_loads?.length || 0) > 2 && <span className="text-[9px] text-[var(--text-muted)]">+{f.teaching_loads.length - 2} more</span>}
+                           </div>
+                        </div>
+
                         {f.bio && (
                           <div className="pt-3 border-t border-[rgba(0,0,0,0.03)] dark:border-[rgba(255,255,255,0.03)]">
                             <p className="text-[var(--text-muted)] text-[10px] uppercase font-bold mb-1 tracking-wider">Bio Snippet</p>
@@ -418,14 +435,21 @@ export default function AdminFacultyList() {
                         <button
                           className="flex items-center justify-center px-3 py-1.5 bg-rose-50/50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 rounded-lg border border-rose-200 transition-all font-medium text-xs disabled:opacity-30"
                           onClick={() => setDeleteTarget(f)}
+                          title="Deactivate Account"
                         >
                           <IconTrash />
                         </button>
                         <Link
-                          to={`/admin/faculty/${f.id}`}
-                          className="px-4 py-1.5 bg-transparent hover:bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--border-color)] hover:border-[var(--accent)] rounded text-xs font-semibold transition-all flex items-center gap-1.5"
+                          to={`/faculty/teaching-load?facultyId=${f.id}`}
+                          className="px-3 py-1.5 bg-[var(--accent)] text-white hover:bg-[var(--accent)]/90 rounded text-xs font-semibold shadow-sm transition-all flex items-center gap-1.5"
                         >
-                          <IconEye /> View Profile
+                          Manage Load
+                        </Link>
+                        <Link
+                          to={`/admin/faculty/${f.id}`}
+                          className="px-3 py-1.5 bg-transparent hover:bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--border-color)] hover:border-[var(--accent)] rounded text-xs font-semibold transition-all flex items-center gap-1.5"
+                        >
+                          <IconEye />
                         </Link>
                       </div>
                     </div>
@@ -442,6 +466,7 @@ export default function AdminFacultyList() {
                           <th className="px-6 py-4">Name &amp; Email</th>
                           <th className="px-6 py-4">System Role</th>
                           <th className="px-6 py-4">Department</th>
+                          <th className="px-6 py-4">Load (Units)</th>
                           <th className="px-6 py-4 text-right">Actions</th>
                         </tr>
                       </thead>
@@ -464,20 +489,42 @@ export default function AdminFacultyList() {
                             <td className="px-6 py-4">
                               <span className="text-[var(--text)]">{getFacultyDept(f)}</span>
                             </td>
+                            <td className="px-6 py-4">
+                              <div className="flex flex-col gap-1">
+                                <span className="text-xs font-bold text-[var(--text)]">
+                                  {f.teaching_loads?.reduce((acc, l) => acc + Number(l.subject?.credits || 0), 0) || 0} Units
+                                </span>
+                                <div className="flex gap-1 overflow-hidden">
+                                  {f.teaching_loads?.slice(0, 3).map(l => (
+                                    <span key={l.id} className="text-[9px] px-1 bg-[var(--background)] border border-[var(--border-color)] rounded text-[var(--text-muted)]">
+                                      {l.subject?.code}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            </td>
                             <td className="px-6 py-4 text-right">
-                              <div className="flex justify-end gap-3">
+                              <div className="flex justify-end gap-2">
+                                <Link
+                                  to={`/faculty/teaching-load?facultyId=${f.id}`}
+                                  className="px-3 py-1.5 bg-[var(--accent-soft)] text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white rounded text-xs font-bold transition-all"
+                                >
+                                  Manage Load
+                                </Link>
+                                <Link
+                                  to={`/admin/faculty/${f.id}`}
+                                  className="p-1.5 text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--accent-soft)] rounded border border-transparent hover:border-[var(--accent)] transition-all"
+                                  title="View Profile"
+                                >
+                                  <IconEye />
+                                </Link>
                                 <button
                                   className="p-1.5 text-rose-600 hover:bg-rose-50 rounded border border-transparent hover:border-rose-200"
                                   onClick={() => setDeleteTarget(f)}
+                                  title="Deactivate Account"
                                 >
                                   <IconTrash />
                                 </button>
-                                <Link
-                                  to={`/admin/faculty/${f.id}`}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--accent-soft)] text-[var(--accent)] rounded hover:bg-[var(--accent)] hover:text-white transition-all text-xs font-medium"
-                                >
-                                  <IconEye /> View
-                                </Link>
                               </div>
                             </td>
                           </tr>

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { hasPermission, PERMISSIONS } from '../lib/security'
-import { apiFacultyDirectory } from '../lib/api'
+import { apiFacultyDirectory, apiGetSubjects, apiGetTeachingLoads } from '../lib/api'
 import {
   DAYS,
   getSchedules,
@@ -59,6 +59,7 @@ export default function SchedulingAddPage() {
   const [form, setForm] = useState({
     subjectCode: '',
     subjectTitle: '',
+    subjectId: '', // New field for linked subject
     instructor: '',
     instructorId: '',
     instructorEmail: '',
@@ -71,28 +72,43 @@ export default function SchedulingAddPage() {
     room: '',
   })
 
+  // Added states for connection
+  const [subjects, setSubjects] = useState([])
+  const [loads, setLoads] = useState([])
+  const [subjectOpen, setSubjectOpen] = useState(false)
+  const [subjectQuery, setSubjectQuery] = useState('')
+  const subjectWrapRef = useRef(null)
+  const subjectQueryRef = useRef(null)
+
   if (!canManage) {
     return <div className="p-8 text-center text-[var(--text-muted)]">You do not have access to add schedules.</div>
   }
 
   useEffect(() => {
-    async function loadFaculty() {
+    async function loadResources() {
       setFacultyLoading(true)
       setFacultyError('')
       try {
         const token = localStorage.getItem('authToken')
         if (!token) throw new Error('Missing auth token.')
-        const res = await apiFacultyDirectory(token)
-        const list = Array.isArray(res?.faculty) ? res.faculty : []
-        setFaculty(list)
+        
+        const [fRes, sRes, lRes] = await Promise.all([
+          apiFacultyDirectory(token),
+          apiGetSubjects(token),
+          apiGetTeachingLoads(token)
+        ])
+
+        setFaculty(Array.isArray(fRes?.faculty) ? fRes.faculty : [])
+        setSubjects(Array.isArray(sRes?.subjects) ? sRes.subjects : [])
+        setLoads(Array.isArray(lRes?.teachingLoads) ? lRes.teachingLoads : [])
       } catch (e) {
         setFaculty([])
-        setFacultyError(e?.message || 'Failed to load faculty directory.')
+        setFacultyError(e?.message || 'Failed to load resources.')
       } finally {
         setFacultyLoading(false)
       }
     }
-    loadFaculty()
+    loadResources()
   }, [])
 
   const facultyOptions = useMemo(() => {
@@ -129,6 +145,55 @@ export default function SchedulingAddPage() {
     }
     return ''
   }, [facultyOptions, form.instructor, form.instructorId])
+
+  const filteredSubjects = useMemo(() => {
+    const q = subjectQuery.toLowerCase()
+    if (!q) return subjects
+    return subjects.filter(s => 
+      s.code.toLowerCase().includes(q) || 
+      s.name.toLowerCase().includes(q)
+    )
+  }, [subjects, subjectQuery])
+
+  const subjectLabel = useMemo(() => {
+    if (form.subjectId) {
+      const hit = subjects.find(s => String(s.id) === String(form.subjectId))
+      if (hit) return `${hit.code} - ${hit.name}`
+    }
+    return form.subjectCode ? `${form.subjectCode} - ${form.subjectTitle}` : ''
+  }, [subjects, form.subjectId, form.subjectCode, form.subjectTitle])
+
+  // Logic to auto-suggest instructor based on Teaching Load
+  useEffect(() => {
+    if (!form.subjectId || !form.course || !form.section) return
+    
+    const fullSection = `${form.course} ${form.section}` // e.g. BSCS 3A
+    const match = loads.find(l => 
+      String(l.subject_id) === String(form.subjectId) && 
+      (l.section === fullSection || l.section_id === fullSection)
+    )
+
+    if (match) {
+      const f = facultyOptions.find(opt => String(opt.id) === String(match.faculty_id))
+      if (f) {
+        patchForm({
+          instructorId: f.id,
+          instructorEmail: f.email,
+          instructor: f.name
+        })
+      }
+    }
+  }, [form.subjectId, form.course, form.section, loads, facultyOptions])
+
+  useEffect(() => {
+    if (!subjectOpen) return
+    const t = setTimeout(() => subjectQueryRef.current?.focus(), 0)
+    const onDocMouseDown = (e) => {
+      if (subjectWrapRef.current && !subjectWrapRef.current.contains(e.target)) setSubjectOpen(false)
+    }
+    document.addEventListener('mousedown', onDocMouseDown)
+    return () => document.removeEventListener('mousedown', onDocMouseDown)
+  }, [subjectOpen])
 
   useEffect(() => {
     if (!instructorOpen) return
@@ -219,13 +284,62 @@ export default function SchedulingAddPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="p-6 md:p-7 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            <label className="flex flex-col gap-1.5">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Subject code</span>
-              <input className={inputCls} value={form.subjectCode} onChange={(e) => patchForm({ subjectCode: e.target.value })} placeholder="e.g. CCS101" />
-            </label>
-            <label className="flex flex-col gap-1.5 sm:col-span-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Subject title</span>
-              <input className={inputCls} value={form.subjectTitle} onChange={(e) => patchForm({ subjectTitle: e.target.value })} placeholder="Introduction to Computing" />
+            <label className="flex flex-col gap-1.5 sm:col-span-3">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Subject (From Master List)</span>
+              <div className="relative" ref={subjectWrapRef}>
+                <button
+                  type="button"
+                  onClick={() => setSubjectOpen(!subjectOpen)}
+                  className={`${inputCls} flex items-center justify-between gap-2 text-left`}
+                >
+                  <span className={`truncate ${subjectLabel ? 'text-[var(--text)]' : 'text-[var(--text-muted)]'}`}>
+                    {subjectLabel || 'Search and select subject...'}
+                  </span>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg>
+                </button>
+
+                {subjectOpen && (
+                  <div className="absolute z-[60] mt-2 w-full rounded-xl border border-[var(--border-color)] bg-[var(--card-bg)] shadow-xl overflow-hidden">
+                    <div className="p-2 border-b border-[var(--border-color)]">
+                      <input
+                        ref={subjectQueryRef}
+                        className="search-input w-full !rounded-lg"
+                        value={subjectQuery}
+                        onChange={(e) => setSubjectQuery(e.target.value)}
+                        placeholder="Search code or title..."
+                      />
+                    </div>
+                    <div className="max-h-56 overflow-auto py-1">
+                      {filteredSubjects.length > 0 ? (
+                        filteredSubjects.map(s => (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => {
+                              patchForm({
+                                subjectId: s.id,
+                                subjectCode: s.code,
+                                subjectTitle: s.name
+                              })
+                              setSubjectOpen(false)
+                              setSubjectQuery('')
+                            }}
+                            className="w-full px-3 py-2 text-left hover:bg-[rgba(0,0,0,0.04)] transition-colors"
+                          >
+                            <span className="block font-bold text-[var(--text)]">{s.code}</span>
+                            <span className="block text-xs text-[var(--text-muted)]">{s.name}</span>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="p-4 text-center text-xs text-[var(--text-muted)]">No subjects found.</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <span className="text-[10px] text-[var(--accent)] font-medium italic">
+                Connects directly to Teaching Loads to suggest faculty.
+              </span>
             </label>
             <label className="flex flex-col gap-1.5">
               <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Instructor</span>
