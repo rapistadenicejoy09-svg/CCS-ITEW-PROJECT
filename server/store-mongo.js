@@ -1000,6 +1000,20 @@ export async function openMongoStore() {
       return null
     },
 
+    async listSchedules(teachingLoadId = null) {
+      const query = {}
+      if (teachingLoadId) {
+        // Support both number and string IDs for teaching_load_id
+        const tid = Number(teachingLoadId)
+        if (!Number.isNaN(tid)) {
+          query.$or = [{ teaching_load_id: tid }, { teaching_load_id: String(teachingLoadId) }]
+        } else {
+          query.teaching_load_id = teachingLoadId
+        }
+      }
+      return await schedules.find(query).toArray()
+    },
+
     async createSchedule(data) {
       // Validate conflicts
       const conflictMsg = await this.checkConflicts(data)
