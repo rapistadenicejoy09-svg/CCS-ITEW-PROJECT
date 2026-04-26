@@ -3,54 +3,54 @@ import { Link } from 'react-router-dom'
 import { getSchedules, DAYS, parseMinutes, buildTimeSlots, calculateTimetableTracks, formatCohortLabel } from '../lib/schedulingStore'
 
 const DAY_STYLE = {
-  Monday:    { pill: 'bg-sky-100/15 text-sky-400 border-sky-400/25',     bar: 'from-sky-500 to-sky-500/30',     bg: '#1e3a8a' },
-  Tuesday:   { pill: 'bg-violet-100/15 text-violet-400 border-violet-400/25', bar: 'from-violet-500 to-violet-500/30', bg: '#5b21b6' },
+  Monday: { pill: 'bg-sky-100/15 text-sky-400 border-sky-400/25', bar: 'from-sky-500 to-sky-500/30', bg: '#1e3a8a' },
+  Tuesday: { pill: 'bg-violet-100/15 text-violet-400 border-violet-400/25', bar: 'from-violet-500 to-violet-500/30', bg: '#5b21b6' },
   Wednesday: { pill: 'bg-emerald-100/15 text-emerald-400 border-emerald-400/25', bar: 'from-emerald-500 to-emerald-500/30', bg: '#065f46' },
-  Thursday:  { pill: 'bg-amber-100/15 text-amber-400 border-amber-400/25',  bar: 'from-amber-500 to-amber-500/30',  bg: '#92400e' },
-  Friday:    { pill: 'bg-rose-100/15 text-rose-400 border-rose-400/25',    bar: 'from-rose-500 to-rose-500/30',    bg: '#9f1239' },
-  Saturday:  { pill: 'bg-cyan-100/15 text-cyan-400 border-cyan-400/25',    bar: 'from-cyan-500 to-cyan-500/30',    bg: '#155e75' },
+  Thursday: { pill: 'bg-amber-100/15 text-amber-400 border-amber-400/25', bar: 'from-amber-500 to-amber-500/30', bg: '#92400e' },
+  Friday: { pill: 'bg-rose-100/15 text-rose-400 border-rose-400/25', bar: 'from-rose-500 to-rose-500/30', bg: '#9f1239' },
+  Saturday: { pill: 'bg-cyan-100/15 text-cyan-400 border-cyan-400/25', bar: 'from-cyan-500 to-cyan-500/30', bg: '#155e75' },
 }
 
 function normalizeText(v) { return String(v || '').trim().toLowerCase() }
 function sectionLetter(v) { return normalizeText(v).replace(/[^a-z]/g, '') }
 
 function IconSearch() {
-  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
 }
 function IconFilter() {
-  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
 }
 function IconGrid() {
-  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
 }
 function IconList() {
-  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>
 }
 function IconCalendar() {
-  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+  return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
 }
 
 export default function FacultySchedule() {
-  const [schedules, setSchedules]     = useState([])
-  const [loading, setLoading]         = useState(true)
-  const [viewMode, setViewMode]       = useState('timetable')
-  const [search, setSearch]           = useState('')
+  const [schedules, setSchedules] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [viewMode, setViewMode] = useState('timetable')
+  const [search, setSearch] = useState('')
   const [showFilters, setShowFilters] = useState(false)
-  const [filterDay, setFilterDay]     = useState('')
-  const [courseFilter, setCourseFilter]   = useState('')
-  const [yearFilter, setYearFilter]       = useState('')
+  const [filterDay, setFilterDay] = useState('')
+  const [courseFilter, setCourseFilter] = useState('')
+  const [yearFilter, setYearFilter] = useState('')
   const [sectionFilter, setSectionFilter] = useState('')
 
   const [me] = useState(() => {
     try {
-      const raw  = localStorage.getItem('authUser')
+      const raw = localStorage.getItem('authUser')
       if (!raw) return { id: '', email: '', name: '' }
       const user = JSON.parse(raw)
-      const id    = String(user?.id ?? user?._id ?? '').trim()
+      const id = String(user?.id ?? user?._id ?? '').trim()
       const email = String(user?.email ?? user?.identifier ?? '').trim().toLowerCase()
       const first = String(user.personal_information?.first_name || user.first_name || '')
-      const last  = String(user.personal_information?.last_name  || user.last_name  || '')
-      const name  = (first || last ? `${first} ${last}`.trim() : '') || String(user.full_name || user.fullName || '').trim()
+      const last = String(user.personal_information?.last_name || user.last_name || '')
+      const name = (first || last ? `${first} ${last}`.trim() : '') || String(user.full_name || user.fullName || '').trim()
       return { id, email, name }
     } catch { return { id: '', email: '', name: '' } }
   })
@@ -58,25 +58,25 @@ export default function FacultySchedule() {
 
   useEffect(() => {
     async function load() {
-      try   { setSchedules((await getSchedules()) || []) }
+      try { setSchedules((await getSchedules()) || []) }
       catch (e) { console.error(e) }
-      finally   { setLoading(false) }
+      finally { setLoading(false) }
     }
     load()
   }, [])
 
   /* ── Only my schedules ──────────────────────────────────────── */
   const mySchedules = useMemo(() => {
-    const myId    = String(me?.id    || '').trim()
+    const myId = String(me?.id || '').trim()
     const myEmail = String(me?.email || '').trim().toLowerCase()
-    const idMatch    = (s) => myId    && String(s.instructorId    || '').trim()              === myId
+    const idMatch = (s) => myId && String(s.instructorId || '').trim() === myId
     const emailMatch = (s) => myEmail && String(s.instructorEmail || '').trim().toLowerCase() === myEmail
-    const nameMatch  = (s) => {
+    const nameMatch = (s) => {
       if (!instructorName) return false
-      const q1     = instructorName.toLowerCase().replace(/[^a-z0-9]/g, '')
+      const q1 = instructorName.toLowerCase().replace(/[^a-z0-9]/g, '')
       const chunks = instructorName.toLowerCase().split(' ').filter((c) => c.length > 2)
-      const inst   = String(s.instructor || '').toLowerCase()
-      const clean  = inst.replace(/[^a-z0-9]/g, '')
+      const inst = String(s.instructor || '').toLowerCase()
+      const clean = inst.replace(/[^a-z0-9]/g, '')
       if (clean.includes(q1) || q1.includes(clean)) return true
       return chunks.some((c) => inst.includes(c))
     }
@@ -84,8 +84,8 @@ export default function FacultySchedule() {
   }, [schedules, instructorName, me?.email, me?.id])
 
   /* ── Unique filter options ─────────────────────────────────── */
-  const uniqueCourses  = useMemo(() => [...new Set(mySchedules.map((i) => String(i.course   || '').trim()).filter(Boolean))].sort(), [mySchedules])
-  const uniqueYears    = useMemo(() => [...new Set(mySchedules.map((i) => String(i.yearLevel || '').trim()).filter(Boolean))].sort(), [mySchedules])
+  const uniqueCourses = useMemo(() => [...new Set(mySchedules.map((i) => String(i.course || '').trim()).filter(Boolean))].sort(), [mySchedules])
+  const uniqueYears = useMemo(() => [...new Set(mySchedules.map((i) => String(i.yearLevel || '').trim()).filter(Boolean))].sort(), [mySchedules])
   const uniqueSections = useMemo(() => {
     const s = new Set()
     mySchedules.forEach((i) => { const l = sectionLetter(i.section); if (l) s.add(l.toUpperCase()) })
@@ -99,8 +99,8 @@ export default function FacultySchedule() {
     const s = sectionLetter(sectionFilter)
     return mySchedules.filter((item) => {
       let ic = normalizeText(item.course)
-      if (ic.includes('computer science') || ic === 'cs')     ic = 'bscs'
-      if (ic.includes('information tech') || ic === 'it')     ic = 'bsit'
+      if (ic.includes('computer science') || ic === 'cs') ic = 'bscs'
+      if (ic.includes('information tech') || ic === 'it') ic = 'bsit'
       if (c && ic !== c) return false
       if (y && normalizeText(item.yearLevel) !== y) return false
       if (s && s !== sectionLetter(item.section)) return false
@@ -110,7 +110,7 @@ export default function FacultySchedule() {
 
   const dayScoped = useMemo(() =>
     filterDay ? scopedSchedules.filter((i) => i.day === filterDay) : scopedSchedules,
-  [filterDay, scopedSchedules])
+    [filterDay, scopedSchedules])
 
   const visibleSchedules = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -129,16 +129,15 @@ export default function FacultySchedule() {
   const hasActiveFilters = Boolean(search.trim() || courseFilter || yearFilter || sectionFilter || filterDay)
 
   /* ── Timetable ─────────────────────────────────────────────── */
-  const hourSlots     = useMemo(() => buildTimeSlots(6, 22), [])
+  const hourSlots = useMemo(() => buildTimeSlots(6, 22), [])
   const timetableData = useMemo(() => calculateTimetableTracks(visibleSchedules), [visibleSchedules])
-  const dayTracks     = useMemo(() => {
+  const dayTracks = useMemo(() => {
     const counts = {}
     DAYS.forEach((d) => (counts[d] = 1))
     timetableData.forEach((item) => { counts[item.day] = Math.max(counts[item.day], item.totalCols || 1) })
     return counts
   }, [timetableData])
 
-  /* ── Loading ───────────────────────────────────────────────── */
   if (loading) {
     return (
       <div className="module-page">
@@ -156,7 +155,7 @@ export default function FacultySchedule() {
     <div className="module-page">
       <div className="w-full space-y-6">
 
-        {/* ── Header ─────────────────────────────────────────── */}
+        {/* Header */}
         <header className="module-header flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 admin-student-list-header-enter">
           <div>
             <h1 className="main-title font-extrabold text-[var(--text)]">My Assigned Schedule</h1>
@@ -168,7 +167,7 @@ export default function FacultySchedule() {
           </div>
         </header>
 
-        {/* ── Toolbar ────────────────────────────────────────── */}
+        {/* Toolbar */}
         <section className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] p-5 md:p-6 shadow-sm space-y-5 flex flex-col admin-student-list-toolbar-enter">
           <div className="flex flex-col xl:flex-row gap-4 xl:items-center">
             {/* Search */}
@@ -270,7 +269,7 @@ export default function FacultySchedule() {
           )}
         </section>
 
-        {/* ── Content ────────────────────────────────────────── */}
+        {/* Content */}
         <section className="space-y-4 admin-student-list-section-enter">
           <h2 className="text-xl font-bold px-1 flex items-center gap-2 text-[var(--text)] flex-wrap">
             <span className="w-6 h-[2px] bg-[var(--accent)]" />
@@ -282,7 +281,6 @@ export default function FacultySchedule() {
             )}
           </h2>
 
-          {/* Empty state */}
           {visibleSchedules.length === 0 ? (
             <div className="text-center p-12 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] admin-animate-reveal transition-shadow duration-300 hover:shadow-md">
               <p className="text-[var(--text-muted)] text-sm font-semibold">No schedules match the current view.</p>
@@ -294,7 +292,7 @@ export default function FacultySchedule() {
             </div>
           ) : (
             <>
-              {/* ─── GRID view ────────────────────────────── */}
+              {/* GRID view */}
               {viewMode === 'grid' && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
                   {visibleSchedules.map((item, idx) => {
@@ -305,11 +303,9 @@ export default function FacultySchedule() {
                         className="group relative flex flex-col bg-[var(--card-bg)] border border-[var(--border-color)] hover:border-[var(--accent)] rounded-[var(--radius-md)] overflow-hidden transition-all duration-300 hover:shadow-[0_8px_24px_-8px_rgba(229,118,47,0.2)] admin-student-card-animate"
                         style={{ animationDelay: `${Math.min(idx, 14) * 0.055}s` }}
                       >
-                        {/* Day colour bar */}
                         <div className="h-1 bg-[rgba(255,255,255,0.05)] w-full">
                           <div className={`h-full bg-gradient-to-r ${ds.bar} w-0 group-hover:w-full transition-all duration-500 rounded-r-full opacity-90`} />
                         </div>
-
                         <div className="p-5 flex flex-col flex-1 gap-3">
                           <div className="flex justify-between items-start gap-2">
                             <span className={`px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider border ${ds.pill}`}>
@@ -320,12 +316,10 @@ export default function FacultySchedule() {
                               {item.startTime} – {item.endTime}
                             </span>
                           </div>
-
                           <div>
                             <h3 className="text-[var(--text)] font-bold text-lg leading-snug">{item.subjectCode}</h3>
                             <p className="text-[var(--text-muted)] text-xs mt-1 line-clamp-2">{item.subjectTitle}</p>
                           </div>
-
                           <div className="mt-auto pt-2 flex flex-col gap-2 text-[11px] text-[var(--text-muted)]">
                             <div className="flex justify-between gap-2">
                               <span>
@@ -353,8 +347,6 @@ export default function FacultySchedule() {
                             </div>
                           </div>
                         </div>
-
-                        {/* Hover footer — View only (no Edit) */}
                         <div className="px-5 py-3 bg-[rgba(0,0,0,0.15)] dark:bg-[rgba(255,255,255,0.02)] border-t border-[var(--border-color)] flex justify-end items-center opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300">
                           <Link
                             to={`/scheduling/${item.id}`}
@@ -369,7 +361,7 @@ export default function FacultySchedule() {
                 </div>
               )}
 
-              {/* ─── LIST view ────────────────────────────── */}
+              {/* LIST view */}
               {viewMode === 'list' && (
                 <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
                   <div className="overflow-x-auto">
@@ -424,7 +416,7 @@ export default function FacultySchedule() {
                               <td className="px-6 py-4 text-right">
                                 <Link
                                   to={`/scheduling/${item.id}`}
-                                  className="px-3 py-1.5 rounded-md border border-[var(--border-color)] text-[11px] font-semibold text-[var(--text-muted)] hover:text-[var(--text)] hover:border-[var(--accent)]"
+                                  className="px-3 py-1.5 rounded-md border border-[var(--border-color)] text-[11px] font-semibold text-[var(--text-muted)] hover:text-[var(--text)] hover:border(--accent)]"
                                 >
                                   View
                                 </Link>
@@ -438,7 +430,7 @@ export default function FacultySchedule() {
                 </div>
               )}
 
-              {/* ─── TIMETABLE view ───────────────────────── */}
+              {/* TIMETABLE view */}
               {viewMode === 'timetable' && (
                 <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] shadow-sm overflow-hidden">
                   <div
@@ -458,17 +450,13 @@ export default function FacultySchedule() {
                         minWidth: '100%',
                       }}
                     >
-                      {/* Column headers */}
-                      <div className="sticky top-0 z-30 bg-[var(--card-bg)] border-b border-[var(--border-color)] flex items-center justify-center font-bold text-[10px] uppercase tracking-widest text-[var(--text-muted)] border-r">
-                        Time
-                      </div>
+                      {/* Headers */}
+                      <div className="sticky top-0 z-30 bg-[var(--card-bg)] border-b border-[var(--border-color)] flex items-center justify-center font-bold text-[10px] uppercase tracking-widest text-[var(--text-muted)] border-r">Time</div>
                       {DAYS.map((day) => (
-                        <div key={day} className="sticky top-0 z-30 bg-[var(--card-bg)] border-b border-[var(--border-color)] flex items-center justify-center font-bold text-[10px] uppercase tracking-widest text-[var(--text-muted)] border-r border-[var(--border-color)]/30 last:border-r-0">
-                          {day}
-                        </div>
+                        <div key={day} className="sticky top-0 z-30 bg-[var(--card-bg)] border-b border-[var(--border-color)] flex items-center justify-center font-bold text-[10px] uppercase tracking-widest text-[var(--text-muted)] border-r border-[var(--border-color)]/30 last:border-r-0">{day}</div>
                       ))}
 
-                      {/* Grid rows */}
+                      {/* Grid background */}
                       {hourSlots.map((slot, sIdx) => (
                         <div key={`row-${slot.key}`} className="contents">
                           <div
@@ -487,16 +475,15 @@ export default function FacultySchedule() {
                         </div>
                       ))}
 
-                      {/* Class blocks */}
+                      {/* Blocks */}
                       {timetableData.map((item) => {
-                        const dayIdx   = DAYS.indexOf(item.day)
+                        const dayIdx = DAYS.indexOf(item.day)
                         if (dayIdx === -1) return null
                         const startMin = parseMinutes(item.startTime)
-                        const endMin   = parseMinutes(item.endTime)
-                        const baseMin  = 6 * 60
-                        const gridStart = Math.floor((startMin - baseMin) / 30) + 2
-                        const gridSpan  = Math.max(1, Math.ceil((endMin - startMin) / 30))
-                        const blockBg   = (DAY_STYLE[item.day] || DAY_STYLE.Monday).bg
+                        const endMin = parseMinutes(item.endTime)
+                        const gridStart = Math.floor((startMin - (6 * 60)) / 30) + 2
+                        const gridSpan = Math.max(1, Math.ceil((endMin - startMin) / 30))
+                        const blockBg = (DAY_STYLE[item.day] || DAY_STYLE.Monday).bg
 
                         return (
                           <div
@@ -516,9 +503,7 @@ export default function FacultySchedule() {
                               style={{ background: blockBg, color: 'white' }}
                             >
                               <p className="font-bold text-[12px] leading-tight mb-0.5 whitespace-nowrap overflow-hidden text-ellipsis w-full">{item.subjectCode}</p>
-                              <p className="text-[10px] font-bold opacity-90 mb-0.5">
-                                {formatCohortLabel(item.course, item.yearLevel, item.section)}
-                              </p>
+                              <p className="text-[10px] font-bold opacity-90 mb-0.5">{formatCohortLabel(item.course, item.yearLevel, item.section)}</p>
                               <div className="flex flex-col opacity-90 scale-90 origin-top overflow-hidden">
                                 <p className="text-[11px] font-bold mt-0.5 truncate">{item.room}</p>
                                 <p className="text-[10px] truncate max-w-full opacity-80">{item.instructor}</p>
