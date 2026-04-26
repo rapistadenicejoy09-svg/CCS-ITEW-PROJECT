@@ -62,6 +62,7 @@ export function initDb(db) {
       instructor TEXT NOT NULL,
       course TEXT NOT NULL,
       yearLevel TEXT NOT NULL,
+      semester TEXT,
       section TEXT NOT NULL,
       day TEXT NOT NULL,
       startTime TEXT NOT NULL,
@@ -133,6 +134,11 @@ export function initDb(db) {
   }
   try {
     db.exec(`ALTER TABLE users ADD COLUMN email TEXT;`);
+  } catch (e) {
+    // ignore
+  }
+  try {
+    db.exec(`ALTER TABLE schedules ADD COLUMN semester TEXT;`);
   } catch (e) {
     // ignore
   }

@@ -139,6 +139,7 @@ export default function SchedulingViewPage() {
             <Field label="Time" value={`${schedule.startTime} - ${schedule.endTime}`} />
             <Field label="Course" value={schedule.course} />
             <Field label="Year level" value={schedule.yearLevel} />
+            <Field label="Semester" value={schedule.semester} />
             <Field label="Section" value={schedule.section} />
           </div>
         </div>

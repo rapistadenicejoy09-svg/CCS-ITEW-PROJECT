@@ -363,6 +363,68 @@ export function openSqliteStore() {
     deleteEvent(id) {
       db.prepare("DELETE FROM events WHERE id = ?").run(id)
       return { ok: true }
+    },
+
+    // Schedules
+    listSchedules(teachingLoadId = null) {
+      if (teachingLoadId) {
+        return db.prepare('SELECT * FROM schedules WHERE teaching_load_id = ?').all(teachingLoadId)
+      }
+      return db.prepare('SELECT * FROM schedules ORDER BY id DESC').all()
+    },
+
+    getScheduleById(id) {
+      return db.prepare('SELECT * FROM schedules WHERE id = ?').get(id)
+    },
+
+    createSchedule(data) {
+      const stmt = db.prepare(`
+        INSERT INTO schedules (
+          subjectCode, subjectTitle, instructor, course, yearLevel, semester, section, day, startTime, endTime, room, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      const now = new Date().toISOString()
+      const res = stmt.run(
+        data.subjectCode, data.subjectTitle, data.instructor, data.course, data.yearLevel, data.semester, data.section,
+        data.day, data.startTime, data.endTime, data.room, now, now
+      )
+      return { id: res.lastInsertRowid, ...data, created_at: now, updated_at: now }
+    },
+
+    updateSchedule(id, data) {
+      const fields = []
+      const params = []
+      const allowed = [
+        'subjectCode', 'subjectTitle', 'instructor', 'course', 'yearLevel', 'semester', 'section',
+        'day', 'startTime', 'endTime', 'room', 'instructorId', 'instructorEmail', 'subjectId', 'teaching_load_id'
+      ]
+      
+      for (const [key, val] of Object.entries(data)) {
+        if (allowed.includes(key)) {
+          fields.push(`${key} = ?`)
+          params.push(val)
+        }
+      }
+      fields.push('updated_at = ?')
+      params.push(new Date().toISOString())
+      params.push(id)
+
+      const sql = `UPDATE schedules SET ${fields.join(', ')} WHERE id = ?`
+      db.prepare(sql).run(...params)
+      return this.getScheduleById(id)
+    },
+
+    deleteSchedule(id) {
+      db.prepare('DELETE FROM schedules WHERE id = ?').run(id)
+    },
+
+    findOverlappingSchedules(day, startTime, endTime, room) {
+      // Basic overlap in SQL
+      return db.prepare(`
+        SELECT * FROM schedules 
+        WHERE day = ? AND room = ? 
+        AND ((startTime < ? AND endTime > ?) OR (startTime >= ? AND startTime < ?))
+      `).all(day, room, endTime, startTime, startTime, endTime)
     }
   }
 }

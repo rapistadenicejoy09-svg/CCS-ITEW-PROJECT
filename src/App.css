@@ -752,7 +752,7 @@ body[data-theme='light'] .top-bar-avatar:hover .avatar-placeholder {
   display: flex;
   flex-direction: column;
   gap: 18px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .dashboard-header,

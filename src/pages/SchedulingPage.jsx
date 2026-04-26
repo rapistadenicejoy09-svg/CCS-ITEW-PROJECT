@@ -421,6 +421,9 @@ export default function SchedulingPage() {
                                 {item.yearLevel}
                               </span>
                               <span className="px-2 py-0.5 rounded text-[10px] font-medium border border-[var(--border-color)] text-[var(--text)]">
+                                {item.semester}
+                              </span>
+                              <span className="px-2 py-0.5 rounded text-[10px] font-medium border border-[var(--border-color)] text-[var(--text)]">
                                 Sec {item.section}
                               </span>
                             </div>
@@ -483,6 +486,8 @@ export default function SchedulingPage() {
                                   <span className="text-[var(--text)] text-xs font-bold">{item.course}</span>
                                   <div className="flex items-center gap-2 text-[10px] text-[var(--text-muted)]">
                                     <span>{item.yearLevel}</span>
+                                    <span className="w-1 h-1 rounded-full bg-[var(--border-color)]" />
+                                    <span>{item.semester}</span>
                                     <span className="w-1 h-1 rounded-full bg-[var(--border-color)]" />
                                     <span className="font-semibold text-[var(--accent)]">Sec {item.section}</span>
                                   </div>

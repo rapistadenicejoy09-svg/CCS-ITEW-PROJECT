@@ -147,7 +147,6 @@ export function normalizeScheduleInput(input) {
   const instructorId = normalizeId(input?.instructorId)
   const instructorEmail = String(input?.instructorEmail || '').trim().toLowerCase()
   return {
-    id: input?.id ? String(input.id) : String(Date.now()),
     subjectCode: String(input?.subjectCode || '').trim().toUpperCase(),
     subjectTitle: String(input?.subjectTitle || '').trim(),
     instructor: String(input?.instructor || '').trim(),
@@ -155,6 +154,7 @@ export function normalizeScheduleInput(input) {
     instructorEmail,
     course: String(input?.course || '').trim().toUpperCase(),
     yearLevel: String(input?.yearLevel || '').trim(),
+    semester: String(input?.semester || '').trim(),
     section: String(input?.section || '').trim().toUpperCase(),
     day: String(input?.day || 'Monday').trim(),
     startTime: String(input?.startTime || '08:00').trim(),
@@ -170,6 +170,7 @@ export function validateScheduleRequiredFields(input) {
     (!input.instructor && !input.instructorId) ||
     !input.course ||
     !input.yearLevel ||
+    !input.semester ||
     !input.section ||
     !input.room ||
     !input.day ||

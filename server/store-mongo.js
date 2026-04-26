@@ -130,6 +130,22 @@ export async function openMongoStore() {
     instructions.createIndex({ status: 1 }),
   ])
 
+  // Migration: Convert string IDs to numbers for schedules
+  try {
+    const stringIdSchedules = await schedules.find({ id: { $type: 'string' } }).toArray()
+    if (stringIdSchedules.length > 0) {
+      console.log(`[Store] Migrating ${stringIdSchedules.length} schedules with string IDs...`)
+      for (const s of stringIdSchedules) {
+        const numId = Number(s.id)
+        if (!isNaN(numId)) {
+          await schedules.updateOne({ _id: s._id }, { $set: { id: numId } })
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Store] Schedule ID migration error:', err.message)
+  }
+
   async function nextId(collectionName) {
     try {
       const res = await counters.findOneAndUpdate(
@@ -908,7 +924,6 @@ export async function openMongoStore() {
         })
         seenCombinations.add(keyId)
       }
-      }
 
       return [...enrichedExplicit, ...virtualLoads].sort((a, b) => 
         new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
@@ -958,7 +973,25 @@ export async function openMongoStore() {
 
     async createSchedule(data) {
       const id = await nextId('schedules')
-      const doc = { id, ...data, created_at: new Date().toISOString() }
+      const doc = { 
+        id,
+        subjectCode: String(data.subjectCode || '').trim().toUpperCase(),
+        subjectTitle: String(data.subjectTitle || '').trim(),
+        instructor: String(data.instructor || '').trim(),
+        instructorId: data.instructorId || null,
+        instructorEmail: data.instructorEmail || null,
+        course: String(data.course || '').trim().toUpperCase(),
+        yearLevel: String(data.yearLevel || '').trim(),
+        semester: String(data.semester || '').trim(),
+        section: String(data.section || '').trim().toUpperCase(),
+        day: String(data.day || 'Monday').trim(),
+        startTime: String(data.startTime || '08:00').trim(),
+        endTime: String(data.endTime || '09:00').trim(),
+        room: String(data.room || '').trim().toUpperCase(),
+        teaching_load_id: data.teaching_load_id || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
       
       // Auto-link to teaching load if not provided
       if (!doc.teaching_load_id) {
@@ -988,42 +1021,57 @@ export async function openMongoStore() {
     },
 
     async getScheduleById(id) {
-      return await schedules.findOne({ id: Number(id) })
+      const query = { $or: [{ id: Number(id) }, { id: String(id) }] }
+      return await schedules.findOne(query)
     },
 
     async updateSchedule(id, data) {
-      const doc = { ...data, updated_at: new Date().toISOString() }
+      const idQuery = { $or: [{ id: Number(id) }, { id: String(id) }] }
       
+      // Build update doc with explicit fields to prevent stripping
+      const doc = { updated_at: new Date().toISOString() }
+      const fields = [
+        'subjectCode', 'subjectTitle', 'instructor', 'instructorId', 'instructorEmail',
+        'course', 'yearLevel', 'semester', 'section', 'day', 'startTime', 'endTime', 'room', 'teaching_load_id'
+      ]
+      for (const f of fields) {
+        if (data[f] !== undefined) doc[f] = data[f]
+      }
+
       // Re-verify link if subject/faculty/section changed
       if (doc.instructorId || doc.subjectCode || doc.section || doc.course) {
-        const current = await schedules.findOne({ id: Number(id) })
-        const sid = doc.instructorId || current.instructorId
-        const sCode = doc.subjectCode || current.subjectCode
-        const course = doc.course || current.course
-        const sectionLine = doc.section || current.section
-        const section = `${course} ${sectionLine}`.trim()
+        const current = await schedules.findOne(idQuery)
+        if (current) {
+          const sid = doc.instructorId || current.instructorId
+          const sCode = doc.subjectCode || current.subjectCode
+          const course = doc.course || current.course
+          const sectionLine = doc.section || current.section
+          const section = `${course} ${sectionLine}`.trim()
         
-        if (sid && sCode) {
-          const match = await teachingLoads.aggregate([
-            { $lookup: { from: 'subjects', localField: 'subject_id', foreignField: 'id', as: 'sub' } },
-            { $unwind: '$sub' },
-            { $match: { 
-                faculty_id: Number(sid), 
-                'sub.code': { $regex: new RegExp(`^${sCode}$`, 'i') },
-                $or: [{ section: section }, { section_id: section }]
-            } },
-            { $limit: 1 }
-          ]).next()
-          if (match) doc.teaching_load_id = match.id
+          if (sid && sCode) {
+            const match = await teachingLoads.aggregate([
+              { $lookup: { from: 'subjects', localField: 'subject_id', foreignField: 'id', as: 'sub' } },
+              { $unwind: '$sub' },
+              { $match: { 
+                  faculty_id: Number(sid), 
+                  'sub.code': { $regex: new RegExp(`^${sCode}$`, 'i') },
+                  $or: [{ section: section }, { section_id: section }]
+              } },
+              { $limit: 1 }
+            ]).next()
+            if (match) doc.teaching_load_id = match.id
+          }
         }
       }
       
-      await schedules.updateOne({ id: Number(id) }, { $set: doc })
-      return await schedules.findOne({ id: Number(id) })
+      const idQueryFinal = { $or: [{ id: Number(id) }, { id: String(id) }] }
+      await schedules.updateOne(idQueryFinal, { $set: doc })
+      return await schedules.findOne(idQueryFinal)
     },
 
     async deleteSchedule(id) {
-      await schedules.deleteOne({ id: Number(id) })
+      const query = { $or: [{ id: Number(id) }, { id: String(id) }] }
+      await schedules.deleteOne(query)
     },
 
     async findOverlappingSchedules(day, startTime, endTime, room) {

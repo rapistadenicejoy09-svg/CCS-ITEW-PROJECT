@@ -1189,56 +1189,35 @@ app.get('/api/schedules/:id', authMiddleware, asyncHandler(async (req, res) => {
 }))
 
 app.post('/api/schedules', authMiddleware, authorize(PERMISSIONS.SCHEDULING_MANAGE), asyncHandler(async (req, res) => {
-  const { subjectCode, subjectTitle, instructor, course, yearLevel, section, day, startTime, endTime, room } = req.body
-  if (!subjectCode || !day || !startTime || !endTime) {
+  const data = req.body || {}
+  if (!data.subjectCode || !data.day || !data.startTime || !data.endTime) {
     return res.status(400).json({ error: 'Missing schedule details' })
   }
 
   // Conflict detection
-  const overlaps = await store.findOverlappingSchedules(day, startTime, endTime, room)
+  const overlaps = await store.findOverlappingSchedules(data.day, data.startTime, data.endTime, data.room)
   if (overlaps.length > 0) {
     return res.status(409).json({ error: 'Schedule conflict detected', overlaps })
   }
 
-  const sch = await store.createSchedule({
-    subjectCode,
-    subjectTitle,
-    instructor,
-    course,
-    yearLevel,
-    section,
-    day,
-    startTime: startTime,
-    endTime: endTime,
-    room
-  })
+  const sch = await store.createSchedule(data)
   res.status(201).json({ ok: true, schedule: sch })
 }))
 
 app.put('/api/schedules/:id', authMiddleware, authorize(PERMISSIONS.SCHEDULING_MANAGE), asyncHandler(async (req, res) => {
   const id = req.params.id
-  const { subjectCode, subjectTitle, instructor, course, yearLevel, section, day, startTime, endTime, room } = req.body
+  const data = req.body || {}
   if (!id) return res.status(400).json({ error: 'Missing schedule ID' })
   
   // Minimal overlap detection (ignoring self)
-  const overlaps = await store.findOverlappingSchedules(day, startTime, endTime, room)
+  const overlaps = await store.findOverlappingSchedules(data.day, data.startTime, data.endTime, data.room)
   const otherOverlaps = overlaps.filter(o => String(o.id) !== String(id))
   if (otherOverlaps.length > 0) {
     return res.status(409).json({ error: 'Schedule conflict detected', overlaps: otherOverlaps })
   }
 
-  const sch = await store.updateSchedule(id, {
-    subjectCode,
-    subjectTitle,
-    instructor,
-    course,
-    yearLevel,
-    section,
-    day,
-    startTime,
-    endTime,
-    room
-  })
+  const sch = await store.updateSchedule(id, data)
+  if (!sch) return res.status(404).json({ error: 'Schedule not found or update failed' })
   res.json({ ok: true, schedule: sch })
 }))
 
