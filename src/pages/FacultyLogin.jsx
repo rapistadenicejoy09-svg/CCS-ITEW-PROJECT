@@ -2,6 +2,14 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { apiLogin } from '../lib/api'
 
+function resolveLandingPathForRole(role) {
+  if (role === 'admin') return '/'
+  if (['faculty', 'faculty_professor', 'dean', 'department_chair', 'secretary'].includes(role)) {
+    return '/faculty-dashboard'
+  }
+  return '/'
+}
+
 export default function FacultyLogin() {
   const navigate = useNavigate()
   const [form, setForm] = useState({ email: '', password: '' })
@@ -43,7 +51,7 @@ export default function FacultyLogin() {
       })
       localStorage.setItem('authToken', result.token)
       localStorage.setItem('authUser', JSON.stringify(result.user))
-      navigate('/')
+      navigate(resolveLandingPathForRole(result?.user?.role), { replace: true })
     } catch (err) {
       if (err?.status === 429) {
         const until = err?.data?.lockedUntil

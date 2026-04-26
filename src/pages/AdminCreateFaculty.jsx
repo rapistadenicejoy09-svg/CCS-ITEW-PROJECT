@@ -50,6 +50,7 @@ export default function AdminCreateFaculty() {
   const navigate = useNavigate()
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   const [form, setForm] = useState({
     firstName: '',
@@ -98,6 +99,8 @@ export default function AdminCreateFaculty() {
         identifier: form.email.trim(),
         email: form.email.trim(),
         password: form.password,
+        department: form.department,
+        specialization: form.specialization,
         fullName: [form.firstName, form.middleName, form.lastName].filter(Boolean).join(' '),
         personalInformation: {
           first_name: form.firstName,
@@ -113,7 +116,13 @@ export default function AdminCreateFaculty() {
         },
         bio: form.bio,
       })
-      navigate('/admin/faculty')
+      const createdName = [form.firstName, form.middleName, form.lastName].filter(Boolean).join(' ').trim()
+      navigate('/admin/faculty', {
+        state: {
+          facultyCreated: true,
+          createdFacultyName: createdName,
+        },
+      })
     } catch (err) {
       setError(err?.message || 'Failed to create faculty account.')
     } finally {
@@ -133,7 +142,7 @@ export default function AdminCreateFaculty() {
           </div>
           <div className="flex items-center gap-2">
             <Link to="/admin/faculty" className="btn btn-secondary">← Cancel</Link>
-            <button onClick={handleCreate} disabled={creating} className="btn btn-primary">
+            <button onClick={() => setConfirmOpen(true)} disabled={creating} className="btn btn-primary">
               {creating ? 'Creating Account...' : 'Save Faculty Profile'}
             </button>
           </div>
@@ -230,6 +239,38 @@ export default function AdminCreateFaculty() {
           </Card>
 
         </div>
+
+        {confirmOpen && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+            <button
+              type="button"
+              className="absolute inset-0 bg-black/60"
+              onClick={() => setConfirmOpen(false)}
+              aria-label="Close confirmation"
+            />
+            <div className="relative w-full max-w-md bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] p-6 shadow-2xl">
+              <h2 className="text-lg font-bold text-[var(--text)]">Confirm faculty profile creation</h2>
+              <p className="mt-2 text-sm text-[var(--text-muted)]">
+                Proceed with saving this new faculty profile?
+              </p>
+              <div className="mt-6 flex justify-end gap-2">
+                <button type="button" className="btn btn-secondary" onClick={() => setConfirmOpen(false)}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={(e) => {
+                    setConfirmOpen(false)
+                    handleCreate(e)
+                  }}
+                >
+                  Confirm and Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
