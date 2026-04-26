@@ -334,7 +334,11 @@ export default function FacultyFacultyList() {
                             <h3 className="text-base font-bold text-[var(--text)] mb-0.5 leading-tight">{getFacultyName(f)}</h3>
                             <p className="text-[var(--accent)] font-mono text-xs">{f.email || '—'}</p>
                           </div>
-                          {isActive ? (
+                          {f.is_legacy ? (
+                            <span className="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                              Schedule Only
+                            </span>
+                          ) : isActive ? (
                             <span className="px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
                               Active
                             </span>
@@ -425,7 +429,9 @@ export default function FacultyFacultyList() {
                               </div>
                             </td>
                             <td className="px-6 py-4">
-                               {isActive ? (
+                               {f.is_legacy ? (
+                                <span className="text-amber-600 text-xs font-bold uppercase">Schedule Only</span>
+                               ) : isActive ? (
                                 <span className="text-emerald-600 text-xs font-bold uppercase">Active</span>
                                ) : (
                                 <span className="text-rose-600 text-xs font-bold uppercase">Inactive</span>

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import SuccessModal from '../components/SuccessModal'
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal'
-import { apiAdminPatchUser, apiAdminUsers } from '../lib/api'
+import { apiAdminPatchUser, apiAdminUsers, apiFacultyDirectory } from '../lib/api'
 
 function getRole() {
   try {
@@ -145,15 +145,12 @@ export default function AdminFacultyList() {
     setLoading(true)
     setError('')
     try {
-      const result = await apiAdminUsers(token)
-      const users = Array.isArray(result?.users) ? result.users : []
-      // Faculty characters: dean, chair, secretary, professor, faculty (Legacy)
-      const facultyOnly = users.filter(u =>
-        ['dean', 'department_chair', 'secretary', 'faculty_professor', 'faculty'].includes(u.role)
-      )
-      setFaculty(facultyOnly.filter(isUserActive))
+      // Use unified directory API instead of raw admin users list
+      const result = await apiFacultyDirectory(token)
+      const list = Array.isArray(result?.faculty) ? result.faculty : []
+      setFaculty(list)
     } catch (err) {
-      setError(err?.message || 'Failed to load faculty.')
+      setError(err?.message || 'Failed to load faculty directory.')
     } finally {
       setLoading(false)
     }
@@ -381,8 +378,8 @@ export default function AdminFacultyList() {
                           <h3 className="text-base font-bold text-[var(--text)] mb-0.5 leading-tight">{getFacultyName(f)}</h3>
                           <p className="text-[var(--accent)] font-mono text-xs">{f.email}</p>
                         </div>
-                        <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400`}>
-                          Active
+                        <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${f.is_legacy ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
+                          {f.is_legacy ? 'Schedule Only' : 'Active'}
                         </span>
                       </div>
 
@@ -435,7 +432,8 @@ export default function AdminFacultyList() {
                         <button
                           className="flex items-center justify-center px-3 py-1.5 bg-rose-50/50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 rounded-lg border border-rose-200 transition-all font-medium text-xs disabled:opacity-30"
                           onClick={() => setDeleteTarget(f)}
-                          title="Deactivate Account"
+                          disabled={f.is_legacy}
+                          title={f.is_legacy ? "Cannot deactivate schedule-only record" : "Deactivate Account"}
                         >
                           <IconTrash />
                         </button>
@@ -464,9 +462,9 @@ export default function AdminFacultyList() {
                       <thead className="bg-[rgba(0,0,0,0.02)] border-b border-[var(--border-color)] text-[var(--text-muted)] text-[10px] uppercase tracking-widest font-bold">
                         <tr>
                           <th className="px-6 py-4">Name &amp; Email</th>
+                          <th className="px-6 py-4">Status</th>
                           <th className="px-6 py-4">System Role</th>
                           <th className="px-6 py-4">Department</th>
-                          <th className="px-6 py-4">Load (Units)</th>
                           <th className="px-6 py-4 text-right">Actions</th>
                         </tr>
                       </thead>
@@ -474,14 +472,19 @@ export default function AdminFacultyList() {
                         {filteredFaculty.map((f, idx) => (
                           <tr
                             key={f.id}
-                            className="admin-student-list-row admin-student-table-row-enter hover:bg-[rgba(0,0,0,0.02)]"
+                            className={`admin-student-list-row admin-student-table-row-enter hover:bg-[rgba(0,0,0,0.02)] ${f.is_legacy ? 'opacity-80' : ''}`}
                             style={{ '--row-enter-delay': `${Math.min(idx, 16) * 0.035}s` }}
                           >
                             <td className="px-6 py-4">
                               <div className="flex flex-col">
                                 <span className="font-bold text-[var(--text)]">{getFacultyName(f)}</span>
-                                <span className="text-xs text-[var(--accent)] font-mono">{f.email}</span>
+                                <span className="text-xs text-[var(--accent)] font-mono">{f.email || '—'}</span>
                               </div>
+                            </td>
+                            <td className="px-6 py-4">
+                               <span className={`text-xs font-bold uppercase ${f.is_legacy ? 'text-amber-600 font-medium' : 'text-emerald-600'}`}>
+                                 {f.is_legacy ? 'Schedule Only' : 'Active'}
+                               </span>
                             </td>
                             <td className="px-6 py-4">
                               <span className="text-[var(--text)] font-semibold">{formatFacultyRole(f.role)}</span>

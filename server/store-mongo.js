@@ -790,46 +790,128 @@ export async function openMongoStore() {
       ]
       const explicitLoads = await teachingLoads.aggregate(pipeline).toArray()
 
-      // 2. Fetch schedules to find "implicit" loads (legacy/manual entries)
-      // If we are filtering by facultyId, we look for both l.faculty_id matches AND s.instructorId matches
-      const schedQuery = facultyId ? { instructorId: Number(facultyId) } : {}
+      // 2. Fetch all relevant schedules (filtered by faculty if provided)
+      let schedQuery = {}
+      if (facultyId) {
+        if (String(facultyId).startsWith('legacy-')) {
+          const nameFromId = String(facultyId).slice('legacy-'.length)
+          schedQuery = { instructor: { $regex: new RegExp(`^${nameFromId}$`, 'i') } }
+        } else {
+          const f = await users.findOne({ id: Number(facultyId) })
+          const fName = f ? (f.full_name || f.displayName || '').trim() : null
+          const orConditions = [{ instructorId: Number(facultyId) }]
+          if (fName) orConditions.push({ instructor: { $regex: new RegExp(`^${fName}$`, 'i') } })
+          schedQuery = { $or: orConditions }
+        }
+      }
+      
       const allSchedules = await schedules.find(schedQuery).toArray()
-
-      // 3. Merge: Find schedules that don't have a teaching_load_id
-      // but correspond to a subject/faculty/section combo
-      const virtualLoads = []
-      const seenCombinations = new Set(explicitLoads.map(l => `${l.faculty_id}-${l.subject_id}-${l.section}`))
-
+      const schedByLoadId = new Map()
+      const schedByCombo = new Map()
+      
       for (const s of allSchedules) {
-        // If it's already linked to a teaching load, we ignore it as it's accounted for in explicitLoads
-        if (s.teaching_load_id) continue
+        if (s.teaching_load_id) schedByLoadId.set(String(s.teaching_load_id), s)
+        // Composite key for name-based matching
+        const key = `${s.instructorId || s.instructor}-${s.subjectCode}-${s.course} ${s.section}`.trim()
+        if (!schedByCombo.has(key)) schedByCombo.set(key, s)
+      }
 
-        // Key to identify if this is a "new" load assignment we haven't seen in the explicit table
-        const key = `${s.instructorId}-${s.subjectId || s.subjectCode}-${s.course} ${s.section}`
-        if (seenCombinations.has(key)) continue
+      // 2.5 Fetch all subjects to help with code-based matching for virtual loads
+      const allSubjectsItems = await subjects.find({}).toArray()
+      const subjectByCode = new Map(allSubjectsItems.map(s => [String(s.code).toUpperCase(), s]))
 
-        // Create a virtual load object
+      // Helper to normalize section strings for comparison (e.g. "BSIT 1A" vs "1A")
+      const normalizeSection = (str) => {
+        if (!str) return ''
+        const s = String(str).trim().toUpperCase()
+        // If it starts with a course like BSIT/BSCS followed by space, try matching both versions
+        return s.replace(/^(BSIT|BSCS|ACT|BSIS)\s+/i, '')
+      }
+
+      // 3. Process explicit loads: Enrich/Overwrite with schedule data
+      const enrichedExplicit = explicitLoads.map(l => {
+        const lSec = normalizeSection(l.section_id || l.section)
+        const match = schedByLoadId.get(String(l.id)) || 
+                      allSchedules.find(s => {
+                        const sSec = normalizeSection(`${s.course} ${s.section}`)
+                        return String(s.instructorId) === String(l.faculty_id) && 
+                               String(s.subjectCode).toUpperCase() === String(l.subject?.code).toUpperCase() &&
+                               (sSec === lSec || (l.section_id || l.section).includes(s.section))
+                      })
+        
+        if (match) {
+          return {
+            ...l,
+            schedule_info: {
+              day: match.day,
+              time: `${match.startTime} - ${match.endTime}`,
+              room: match.room
+            },
+            // Prefer subject info from scheduling
+            subject: {
+              ...(l.subject || {}),
+              code: match.subjectCode || l.subject?.code,
+              name: match.subjectTitle || l.subject?.name
+            }
+          }
+        }
+        return l
+      })
+
+      // 4. Process virtual loads for schedules not yet accounted for
+      const seenCombinations = new Set()
+      enrichedExplicit.forEach(l => {
+        const sid = l.faculty_id
+        const subjKey = (l.subject?.code || '').toUpperCase()
+        const sectionKey = normalizeSection(l.section_id || l.section)
+        seenCombinations.add(`${sid}-${subjKey}-${sectionKey}`)
+      })
+
+      const virtualLoads = []
+      for (const s of allSchedules) {
+        const sid = s.instructorId || facultyId
+        const subjKey = (s.subjectCode || '').toUpperCase()
+        const sectionKey = normalizeSection(`${s.course} ${s.section}`)
+        const keyId = `${sid}-${subjKey}-${sectionKey}`
+
+        if (seenCombinations.has(keyId)) continue
+
+        let enrichedSubject = {
+          id: s.subjectId || null,
+          code: s.subjectCode || '',
+          name: s.subjectTitle || '',
+          credits: 3
+        }
+        
+        if (!enrichedSubject.id && enrichedSubject.code) {
+          const match = subjectByCode.get(String(enrichedSubject.code).toUpperCase())
+          if (match) enrichedSubject = { ...match }
+        }
+
         virtualLoads.push({
           id: `v-${s.id}`,
-          faculty_id: s.instructorId || null,
-          subject_id: s.subjectId || null,
-          subject: {
-            id: s.subjectId || null,
-            code: s.subjectCode || '',
-            name: s.subjectTitle || '',
-          },
+          faculty_id: sid || null,
+          faculty_name: s.instructor || '',
+          subject_id: enrichedSubject.id,
+          subject: enrichedSubject,
           section: `${s.course} ${s.section}`.trim(),
           semester: 'Unknown (From Schedule)',
           academic_year: 'Unknown',
-          units: 3, // Default fallback
+          units: enrichedSubject.credits || 3,
           is_virtual: true,
-          created_at: s.created_at || new Date().toISOString()
+          created_at: s.created_at || new Date().toISOString(),
+          schedule_info: {
+            day: s.day,
+            time: `${s.startTime} - ${s.endTime}`,
+            room: s.room
+          }
         })
-        seenCombinations.add(key)
+        seenCombinations.add(keyId)
+      }
       }
 
-      return [...explicitLoads, ...virtualLoads].sort((a, b) => 
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      return [...enrichedExplicit, ...virtualLoads].sort((a, b) => 
+        new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
       )
     },
 
@@ -837,6 +919,28 @@ export async function openMongoStore() {
       const id = await nextId('teaching_loads')
       const doc = { id, ...data, created_at: new Date().toISOString() }
       await teachingLoads.insertOne(doc)
+      
+      // Reverse link: Find any schedules that match this new load and link them
+      const sub = await subjects.findOne({ id: doc.subject_id })
+      if (sub && doc.faculty_id) {
+        const section = doc.section_id || doc.section
+        await schedules.updateMany(
+          { 
+            instructorId: Number(doc.faculty_id), 
+            subjectCode: { $regex: new RegExp(`^${sub.code}$`, 'i') },
+            $or: [{ course: { $exists: true } }] // Generic match for section logic? 
+            // Better: parse section into course/section if possible, or just match by the combined string
+          },
+          [
+            { $set: { 
+                teaching_load_id: id,
+                // If the schedule had a different title, we might want to keep it or update it?
+                // User said "use the subject in the scheduling", so we leave titles alone
+            } }
+          ]
+        )
+      }
+      
       return doc
     },
 
@@ -855,6 +959,30 @@ export async function openMongoStore() {
     async createSchedule(data) {
       const id = await nextId('schedules')
       const doc = { id, ...data, created_at: new Date().toISOString() }
+      
+      // Auto-link to teaching load if not provided
+      if (!doc.teaching_load_id) {
+        const facultyId = doc.instructorId
+        const subjectCode = doc.subjectCode
+        const section = `${doc.course} ${doc.section}`.trim()
+        
+        if (facultyId && subjectCode) {
+          // Find load by faculty and subject code (requires join with subjects)
+          const match = await teachingLoads.aggregate([
+            { $lookup: { from: 'subjects', localField: 'subject_id', foreignField: 'id', as: 'sub' } },
+            { $unwind: '$sub' },
+            { $match: { 
+                faculty_id: Number(facultyId), 
+                'sub.code': { $regex: new RegExp(`^${subjectCode}$`, 'i') },
+                $or: [{ section: section }, { section_id: section }]
+            } },
+            { $limit: 1 }
+          ]).next()
+          
+          if (match) doc.teaching_load_id = match.id
+        }
+      }
+      
       await schedules.insertOne(doc)
       return doc
     },
@@ -865,6 +993,31 @@ export async function openMongoStore() {
 
     async updateSchedule(id, data) {
       const doc = { ...data, updated_at: new Date().toISOString() }
+      
+      // Re-verify link if subject/faculty/section changed
+      if (doc.instructorId || doc.subjectCode || doc.section || doc.course) {
+        const current = await schedules.findOne({ id: Number(id) })
+        const sid = doc.instructorId || current.instructorId
+        const sCode = doc.subjectCode || current.subjectCode
+        const course = doc.course || current.course
+        const sectionLine = doc.section || current.section
+        const section = `${course} ${sectionLine}`.trim()
+        
+        if (sid && sCode) {
+          const match = await teachingLoads.aggregate([
+            { $lookup: { from: 'subjects', localField: 'subject_id', foreignField: 'id', as: 'sub' } },
+            { $unwind: '$sub' },
+            { $match: { 
+                faculty_id: Number(sid), 
+                'sub.code': { $regex: new RegExp(`^${sCode}$`, 'i') },
+                $or: [{ section: section }, { section_id: section }]
+            } },
+            { $limit: 1 }
+          ]).next()
+          if (match) doc.teaching_load_id = match.id
+        }
+      }
+      
       await schedules.updateOne({ id: Number(id) }, { $set: doc })
       return await schedules.findOne({ id: Number(id) })
     },

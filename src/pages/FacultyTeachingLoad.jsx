@@ -10,8 +10,14 @@ export default function FacultyTeachingLoad() {
 
   // Form states
   const [selectedSubject, setSelectedSubject] = useState('')
-  const [section, setSection] = useState('')
+  const [sectionCourse, setSectionCourse] = useState('BSIT')
+  const [sectionYear, setSectionYear] = useState('1st Year')
+  const [sectionLetter, setSectionLetter] = useState('')
   const [semester, setSemester] = useState('2nd Semester 2024-2025')
+
+  const COURSE_OPTIONS = ['BSIT', 'BSCS']
+  const YEAR_OPTIONS = ['1st Year', '2nd Year', '3rd Year', '4th Year']
+  const SECTION_OPTIONS = ['A', 'B', 'C', 'D', 'E']
 
   const [searchParams] = useSearchParams()
   const urlFacultyId = searchParams.get('facultyId')
@@ -48,12 +54,16 @@ export default function FacultyTeachingLoad() {
   }, [token])
 
   async function handleAdd() {
-    if (!selectedSubject || !section) return alert('Subject and Section are required')
+    if (!selectedSubject || !sectionCourse || !sectionYear || !sectionLetter) {
+      return alert('Subject and all section details (Course, Year, Letter) are required')
+    }
     
+    // Construct full section string, e.g. "BSCS 3A"
+    const yearDigit = sectionYear.charAt(0)
+    const fullSection = `${sectionCourse} ${yearDigit}${sectionLetter}`
+
     let targetFacultyId = selectedFacultyId
     if (!targetFacultyId && !isAdministrative) {
-       // For faculty, backend might need their own ID or it might be inferred if we allow it,
-       // but here we must ensure we have one if the user is admin.
        try {
          const user = JSON.parse(localStorage.getItem('authUser'))
          targetFacultyId = user.id
@@ -63,19 +73,18 @@ export default function FacultyTeachingLoad() {
     if (!targetFacultyId) return alert('Faculty selection is required')
 
     try {
-      const res = await apiCreateTeachingLoad(token, {
+      await apiCreateTeachingLoad(token, {
         facultyId: targetFacultyId,
         subjectId: selectedSubject,
-        sectionId: section, // Backend expects sectionId
+        sectionId: fullSection,
         semester
       })
       
-      // Refresh to get the fully joined object
       const lRes = await apiGetTeachingLoads(token)
       setLoads(lRes.teachingLoads)
       
       setSelectedSubject('')
-      setSection('')
+      setSectionLetter('')
     } catch (err) {
       alert(err.message)
     }
@@ -147,8 +156,23 @@ export default function FacultyTeachingLoad() {
             </select>
           </div>
           <div className="auth-field">
-            <label className="auth-label">Section</label>
-            <input type="text" className="search-input" style={{ borderRadius: 'var(--radius-md)', padding: '10px' }} placeholder="e.g. BSCS 3A" value={section} onChange={e => setSection(e.target.value)} />
+            <label className="auth-label">Course</label>
+            <select className="search-input" style={{ borderRadius: 'var(--radius-md)', padding: '10px' }} value={sectionCourse} onChange={e => setSectionCourse(e.target.value)}>
+              {COURSE_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="auth-field">
+            <label className="auth-label">Year Level</label>
+            <select className="search-input" style={{ borderRadius: 'var(--radius-md)', padding: '10px' }} value={sectionYear} onChange={e => setSectionYear(e.target.value)}>
+              {YEAR_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+          <div className="auth-field">
+            <label className="auth-label">Section Letter (A-E)</label>
+            <select className="search-input" style={{ borderRadius: 'var(--radius-md)', padding: '10px' }} value={sectionLetter} onChange={e => setSectionLetter(e.target.value)}>
+              <option value="">Select Section</option>
+              {SECTION_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
           </div>
           <div className="auth-field">
             <label className="auth-label">Semester</label>
@@ -189,17 +213,19 @@ export default function FacultyTeachingLoad() {
                         <th>Code</th>
                         <th>Subject Name</th>
                         <th>Section</th>
+                        <th>Schedule</th>
                         <th>Units</th>
                         <th style={{ textAlign: 'right' }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {items.map(l => {
-                        const fac = allFaculty.find(f => f.id === l.faculty_id)
+                        const fac = allFaculty.find(f => String(f.id) === String(l.faculty_id))
                         return (
-                        <tr key={l.id} className="hover:bg-[rgba(0,0,0,0.01)] transition-colors">
+                        <tr key={l.id} className={`hover:bg-[rgba(0,0,0,0.01)] transition-colors ${l.is_virtual ? 'opacity-80' : ''}`}>
                           <td className="text-xs font-semibold text-[var(--text-muted)]">
-                            {fac ? (fac.full_name || fac.displayName) : `ID: ${l.faculty_id}`}
+                            {fac ? (fac.full_name || fac.displayName) : (l.faculty_name || `ID: ${l.faculty_id}`)}
+                            {l.is_virtual && <span className="ml-2 px-1.5 py-0.5 bg-[var(--background)] border border-[var(--border-color)] rounded-[4px] text-[10px] uppercase tracking-tighter opacity-70">Schedule Only</span>}
                           </td>
                           <td style={{ fontWeight: 'bold', color: 'var(--text)' }}>
                             <span className="px-2 py-1 bg-[var(--accent-soft)] text-[var(--accent)] rounded border border-[var(--accent)]/10 text-xs">
@@ -212,9 +238,20 @@ export default function FacultyTeachingLoad() {
                               {l.section_id || l.section}
                             </span>
                           </td>
+                          <td className="text-xs">
+                            {l.schedule_info ? (
+                              <div className="flex flex-col">
+                                <span className="font-bold text-[var(--accent)]">{l.schedule_info.day}</span>
+                                <span className="text-[var(--text-muted)] text-[10px]">{l.schedule_info.time}</span>
+                                <span className="text-[var(--text-muted)] text-[10px] italic">{l.schedule_info.room}</span>
+                              </div>
+                            ) : (
+                              <span className="text-[var(--text-muted)] italic">No schedule linked</span>
+                            )}
+                          </td>
                           <td className="text-[var(--text-muted)] font-mono">{l.subject?.credits || 0}</td>
                           <td style={{ textAlign: 'right' }}>
-                            <button onClick={() => handleDelete(l.id)} className="text-xs px-3 py-1.5 rounded bg-rose-50/50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 transition border border-rose-200">Remove</button>
+                            <button onClick={() => handleDelete(l.id)} disabled={l.is_virtual} className={`text-xs px-3 py-1.5 rounded transition border ${l.is_virtual ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed' : 'bg-rose-50/50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 border-rose-200'}`}>Remove</button>
                           </td>
                         </tr>
                       )})}

@@ -896,46 +896,56 @@ app.get(
     const facultyList = [...activeOnly]
     
     // Distill unique instructors from schedules that aren't in activeOnly
-    const knownEmails = new Set(activeOnly.map(u => String(u.email || '').toLowerCase()))
-    const knownIds = new Set(activeOnly.map(u => String(u.id)))
+    const knownEmails = new Set(activeOnly.map(u => String(u.email || '').toLowerCase()).filter(e => e !== ''))
+    const knownIds = new Set(activeOnly.map(u => String(u.id)).filter(id => id !== ''))
+    const knownNames = new Set(activeOnly.map(u => String(u.full_name || u.displayName || '').toLowerCase().trim()).filter(n => n !== ''))
     
     const legacyFaculty = []
+    const processedKeys = new Set()
+
     for (const s of allSchedules) {
       if (!s.instructor) continue
-      const email = String(s.instructorEmail || '').toLowerCase()
-      const sid = String(s.instructorId || '')
+      const email = String(s.instructorEmail || '').toLowerCase().trim()
+      const sid = String(s.instructorId || '').trim()
+      const name = String(s.instructor).trim()
+      const nameLower = name.toLowerCase()
       
-      if (knownEmails.has(email) || (sid && knownIds.has(sid))) continue
+      const isKnown = (email !== '' && knownEmails.has(email)) || 
+                      (sid !== '' && knownIds.has(sid)) || 
+                      (nameLower !== '' && knownNames.has(nameLower))
       
-      // Found a "legacy" or "schedule-only" faculty
-      const key = email || s.instructor
-      if (legacyFaculty.find(lf => (lf.email && lf.email === email) || lf.full_name === s.instructor)) continue
+      if (isKnown) continue
+      
+      const key = `${name}-${email}`
+      if (processedKeys.has(key)) continue
       
       legacyFaculty.push({
-        id: sid || `legacy-${email || s.instructor}`,
-        full_name: s.instructor,
+        id: sid || `legacy-${name}`,
+        full_name: name,
+        displayName: name,
         email: s.instructorEmail || '',
         role: 'faculty',
         is_active: true,
         is_legacy: true,
-        teaching_loads: [] // Will be populated below
+        teaching_loads: []
       })
+      processedKeys.add(key)
     }
     
     const combined = [...facultyList, ...legacyFaculty]
 
     combined.forEach(f => {
-      f.teaching_loads = allLoads.filter(l => 
-        String(l.faculty_id) === String(f.id) || 
-        (f.is_legacy && l.subject.code === f.teaching_loads_code) // Fallback for legacy
-      )
-      
-      // Specifically for legacy/virtual loads that match by name if ID/Email fails
-      if (f.is_legacy) {
-        f.teaching_loads = allLoads.filter(l => 
-          l.is_virtual && (l.faculty_id === f.id || l.subject.instructor === f.full_name)
-        )
-      }
+      f.teaching_loads = allLoads.filter(l => {
+        // Match by precise ID
+        if (String(l.faculty_id) === String(f.id)) return true
+        
+        // Match by name for legacy/virtual loads if IDs don't match
+        if (l.is_virtual && l.faculty_name && f.full_name) {
+          return l.faculty_name.trim().toLowerCase() === f.full_name.trim().toLowerCase()
+        }
+        
+        return false
+      })
     })
 
     res.json({ ok: true, faculty: combined })
@@ -943,9 +953,28 @@ app.get(
 )
 
 app.get('/api/admin/users/:id', authMiddleware, authorize(PERMISSIONS.MANAGE_USERS), asyncHandler(async (req, res) => {
-  const id = Number(req.params.id)
-  if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid id' })
-  const user = await store.getAdminUserById(id)
+  const rawId = req.params.id
+  let user
+  
+  if (String(rawId).startsWith('legacy-')) {
+    const name = String(rawId).slice('legacy-'.length)
+    user = {
+      id: rawId,
+      full_name: name,
+      displayName: name,
+      role: 'faculty',
+      is_active: true,
+      is_legacy: true,
+      email: '',
+      personal_information: { fullName: name },
+      summary: { department: 'Legacy Records' }
+    }
+  } else {
+    const id = Number(rawId)
+    if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid id' })
+    user = await store.getAdminUserById(id)
+  }
+
   if (!user) return res.status(404).json({ error: 'User not found' })
   
   // Hydrate with loads
@@ -1069,8 +1098,33 @@ app.get('/api/me/logs', authMiddleware, asyncHandler(async (req, res) => {
 
 // Subjects
 app.get('/api/subjects', authMiddleware, asyncHandler(async (req, res) => {
-  const list = await store.listSubjects()
-  res.json({ ok: true, subjects: list })
+  const [list, allSchedules] = await Promise.all([
+    store.listSubjects(),
+    store.listSchedules(null)
+  ])
+
+  // Extract unique subjects from schedules not in the master list
+  const knownCodes = new Set(list.map(s => String(s.code).toUpperCase()))
+  const virtualSubjects = []
+  
+  for (const s of allSchedules) {
+    if (!s.subjectCode) continue
+    const code = String(s.subjectCode).toUpperCase()
+    if (knownCodes.has(code)) continue
+    
+    if (!virtualSubjects.find(vs => vs.code === code)) {
+      virtualSubjects.push({
+        id: s.subjectId || `vsub-${code}`,
+        code: s.subjectCode,
+        name: s.subjectTitle || s.subjectCode,
+        description: 'Synthesized from Schedule',
+        units: 3,
+        is_virtual: true
+      })
+    }
+  }
+
+  res.json({ ok: true, subjects: [...list, ...virtualSubjects] })
 }))
 
 app.post('/api/subjects', authMiddleware, authorize(PERMISSIONS.MANAGE_USERS), asyncHandler(async (req, res) => {
@@ -1094,7 +1148,8 @@ app.delete('/api/subjects/:id', authMiddleware, authorize(PERMISSIONS.MANAGE_USE
 
 // Teaching Loads
 app.get('/api/teaching-loads', authMiddleware, asyncHandler(async (req, res) => {
-  const facultyId = req.query.facultyId || (req.user.role === 'faculty' ? req.user.id : null)
+  const qId = req.query.facultyId
+  const facultyId = (qId && qId !== '') ? qId : (req.user.role === 'faculty' ? req.user.id : null)
   const list = await store.listTeachingLoads(facultyId)
   res.json({ ok: true, teachingLoads: list })
 }))
