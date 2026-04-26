@@ -424,7 +424,7 @@ export default function AdminFacultyList() {
                           <h3 className="text-base font-bold text-[var(--text)] mb-0.5 leading-tight">{getFacultyName(f)}</h3>
                           <p className="text-[var(--accent)] font-mono text-xs">{f.email}</p>
                         </div>
-                        <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${f.is_legacy ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'}`}>
+                        <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${f.is_legacy ? 'bg-amber-500/10 text-amber-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
                           {f.is_legacy ? 'Schedule Only' : 'Active'}
                         </span>
                       </div>
@@ -529,7 +529,7 @@ export default function AdminFacultyList() {
                               </div>
                             </td>
                             <td className="px-6 py-4">
-                               <span className={`text-xs font-bold uppercase ${f.is_legacy ? 'text-amber-600 font-medium' : 'text-emerald-600'}`}>
+                               <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider ${f.is_legacy ? 'bg-amber-500/10 text-amber-500 font-medium' : 'bg-emerald-500/10 text-emerald-500'}`}>
                                  {f.is_legacy ? 'Schedule Only' : 'Active'}
                                </span>
                             </td>
