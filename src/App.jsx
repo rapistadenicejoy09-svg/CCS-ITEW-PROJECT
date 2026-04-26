@@ -10,7 +10,6 @@ import FacultyProfile from './pages/FacultyProfile'
 import FacultyDashboard from './pages/FacultyDashboard'
 import FacultyTeachingLoad from './pages/FacultyTeachingLoad'
 import FacultySchedule from './pages/FacultySchedule'
-import FacultyDocuments from './pages/FacultyDocuments'
 import FacultyEvaluations from './pages/FacultyEvaluations'
 import FacultyConsultation from './pages/FacultyConsultation'
 import FacultySubjects from './pages/FacultySubjects'
@@ -104,7 +103,6 @@ export default function App() {
               <Route path="faculty-my-profile" element={<FacultyProfile />} />
               <Route path="faculty/teaching-load" element={<FacultyTeachingLoad />} />
               <Route path="faculty/schedule" element={<FacultySchedule />} />
-              <Route path="faculty/documents" element={<FacultyDocuments />} />
               <Route path="faculty/evaluations" element={<FacultyEvaluations />} />
               <Route path="faculty/consultation" element={<FacultyConsultation />} />
               <Route path="faculty/subjects" element={<FacultySubjects />} />

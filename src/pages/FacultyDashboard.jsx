@@ -166,7 +166,7 @@ export default function FacultyDashboard() {
                 Faculty portal overview
               </h4>
               <p className="announcement-text">
-                Use the Faculty Module for teaching load, schedules, documents, evaluations, office hours, and master subjects.
+                Use the Faculty Module for teaching load, schedules, evaluations, office hours, and master subjects.
               </p>
               <p className="announcement-text" style={{ marginBottom: 0 }}>
                 The <strong>Faculty List</strong> is available as a view-only directory for collaboration.
