@@ -100,6 +100,14 @@ function roleLabel(role) {
   return role || ''
 }
 
+function IconFilter() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+    </svg>
+  )
+}
+
 function getAdminLoginIdentifier() {
   try {
     const raw = localStorage.getItem('authUser')
@@ -146,6 +154,7 @@ export default function CollegeResearch() {
   })
 
   const [showForm, setShowForm] = useState(false)
+  const [showFilters, setShowFilters] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false)
   const [pendingSubmitMode, setPendingSubmitMode] = useState(null) // 'draft' | 'submit'
@@ -529,104 +538,132 @@ export default function CollegeResearch() {
 
   function researchDetailBlock(row) {
     return (
-      <div className="college-research-detail">
-        {row.repository_ref || row.submission_ref ? (
-          <p>
-            <strong>ID No.:</strong>{' '}
-            <span className="college-research-repo-ref">{row.repository_ref || row.submission_ref}</span>
-          </p>
-        ) : null}
-        <p>
-          <strong>Abstract:</strong> {row.abstract || '—'}
-        </p>
-        <p>
-          <strong>Adviser:</strong> {row.adviser_name || '—'}
-        </p>
-        <p>
-          <strong>Keywords:</strong>{' '}
-          {Array.isArray(row.keywords) && row.keywords.length ? row.keywords.join(', ') : '—'}
-        </p>
-        <p>
-          <strong>Authors:</strong>{' '}
-          {Array.isArray(row.authors)
-            ? row.authors.map((a) => `${a.display_name}${a.user_id ? ` (#${a.user_id})` : ''}`).join('; ')
-            : '—'}
-        </p>
-        {canAttachPdfClient(row) ? (
-          <div className="college-research-draft-pdf">
-            <strong>PDF:</strong>{' '}
-            <input
-              type="file"
-              accept="application/pdf,.pdf"
-              onChange={(e) =>
-                setPdfDraftPick((p) => ({
-                  ...p,
-                  [row.id]: e.target.files?.[0] || null,
-                }))
-              }
-            />
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={!pdfDraftPick[row.id]}
-              onClick={() => uploadDraftPdf(row.id)}
-            >
-              Upload / replace PDF
-            </button>
-            {row.status === 'draft' ? (
-              <button type="button" className="btn btn-primary" onClick={() => submitDraftRow(row.id)}>
-                Submit for review
-              </button>
-            ) : null}
+      <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6 shadow-inner animate-fade-in">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          <div className="lg:col-span-8 space-y-4">
+             <div className="space-y-1">
+                <span className="text-[10px] uppercase tracking-widest font-black text-[var(--accent)]">Project Abstract</span>
+                <p className="text-sm leading-relaxed text-[var(--text)] opacity-80">{row.abstract || 'No abstract provided.'}</p>
+             </div>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-[var(--border-color)]">
+                <div>
+                   <span className="text-[10px] uppercase tracking-widest font-black text-[var(--text-muted)] block mb-1">Adviser</span>
+                   <p className="text-xs font-bold text-[var(--text)]">{row.adviser_name || '—'}</p>
+                </div>
+                <div>
+                   <span className="text-[10px] uppercase tracking-widest font-black text-[var(--text-muted)] block mb-1">Keywords</span>
+                   <p className="text-xs font-bold text-[var(--text)]">
+                      {Array.isArray(row.keywords) && row.keywords.length ? row.keywords.join(', ') : '—'}
+                   </p>
+                </div>
+             </div>
+             <div className="pt-4">
+                <span className="text-[10px] uppercase tracking-widest font-black text-[var(--text-muted)] block mb-1">Authors</span>
+                <div className="flex flex-wrap gap-2 mt-2">
+                   {Array.isArray(row.authors) ? row.authors.map((a) => (
+                      <span key={a.user_id || a.display_name} className="px-3 py-1 bg-[var(--border-color)] text-[10px] font-bold rounded-full text-[var(--text)]">
+                         {a.display_name} {a.user_id && <span className="opacity-40 ml-1">#{a.user_id}</span>}
+                      </span>
+                   )) : '—'}
+                </div>
+             </div>
           </div>
-        ) : null}
-        {row.status === 'rejected' &&
-          (() => {
-            try {
-              const n = Number(JSON.parse(localStorage.getItem('authUser') || 'null')?.id)
-              return Number.isFinite(n) && n === row.created_by_user_id
-            } catch {
-              return false
-            }
-          })() ? (
-          <div className="college-research-review-actions">
-            <button type="button" className="btn btn-primary" onClick={() => resubmitRow(row.id)}>
-              Resubmit for review
-            </button>
+
+          <div className="lg:col-span-4 space-y-6">
+             <div className="p-4 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl space-y-4">
+                <h5 className="text-[10px] font-black uppercase tracking-widest text-[var(--text-muted)] border-b border-[var(--border-color)] pb-2 flex items-center justify-between">
+                   Submission Info
+                   {row.repository_ref && <span className="text-[var(--accent)]">{row.repository_ref}</span>}
+                </h5>
+                <div className="space-y-3">
+                   <div className="flex justify-between text-xs">
+                      <span className="text-[var(--text-muted)]">Status</span>
+                      <span className="font-bold capitalize">{row.status?.replace(/_/g, ' ')}</span>
+                   </div>
+                   <div className="flex justify-between text-xs">
+                      <span className="text-[var(--text-muted)]">Type</span>
+                      <span className="font-bold capitalize">{row.research_type?.replace(/_/g, ' ')}</span>
+                   </div>
+                </div>
+             </div>
+
+             {canAttachPdfClient(row) && (
+                <div className="space-y-3 p-4 bg-[var(--accent-soft)] border border-[var(--accent-soft)] rounded-xl">
+                   <label className="text-[10px] font-black uppercase tracking-widest text-[var(--accent)] block">Draft Management</label>
+                   <input
+                      type="file"
+                      className="w-full text-[10px] file:mr-4 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-[10px] file:font-black file:bg-[var(--accent)] file:text-white hover:file:bg-[var(--accent-soft)] hover:file:text-[var(--accent)]"
+                      accept="application/pdf,.pdf"
+                      onChange={(e) =>
+                        setPdfDraftPick((p) => ({
+                          ...p,
+                          [row.id]: e.target.files?.[0] || null,
+                        }))
+                      }
+                   />
+                   <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-compact flex-1"
+                        disabled={!pdfDraftPick[row.id]}
+                        onClick={() => uploadDraftPdf(row.id)}
+                      >
+                        {row.has_pdf ? 'Replace PDF' : 'Upload PDF'}
+                      </button>
+                      {row.status === 'draft' && (
+                        <button type="button" className="btn btn-secondary btn-compact flex-1" onClick={() => submitDraftRow(row.id)}>
+                          Submit
+                        </button>
+                      )}
+                   </div>
+                </div>
+             )}
+
+             {row.status === 'rejected' &&
+                (() => {
+                  try {
+                    const n = Number(JSON.parse(localStorage.getItem('authUser') || 'null')?.id)
+                    return Number.isFinite(n) && n === row.created_by_user_id
+                  } catch {
+                    return false
+                  }
+                })() && (
+                <button type="button" className="btn btn-primary w-full" onClick={() => resubmitRow(row.id)}>
+                  Resubmit for Review
+                </button>
+             )}
+
+             {((canReviewAsAdviser && row.status === 'under_faculty_review') ||
+               (canFinalApprove && row.status === 'pending_approval')) && (
+               <div className="space-y-4 p-4 bg-[rgba(255,255,255,0.02)] border border-[var(--border-color)] rounded-xl">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-[var(--accent)] block">Administrative Actions</span>
+                  <textarea
+                    className="search-input w-full text-xs"
+                    rows={2}
+                    placeholder="Review comments..."
+                    value={reviewNote}
+                    onChange={(e) => setReviewNote(e.target.value)}
+                  />
+                  <div className="flex gap-2">
+                     <button 
+                        type="button" 
+                        className="btn btn-primary btn-compact flex-1" 
+                        onClick={() => row.status === 'under_faculty_review' ? runFacultyReview(row.id, 'approve') : runFinal(row.id, 'approve')}
+                     >
+                        {row.status === 'under_faculty_review' ? 'Endorse' : 'Publish'}
+                     </button>
+                     <button 
+                        type="button" 
+                        className="btn btn-secondary btn-compact flex-1" 
+                        onClick={() => row.status === 'under_faculty_review' ? runFacultyReview(row.id, 'reject') : runFinal(row.id, 'reject')}
+                     >
+                        Reject
+                     </button>
+                  </div>
+               </div>
+             )}
           </div>
-        ) : null}
-        {(canReviewAsAdviser && row.status === 'under_faculty_review') ||
-          (canFinalApprove && row.status === 'pending_approval') ? (
-          <div className="college-research-review-box">
-            <textarea
-              className="search-input college-research-textarea"
-              rows={2}
-              placeholder="Optional comments"
-              value={reviewNote}
-              onChange={(e) => setReviewNote(e.target.value)}
-            />
-            {canReviewAsAdviser && row.status === 'under_faculty_review' ? (
-              <div className="college-research-review-actions">
-                <button type="button" className="btn btn-primary" onClick={() => runFacultyReview(row.id, 'approve')}>
-                  Forward to Chair/Dean
-                </button>
-                <button type="button" className="btn btn-secondary" onClick={() => runFacultyReview(row.id, 'reject')}>
-                  Reject
-                </button>
-              </div>
-            ) : null}
-            {canFinalApprove && row.status === 'pending_approval' ? (
-              <div className="college-research-review-actions">
-                <button type="button" className="btn btn-primary" onClick={() => runFinal(row.id, 'approve')}>
-                  Publish
-                </button>
-                <button type="button" className="btn btn-secondary" onClick={() => runFinal(row.id, 'reject')}>
-                  Reject
-                </button>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
+        </div>
       </div>
     )
   }
@@ -642,38 +679,35 @@ export default function CollegeResearch() {
               faculty profiles in the system.
             </p>
           </div>
-          <div className="header-actions college-research-header-actions">
+          <div className="header-actions">
             {canCreate ? (
               <button
                 type="button"
-                className={`mt-4 md:mt-0 font-medium transition-all duration-300 text-sm px-6 py-2.5 rounded-full hover:shadow-lg hover:scale-[1.03] active:scale-[0.98] ${showForm ? 'college-research-header-btn-secondary' : ''
-                  }`}
-                style={
-                  showForm
-                    ? undefined
-                    : { background: 'var(--accent)', color: 'white', border: '1px solid var(--accent-soft)' }
-                }
+                className={`btn ${showForm ? 'btn-secondary' : 'btn-primary'} flex items-center gap-2`}
                 onClick={() => {
                   setShowForm((s) => !s)
                   setShowSubmitConfirm(false)
                   setPendingSubmitMode(null)
                 }}
               >
-                {showForm ? 'Close form' : '+ New record'}
+                {showForm ? 'Close form' : (
+                  <>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    New Record
+                  </>
+                )}
               </button>
             ) : null}
           </div>
         </header>
 
-        <div className="college-research-tabs-bar">
-          <div className="college-research-tabs" role="tablist" aria-label="Research views">
+        <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] p-2 flex flex-col sm:flex-row justify-between gap-4">
+          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar p-1">
             {tabs.map((t) => (
               <button
                 key={t.id}
                 type="button"
-                role="tab"
-                aria-selected={tab === t.id}
-                className={`college-research-tab${tab === t.id ? ' college-research-tab-active' : ''}`}
+                className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 whitespace-nowrap ${tab === t.id ? 'bg-[var(--accent)] text-white shadow-md shadow-[var(--accent-soft)]' : 'text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--accent-soft)]'}`}
                 onClick={() => setTab(t.id)}
               >
                 {t.label}
@@ -681,30 +715,121 @@ export default function CollegeResearch() {
             ))}
           </div>
           {tab !== 'analytics' ? (
-            <div className="college-research-tabs-view-toggle" aria-label="Record layout">
+            <div className="flex items-center gap-2 p-1">
               <button
                 type="button"
-                className={`btn btn-compact college-research-view-toggle-btn ${repoViewMode === 'list' ? 'btn-primary' : 'btn-secondary'}`}
-                title="List view"
-                aria-label="List view"
-                aria-pressed={repoViewMode === 'list'}
-                onClick={() => setRepoViewMode('list')}
+                onClick={() => setShowFilters(!showFilters)}
+                className={`btn flex items-center gap-2 ${showFilters || Object.values(appliedLibraryFilters).some(Boolean) ? 'btn-primary' : 'btn-secondary'}`}
               >
-                <CrIconList />
+                <IconFilter /> Filters
+                {Object.values(appliedLibraryFilters).some(Boolean) && (
+                  <span className={`w-1.5 h-1.5 rounded-full ${showFilters || Object.values(appliedLibraryFilters).some(Boolean) ? 'bg-[#1a0d05]' : 'bg-[var(--accent)]'}`} />
+                )}
               </button>
-              <button
-                type="button"
-                className={`btn btn-compact college-research-view-toggle-btn ${repoViewMode === 'grid' ? 'btn-primary' : 'btn-secondary'}`}
-                title="Grid view"
-                aria-label="Grid view"
-                aria-pressed={repoViewMode === 'grid'}
-                onClick={() => setRepoViewMode('grid')}
-              >
-                <CrIconGrid />
-              </button>
+              
+              <div className="h-6 w-[1px] bg-[var(--border-color)] mx-1" />
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  className={`btn btn-compact flex items-center justify-center !p-2 ${repoViewMode === 'list' ? 'btn-primary' : 'btn-secondary'}`}
+                  title="List view"
+                  onClick={() => setRepoViewMode('list')}
+                >
+                  <CrIconList />
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-compact flex items-center justify-center !p-2 ${repoViewMode === 'grid' ? 'btn-primary' : 'btn-secondary'}`}
+                  title="Grid view"
+                  onClick={() => setRepoViewMode('grid')}
+                >
+                  <CrIconGrid />
+                </button>
+              </div>
             </div>
           ) : null}
         </div>
+
+        {tab !== 'analytics' && showFilters ? (
+          <section className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] p-5 shadow-sm animate-fade-in">
+            <div className="flex flex-col lg:flex-row gap-4">
+              <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] uppercase font-black text-[var(--accent)] tracking-widest ml-1">Search Keywords</label>
+                  <input
+                    className="search-input w-full"
+                    placeholder="Title, abstract, etc."
+                    value={keywordFilter}
+                    onChange={(e) => setKeywordFilter(e.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] uppercase font-black text-[var(--accent)] tracking-widest ml-1">Researcher</label>
+                  <input
+                    className="search-input w-full"
+                    placeholder="Author or adviser"
+                    value={authorFilter}
+                    onChange={(e) => setAuthorFilter(e.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] uppercase font-black text-[var(--accent)] tracking-widest ml-1">Publication Year</label>
+                  <input
+                    type="number"
+                    className="search-input w-full"
+                    placeholder="Year"
+                    value={yearFilter}
+                    onChange={(e) => setYearFilter(e.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] uppercase font-black text-[var(--accent)] tracking-widest ml-1">Degree Program</label>
+                  <select
+                    className="search-input w-full"
+                    value={courseFilter}
+                    onChange={(e) => setCourseFilter(e.target.value)}
+                  >
+                    <option value="">All programs</option>
+                    <option value="CS">BSCS</option>
+                    <option value="IT">BSIT</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex items-end gap-2">
+                <button
+                  type="button"
+                  className="btn btn-primary h-[42px] px-6"
+                  onClick={() =>
+                    setAppliedLibraryFilters({
+                      year: yearFilter,
+                      course: courseFilter,
+                      keyword: keywordFilter,
+                      author: authorFilter,
+                    })
+                  }
+                >
+                  Apply
+                </button>
+                {Object.values(appliedLibraryFilters).some(Boolean) && (
+                   <button 
+                    type="button" 
+                    className="btn btn-secondary h-[42px] px-4"
+                    onClick={() => {
+                      setYearFilter('')
+                      setCourseFilter('')
+                      setKeywordFilter('')
+                      setAuthorFilter('')
+                      setAppliedLibraryFilters({ year: '', course: '', keyword: '', author: '' })
+                    }}
+                   >
+                    Clear
+                   </button>
+                )}
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         {error ? (
           <div className="college-research-banner" role="alert">
@@ -728,289 +853,292 @@ export default function CollegeResearch() {
         ) : null}
 
         {showForm && canCreate ? (
-          <section className="content-panel college-research-form-panel college-research-form-panel-relative">
-            <h3 className="content-title">New research record</h3>
-            <p className="college-research-form-hint">
-              Draft: title ({MIN_TITLE_LEN}+ chars), abstract ({MIN_ABSTRACT_LEN}+ chars), and a valid year. Submit: also PDF, and an adviser if you are a student.
-            </p>
+          <section className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] p-6 md:p-8 shadow-lg admin-animate-reveal">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-xl font-extrabold text-[var(--text)]">New Research Record</h3>
+                <p className="text-sm text-[var(--text-muted)] mt-1">
+                  Fill in the details below to catalog your research project.
+                </p>
+              </div>
+              <div className="hidden md:flex flex-col items-end text-[10px] uppercase tracking-widest font-bold text-[var(--accent)]">
+                <span>Validation Mode</span>
+                <span className="text-emerald-500">{isSubmitValid ? 'Ready for Submission' : isDraftValid ? 'Draft Only' : 'Incomplete'}</span>
+              </div>
+            </div>
+
             <form
-              className="college-research-form"
+              className="space-y-8"
               onSubmit={(e) => {
                 e.preventDefault()
               }}
             >
-              {submitting ? (
-                <div className="college-research-form-loading" aria-busy="true" role="status">
-                  <div className="college-research-spinner" />
-                  <span>Saving your record…</span>
-                </div>
-              ) : null}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                {/* Left Column: Basic Info */}
+                <div className="lg:col-span-8 space-y-6">
+                  <div className="space-y-4">
+                    <h4 className="text-xs uppercase tracking-[0.2em] font-black text-[var(--accent)] border-b border-[var(--accent-soft)] pb-2 flex items-center gap-2">
+                       <span className="w-2 h-2 rounded-full bg-[var(--accent)] animate-pulse"></span>
+                       Project Narrative
+                    </h4>
+                    
+                    <div className="space-y-4">
+                      <div className="auth-field">
+                        <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 block" htmlFor="cr-title">
+                          Research Title <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          id="cr-title"
+                          className="search-input w-full !py-3 text-base font-semibold"
+                          value={form.title}
+                          onChange={(e) => setForm({ ...form, title: e.target.value })}
+                          placeholder="e.g., An Intelligent Agentic System for Academic Profiling"
+                          autoComplete="off"
+                        />
+                      </div>
 
-              <div className="college-research-form-grid">
-                <div className="college-research-form-section college-research-span-2">
-                  <h4 className="college-research-section-label">Basic information</h4>
-                </div>
-                <div className="auth-field college-research-span-2">
-                  <label className="auth-label" htmlFor="cr-title">
-                    Title <span className="college-research-req">*</span>
-                  </label>
-                  <input
-                    id="cr-title"
-                    className="search-input college-research-input"
-                    value={form.title}
-                    onChange={(e) => setForm({ ...form, title: e.target.value })}
-                    placeholder={`At least ${MIN_TITLE_LEN} characters`}
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="auth-field">
-                  <label className="auth-label" htmlFor="cr-year">
-                    Year <span className="college-research-req">*</span>
-                  </label>
-                  <input
-                    id="cr-year"
-                    type="number"
-                    className="search-input college-research-input"
-                    value={form.year}
-                    onChange={(e) => setForm({ ...form, year: Number(e.target.value) })}
-                    min={1990}
-                    max={2100}
-                  />
-                </div>
-                <div className="auth-field">
-                  <label className="auth-label" htmlFor="cr-course">
-                    Course <span className="college-research-req">*</span>
-                  </label>
-                  <select
-                    id="cr-course"
-                    className="search-input college-research-input"
-                    value={form.course}
-                    onChange={(e) => setForm({ ...form, course: e.target.value })}
-                  >
-                    <option value="CS">CS</option>
-                    <option value="IT">IT</option>
-                  </select>
-                </div>
-                <div className="auth-field college-research-span-2">
-                  <label className="auth-label" htmlFor="cr-type">
-                    Type <span className="college-research-req">*</span>
-                  </label>
-                  <select
-                    id="cr-type"
-                    className="search-input college-research-input"
-                    value={form.researchType}
-                    onChange={(e) => setForm({ ...form, researchType: e.target.value })}
-                  >
-                    {RESEARCH_TYPES.map((rt) => (
-                      <option key={rt.value} value={rt.value}>
-                        {rt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                      <div className="auth-field">
+                        <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 block" htmlFor="cr-abstract">
+                          Abstract / Summary <span className="text-rose-500">*</span>
+                        </label>
+                        <textarea
+                          id="cr-abstract"
+                          className="search-input w-full !py-3 text-sm leading-relaxed"
+                          rows={6}
+                          value={form.abstract}
+                          onChange={(e) => setForm({ ...form, abstract: e.target.value })}
+                          placeholder={`A concise summary of your work (minimum ${MIN_ABSTRACT_LEN} characters)...`}
+                        />
+                      </div>
+                    </div>
+                  </div>
 
-                <div className="college-research-form-section college-research-span-2">
-                  <h4 className="college-research-section-label">Research details</h4>
-                </div>
-                <div className="auth-field college-research-span-2">
-                  <label className="auth-label" htmlFor="cr-category">
-                    Category
-                  </label>
-                  <input
-                    id="cr-category"
-                    className="search-input college-research-input"
-                    list="research-category-hints"
-                    value={form.category}
-                    onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    placeholder="e.g. AI, Web Dev"
-                  />
-                  <datalist id="research-category-hints">
-                    {CATEGORY_HINTS.map((c) => (
-                      <option key={c} value={c} />
-                    ))}
-                  </datalist>
-                </div>
-                <div className="auth-field college-research-span-2">
-                  <label className="auth-label" htmlFor="cr-abstract">
-                    Abstract <span className="college-research-req">*</span>
-                  </label>
-                  <textarea
-                    id="cr-abstract"
-                    className="search-input college-research-textarea"
-                    rows={5}
-                    value={form.abstract}
-                    onChange={(e) => setForm({ ...form, abstract: e.target.value })}
-                    placeholder={`At least ${MIN_ABSTRACT_LEN} characters`}
-                  />
-                </div>
-                <div className="auth-field college-research-span-2">
-                  <label className="auth-label" htmlFor="cr-keywords">
-                    Keywords (comma-separated)
-                  </label>
-                  <input
-                    id="cr-keywords"
-                    className="search-input college-research-input"
-                    value={form.keywords}
-                    onChange={(e) => setForm({ ...form, keywords: e.target.value })}
-                    placeholder="machine learning, react, …"
-                  />
-                </div>
-
-                <div className="college-research-form-section college-research-span-2">
-                  <h4 className="college-research-section-label">Authors &amp; adviser</h4>
-                </div>
-                {role === 'student' ? (
-                  <div className="auth-field college-research-span-2">
-                    <label className="auth-label" htmlFor="cr-adviser">
-                      Adviser (faculty) <span className="college-research-req">*</span>
-                    </label>
-                    <select
-                      id="cr-adviser"
-                      className="search-input college-research-input"
-                      value={form.adviserFacultyId}
-                      onChange={(e) => setForm({ ...form, adviserFacultyId: e.target.value })}
-                    >
-                      <option value="">Select adviser…</option>
-                      {advisers.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.displayName} ({roleLabel(a.role)})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                ) : (
-                  <div className="auth-field college-research-span-2">
-                    <label className="auth-label" htmlFor="cr-adviser-opt">
-                      Adviser (optional)
-                    </label>
-                    <select
-                      id="cr-adviser-opt"
-                      className="search-input college-research-input"
-                      value={form.adviserFacultyId}
-                      onChange={(e) => setForm({ ...form, adviserFacultyId: e.target.value })}
-                    >
-                      <option value="">None</option>
-                      {advisers.map((a) => (
-                        <option key={a.id} value={a.id}>
-                          {a.displayName}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                <div className="auth-field college-research-span-2">
-                  <label className="auth-label" htmlFor="cr-coauthor-input">
-                    Co-authors
-                  </label>
-                  <div className="college-research-combobox" ref={coAuthorComboboxRef}>
-                    <input
-                      id="cr-coauthor-input"
-                      type="text"
-                      role="combobox"
-                      aria-expanded={authorDropdownOpen}
-                      aria-controls="cr-coauthor-listbox"
-                      aria-autocomplete="list"
-                      className="search-input college-research-input college-research-combobox-input"
-                      value={authorQuery}
-                      onChange={(e) => setAuthorQuery(e.target.value)}
-                      onFocus={() => setAuthorDropdownOpen(true)}
-                      placeholder="Click to see users, or type to filter…"
-                      autoComplete="off"
-                    />
-                    {authorDropdownOpen ? (
-                      <ul id="cr-coauthor-listbox" role="listbox" className="college-research-autocomplete-menu">
-                        {authorSearching ? (
-                          <li className="college-research-autocomplete-status" role="presentation">
-                            Loading users…
-                          </li>
-                        ) : authorHits.length === 0 ? (
-                          <li className="college-research-autocomplete-status" role="presentation">
-                            No matches. Try another name or ID.
-                          </li>
-                        ) : (
-                          authorHits.map((u) => (
-                            <li key={u.id} role="option">
-                              <button type="button" className="college-research-suggest-btn" onMouseDown={(e) => e.preventDefault()} onClick={() => addCoAuthor(u)}>
-                                {u.displayName}
-                                <span className="college-research-suggest-meta">
-                                  {' '}
-                                  ({roleLabel(u.role)}
-                                  {u.studentId ? ` · ${u.studentId}` : ''})
-                                </span>
-                              </button>
-                            </li>
-                          ))
-                        )}
-                      </ul>
-                    ) : null}
-                  </div>
-                  <div className="college-research-chips">
-                    {form.coAuthorIds.map((id) => (
-                      <span key={id} className="college-research-chip">
-                        {coAuthorLabels[id] || `User ${id}`}
-                        <button type="button" aria-label="Remove co-author" onClick={() => removeCoAuthor(id)}>
-                          ×
-                        </button>
-                      </span>
-                    ))}
+                  <div className="space-y-4 pt-4">
+                    <h4 className="text-xs uppercase tracking-[0.2em] font-black text-[var(--accent)] border-b border-[var(--accent-soft)] pb-2 flex items-center gap-2">
+                       Metadata & Classification
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                       <div className="auth-field">
+                        <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 block" htmlFor="cr-category">
+                          Category / Field
+                        </label>
+                        <input
+                          id="cr-category"
+                          className="search-input w-full"
+                          list="research-category-hints-new"
+                          value={form.category}
+                          onChange={(e) => setForm({ ...form, category: e.target.value })}
+                          placeholder="e.g. AI, Cyber Security"
+                        />
+                        <datalist id="research-category-hints-new">
+                          {CATEGORY_HINTS.map((c) => (
+                            <option key={c} value={c} />
+                          ))}
+                        </datalist>
+                      </div>
+                      <div className="auth-field">
+                        <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 block" htmlFor="cr-keywords">
+                          Keywords
+                        </label>
+                        <input
+                          id="cr-keywords"
+                          className="search-input w-full"
+                          value={form.keywords}
+                          onChange={(e) => setForm({ ...form, keywords: e.target.value })}
+                          placeholder="keyword1, keyword2, ..."
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="college-research-form-section college-research-span-2">
-                  <h4 className="college-research-section-label">File upload</h4>
+                {/* Right Column: Submission Details */}
+                <div className="lg:col-span-4 space-y-6 bg-[rgba(255,255,255,0.02)] p-6 rounded-2xl border border-[var(--border-color)]">
+                   <div className="space-y-4">
+                    <h4 className="text-xs uppercase tracking-[0.2em] font-black text-[var(--text-muted)] border-b border-[var(--border-color)] pb-2">
+                       Logistics
+                    </h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="auth-field">
+                        <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 block" htmlFor="cr-year">
+                          Year <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          id="cr-year"
+                          type="number"
+                          className="search-input w-full"
+                          value={form.year}
+                          onChange={(e) => setForm({ ...form, year: Number(e.target.value) })}
+                          min={1990}
+                          max={2100}
+                        />
+                      </div>
+                      <div className="auth-field">
+                        <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 block" htmlFor="cr-course">
+                          Course <span className="text-rose-500">*</span>
+                        </label>
+                        <select
+                          id="cr-course"
+                          className="search-input w-full appearance-none"
+                          value={form.course}
+                          onChange={(e) => setForm({ ...form, course: e.target.value })}
+                        >
+                          <option value="CS">CS</option>
+                          <option value="IT">IT</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="auth-field">
+                      <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 block" htmlFor="cr-type">
+                        Research Type <span className="text-rose-500">*</span>
+                      </label>
+                      <select
+                        id="cr-type"
+                        className="search-input w-full appearance-none"
+                        value={form.researchType}
+                        onChange={(e) => setForm({ ...form, researchType: e.target.value })}
+                      >
+                        {RESEARCH_TYPES.map((rt) => (
+                          <option key={rt.value} value={rt.value}>
+                            {rt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="auth-field">
+                      <label className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider mb-2 block" htmlFor="cr-adviser">
+                        Adviser {role === 'student' && <span className="text-rose-500">*</span>}
+                      </label>
+                      <select
+                        id="cr-adviser"
+                        className="search-input w-full appearance-none"
+                        value={form.adviserFacultyId}
+                        onChange={(e) => setForm({ ...form, adviserFacultyId: e.target.value })}
+                      >
+                        <option value="">{role === 'student' ? 'Select adviser…' : 'None'}</option>
+                        {advisers.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.displayName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 pt-4 border-t border-[var(--border-color)]">
+                    <h4 className="text-xs uppercase tracking-[0.2em] font-black text-[var(--text-muted)] pb-2 flex items-center justify-between">
+                       Co-authors 
+                       <span className="text-[var(--accent)] font-mono">{form.coAuthorIds.length}</span>
+                    </h4>
+                    <div className="relative" ref={coAuthorComboboxRef}>
+                      <input
+                        id="cr-coauthor-input"
+                        type="text"
+                        className="search-input w-full !text-xs"
+                        value={authorQuery}
+                        onChange={(e) => setAuthorQuery(e.target.value)}
+                        onFocus={() => setAuthorDropdownOpen(true)}
+                        placeholder="Search users..."
+                        autoComplete="off"
+                      />
+                      {authorDropdownOpen && (
+                        <ul className="absolute top-full left-0 right-0 z-50 mt-1 max-h-48 overflow-y-auto bg-[var(--card-bg)] border border-[var(--border-color)] rounded-xl shadow-2xl p-1 animate-fade-in list-none">
+                          {authorSearching ? (
+                            <li className="p-3 text-center text-xs text-[var(--text-muted)] italic">Searching...</li>
+                          ) : authorHits.length === 0 ? (
+                            <li className="p-3 text-center text-xs text-[var(--text-muted)] italic">No users found.</li>
+                          ) : (
+                            authorHits.map((u) => (
+                              <li key={u.id}>
+                                <button 
+                                  type="button" 
+                                  className="w-full text-left p-3 hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] rounded-lg transition-colors flex flex-col"
+                                  onClick={() => addCoAuthor(u)}
+                                >
+                                  <span className="font-bold text-sm">{u.displayName}</span>
+                                  <span className="text-[10px] opacity-60 uppercase tracking-tighter">
+                                    {u.role !== 'student' ? formatFacultyRole(u.role) : (u.studentId || 'Student')}
+                                  </span>
+                                </button>
+                              </li>
+                            ))
+                          )}
+                        </ul>
+                      )}
+                    </div>
+                    {form.coAuthorIds.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {form.coAuthorIds.map((id) => (
+                          <div key={id} className="group flex items-center gap-1.5 px-3 py-1.5 bg-[var(--accent-soft)] text-[var(--accent)] border border-[var(--accent-soft)] rounded-full text-[11px] font-bold">
+                            {coAuthorLabels[id] || `ID ${id}`}
+                            <button 
+                              type="button" 
+                              className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-rose-500 hover:text-white transition-colors"
+                              onClick={() => removeCoAuthor(id)}
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-4 pt-4 border-t border-[var(--border-color)]">
+                     <h4 className="text-xs uppercase tracking-[0.2em] font-black text-[var(--text-muted)] pb-2 flex items-center gap-2">
+                        Document Attachment
+                     </h4>
+                     <label 
+                        className={`block cursor-pointer p-4 rounded-xl border-2 border-dashed transition-all duration-300 ${form.file ? 'border-[var(--accent)] bg-[var(--accent-soft)]' : 'border-[var(--border-color)] hover:border-[var(--accent-soft)] lg:hover:scale-[1.02]'}`}
+                      >
+                        <input
+                          type="file"
+                          accept="application/pdf,.pdf"
+                          className="hidden"
+                          onChange={(e) => setForm({ ...form, file: e.target.files?.[0] || null })}
+                        />
+                        <div className="flex items-center gap-3">
+                           <div className={`p-2 rounded-lg ${form.file ? 'bg-[var(--accent)] text-white' : 'bg-[var(--border-color)] text-[var(--text-muted)]'}`}>
+                              <CrIconPdf />
+                           </div>
+                           <div className="flex-1 overflow-hidden">
+                              <p className="text-[11px] font-bold text-[var(--text)] truncate">
+                                {form.file ? form.file.name : 'Choose PDF File'}
+                              </p>
+                              <p className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider">
+                                {form.file ? `${(form.file.size / 1024 / 1024).toFixed(1)} MB` : 'Max 25MB · PDF Only'}
+                              </p>
+                           </div>
+                        </div>
+                     </label>
+                  </div>
                 </div>
-                <div className="auth-field college-research-span-2">
-                  <label className="auth-label" htmlFor="cr-pdf">
-                    PDF <span className="college-research-req">*</span> <span className="college-research-muted">(required for submit; optional for draft)</span>
-                  </label>
-                  <input
-                    id="cr-pdf"
-                    type="file"
-                    accept="application/pdf,.pdf"
-                    className="college-research-file"
-                    onChange={(e) => setForm({ ...form, file: e.target.files?.[0] || null })}
-                  />
-                </div>
-                {role === 'secretary' ? (
-                  <label className="college-research-check college-research-span-2">
-                    <input
-                      type="checkbox"
-                      checked={form.requireApproval}
-                      onChange={(e) => setForm({ ...form, requireApproval: e.target.checked })}
-                    />
-                    Route through Chair/Dean approval instead of publishing immediately
-                  </label>
-                ) : null}
-                {role === 'admin' ? (
-                  <label className="college-research-check college-research-span-2">
-                    <input
-                      type="checkbox"
-                      checked={form.publishDirect}
-                      onChange={(e) => setForm({ ...form, publishDirect: e.target.checked })}
-                    />
-                    Publish immediately (skip approval pipeline)
-                  </label>
-                ) : null}
               </div>
-              <div className="college-research-form-actions">
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  disabled={submitting || !isDraftValid}
-                  onClick={() => requestSubmit('draft')}
-                  title={!isDraftValid ? 'Complete required fields first' : ''}
-                >
-                  Save draft
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={submitting || !isSubmitValid}
-                  onClick={() => requestSubmit('submit')}
-                  title={!isSubmitValid ? 'Complete all required fields and attach a PDF' : ''}
-                >
-                  Submit for review
-                </button>
+
+              <div className="pt-6 border-t border-[var(--border-color)] flex flex-col sm:flex-row justify-between items-center gap-6">
+                <div className="text-[11px] text-[var(--text-muted)] leading-relaxed italic max-w-sm">
+                   * Draft saves require title, abstract, and year. Formal submission also requires a PDF and an adviser evaluation (for students).
+                </div>
+                <div className="flex gap-4 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    className="btn btn-secondary flex-1 sm:flex-none !px-8 hover:bg-[var(--border-color)]"
+                    disabled={submitting || !isDraftValid}
+                    onClick={() => requestSubmit('draft')}
+                  >
+                    Save Draft
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary flex-1 sm:flex-none !px-8"
+                    disabled={submitting || !isSubmitValid}
+                    onClick={() => requestSubmit('submit')}
+                  >
+                    {submitting ? 'Processing...' : 'Submit for Review'}
+                  </button>
+                </div>
               </div>
             </form>
           </section>
@@ -1087,130 +1215,98 @@ export default function CollegeResearch() {
           />
         )}
 
-        {tab !== 'analytics' ? (
-          <section className="content-panel">
-            <div className="college-research-filters">
-              <input
-                className="search-input college-research-input"
-                placeholder="Keyword (title, abstract, keywords)"
-                value={keywordFilter}
-                onChange={(e) => setKeywordFilter(e.target.value)}
-              />
-              <input
-                className="search-input college-research-input"
-                placeholder="Author / adviser name"
-                value={authorFilter}
-                onChange={(e) => setAuthorFilter(e.target.value)}
-              />
-              <input
-                type="number"
-                className="search-input college-research-input"
-                placeholder="Year"
-                value={yearFilter}
-                onChange={(e) => setYearFilter(e.target.value)}
-              />
-              <select
-                className="search-input college-research-input"
-                value={courseFilter}
-                onChange={(e) => setCourseFilter(e.target.value)}
-              >
-                <option value="">All courses</option>
-                <option value="CS">CS</option>
-                <option value="IT">IT</option>
-              </select>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() =>
-                  setAppliedLibraryFilters({
-                    year: yearFilter,
-                    course: courseFilter,
-                    keyword: keywordFilter,
-                    author: authorFilter,
-                  })
-                }
-              >
-                Apply filters
-              </button>
-            </div>
-          </section>
-        ) : null}
-
         {tab === 'analytics' ? (
-          <section className="content-panel college-research-analytics">
+          <section className="space-y-6">
             {loading ? (
-              <div className="college-research-page-loading" role="status">
-                <div className="college-research-spinner college-research-spinner-lg" />
-                <span>Loading analytics…</span>
+              <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] p-20 flex flex-col items-center justify-center gap-4 shadow-sm">
+                <div className="w-12 h-12 border-4 border-[var(--accent-soft)] border-t-[var(--accent)] rounded-full animate-spin"></div>
+                <span className="text-[var(--text-muted)] font-black uppercase tracking-widest text-[10px]">Aggregating Data...</span>
               </div>
             ) : analytics ? (
               <>
-                <p className="college-research-analytics-note">
-                  {analyticsScope === 'full'
-                    ? 'Full analytics (Dean / Chair / Admin).'
-                    : 'Summary counts from published works. Request elevated access for productivity metrics.'}
-                </p>
-                <div className="college-research-stat-grid">
-                  <div className="college-research-stat-card">
-                    <span className="college-research-stat-value">{analytics.totalPublished ?? '—'}</span>
-                    <span className="college-research-stat-label">Published works</span>
-                  </div>
-                  {analytics.byStatus && (
-                    <div className="college-research-stat-card college-research-stat-wide">
-                      <span className="college-research-stat-label">By workflow status</span>
-                      <ul className="college-research-mini-list">
-                        {Object.entries(analytics.byStatus).map(([k, v]) => (
-                          <li key={k}>
-                            {STATUS_LABELS[k] || k}: <strong>{v}</strong>
-                          </li>
-                        ))}
-                      </ul>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6 shadow-sm hover:shadow-lg transition-all border-l-4 border-l-[var(--accent)]">
+                    <span className="text-[10px] uppercase tracking-[0.2em] font-black text-[var(--text-muted)] block mb-1">Total Published</span>
+                    <div className="flex items-baseline gap-2">
+                       <span className="text-4xl font-extrabold text-[var(--text)]">{analytics.totalPublished ?? 0}</span>
+                       <span className="text-xs text-[var(--accent)] font-bold">Records</span>
                     </div>
-                  )}
+                  </div>
+
+                  {analytics.byStatus && Object.entries(analytics.byStatus).map(([k, v]) => (
+                    <div key={k} className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6 shadow-sm">
+                      <span className="text-[10px] uppercase tracking-[0.2em] font-black text-[var(--text-muted)] block mb-1">
+                        {STATUS_LABELS[k] || k?.replace(/_/g, ' ')}
+                      </span>
+                      <div className="flex items-baseline gap-2">
+                         <span className="text-3xl font-extrabold text-[var(--text)]">{v}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                {analytics.byYear && (
-                  <div className="college-research-block">
-                    <h4 className="college-research-block-title">Published per year</h4>
-                    <ul className="college-research-mini-list">
-                      {Object.entries(analytics.byYear)
-                        .sort((a, b) => Number(b[0]) - Number(a[0]))
-                        .map(([y, c]) => (
-                          <li key={y}>
-                            {y}: <strong>{c}</strong>
-                          </li>
-                        ))}
-                    </ul>
-                  </div>
-                )}
-                {analytics.byCategory && (
-                  <div className="college-research-block">
-                    <h4 className="college-research-block-title">Categories (published)</h4>
-                    <ul className="college-research-mini-list">
-                      {Object.entries(analytics.byCategory)
-                        .sort((a, b) => b[1] - a[1])
-                        .map(([cat, c]) => (
-                          <li key={cat}>
-                            {cat}: <strong>{c}</strong>
-                          </li>
-                        ))}
-                    </ul>
-                  </div>
-                )}
-                {analytics.mostActiveFaculty?.length > 0 ? (
-                  <div className="college-research-block">
-                    <h4 className="college-research-block-title">Most active faculty (adviser + author credits)</h4>
-                    <ol className="college-research-ordered">
-                      {analytics.mostActiveFaculty.map((row) => (
-                        <li key={row.userId}>
-                          {row.displayName} — {row.count} publication{row.count === 1 ? '' : 's'}
-                        </li>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                   <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6 shadow-sm">
+                      <h4 className="text-xs uppercase tracking-[0.2em] font-black text-[var(--accent)] mb-6 border-b border-[var(--accent-soft)] pb-2 flex items-center gap-2">
+                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                         Publications per Year
+                      </h4>
+                      <div className="space-y-3">
+                        {Object.entries(analytics.byYear || {})
+                          .sort((a, b) => Number(b[0]) - Number(a[0]))
+                          .map(([y, c]) => (
+                            <div key={y} className="flex justify-between items-center group">
+                               <span className="text-sm font-bold text-[var(--text)]">{y}</span>
+                               <div className="flex-1 mx-4 h-1 bg-[var(--border-color)] rounded-full overflow-hidden">
+                                  <div className="h-full bg-[var(--accent)] opacity-20 group-hover:opacity-100 transition-opacity" style={{ width: `${Math.min((c / (analytics.totalPublished || 1)) * 100, 100)}%` }}></div>
+                               </div>
+                               <span className="text-sm font-black text-[var(--accent)] font-mono">{c}</span>
+                            </div>
+                          ))}
+                      </div>
+                   </div>
+
+                   <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6 shadow-sm">
+                      <h4 className="text-xs uppercase tracking-[0.2em] font-black text-[var(--accent)] mb-6 border-b border-[var(--accent-soft)] pb-2 flex items-center gap-2">
+                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                         Dominant Categories
+                      </h4>
+                      <div className="flex flex-wrap gap-3">
+                         {Object.entries(analytics.byCategory || {})
+                            .sort((a, b) => b[1] - a[1])
+                            .map(([cat, c]) => (
+                               <div key={cat} className="px-4 py-2 bg-[var(--accent-soft)] border border-[var(--accent-soft)] rounded-xl flex items-center gap-3">
+                                  <span className="text-xs font-bold text-[var(--accent)]">{cat}</span>
+                                  <span className="text-[10px] bg-[var(--accent)] text-white px-2 py-0.5 rounded-full font-black">{c}</span>
+                               </div>
+                            ))}
+                      </div>
+                   </div>
+                </div>
+
+                {analytics.mostActiveFaculty?.length > 0 && (
+                  <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl p-6 shadow-sm">
+                    <h4 className="text-xs uppercase tracking-[0.2em] font-black text-[var(--accent)] mb-6 border-b border-[var(--accent-soft)] pb-2">
+                       Most Active Faculty Researchers
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {analytics.mostActiveFaculty.map((row, idx) => (
+                        <div key={row.userId} className="flex items-center gap-4 p-4 bg-[rgba(255,255,255,0.02)] rounded-xl border border-[var(--border-color)]">
+                           <div className="w-8 h-8 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] flex items-center justify-center font-black text-xs">
+                              #{idx + 1}
+                           </div>
+                           <div>
+                              <p className="text-sm font-bold text-[var(--text)]">{row.displayName}</p>
+                              <p className="text-[10px] text-[var(--text-muted)] font-black uppercase tracking-tighter">{row.count} Publication{row.count === 1 ? '' : 's'}</p>
+                           </div>
+                        </div>
                       ))}
-                    </ol>
+                    </div>
                   </div>
-                ) : null}
+                )}
               </>
             ) : (
-              <p className="empty-state">No analytics yet.</p>
+              <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] p-20 text-center opacity-50 italic">No analytics data available.</div>
             )}
           </section>
         ) : loading ? (
@@ -1219,88 +1315,102 @@ export default function CollegeResearch() {
             <span>Loading records…</span>
           </div>
         ) : (
-          <section className="content-panel">
+          <section className={repoViewMode === 'list' ? "bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] overflow-hidden shadow-sm" : "w-full"}>
             {repoViewMode === 'list' ? (
-              <div className="table-wrapper">
-                <table className="data-table college-research-table">
+              <div className="table-wrapper !bg-transparent !rounded-none">
+                <table className="data-table w-full">
                   <thead>
-                    <tr>
-                      <th>ID No.</th>
-                      <th>Title</th>
-                      <th>Year</th>
-                      <th>Course</th>
-                      <th>Type</th>
-                      <th>Status</th>
-                      <th></th>
+                    <tr className="bg-[rgba(0,0,0,0.02)] dark:bg-[rgba(255,255,255,0.02)] border-b border-[var(--border-color)] text-[var(--text-muted)] text-[10px] uppercase tracking-widest font-bold">
+                      <th className="px-6 py-4 text-[var(--accent)]">Reference</th>
+                      <th className="px-6 py-4">Research Title</th>
+                      <th className="px-6 py-4">Year</th>
+                      <th className="px-6 py-4 text-center">Course</th>
+                      <th className="px-6 py-4">Status</th>
+                      <th className="px-6 py-4 text-right pr-8">Actions</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-[var(--border-color)]">
                     {items.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="empty-state">
-                          No records.
+                        <td colSpan={6} className="py-20 text-center text-[var(--text-muted)] italic">
+                           <div className="flex flex-col items-center gap-2 opacity-50">
+                              <CrIconList size={32} />
+                              <span>No research records found matching your criteria.</span>
+                           </div>
                         </td>
                       </tr>
                     ) : (
                       items.map((row) => (
                         <Fragment key={row.id}>
-                          <tr>
-                            <td className="college-research-ref-cell">
+                          <tr className="hover:bg-[rgba(255,255,255,0.02)] transition-colors group">
+                            <td className="py-4 pl-6">
                               {row.repository_ref ? (
-                                <span className="college-research-repo-ref" title="Published ID">{row.repository_ref}</span>
+                                <span className="text-[10px] font-black text-[var(--accent)] bg-[var(--accent-soft)] px-2 py-1 rounded tracking-tighter">PUBLISHED: {row.repository_ref}</span>
                               ) : row.submission_ref ? (
-                                <span className="college-research-sub-ref" title="Submission ID">{row.submission_ref}</span>
+                                <span className="text-[10px] font-bold text-[var(--text-muted)] bg-[var(--border-color)] px-2 py-1 rounded tracking-tighter">SUB: {row.submission_ref}</span>
                               ) : (
-                                '—'
+                                <span className="text-[10px] opacity-20">—</span>
                               )}
                             </td>
-                            <td>{row.title}</td>
-                            <td>{row.year}</td>
-                            <td>{row.course}</td>
-                            <td>{row.research_type?.replace(/_/g, ' ')}</td>
-                            <td>
-                              <span className={`college-research-status college-research-status-${row.status}`}>
-                                {STATUS_LABELS[row.status] || row.status}
+                            <td className="py-4">
+                               <div className="max-w-md">
+                                  <p className="font-bold text-[var(--text)] text-sm line-clamp-1 group-hover:text-[var(--accent)] transition-colors">{row.title}</p>
+                                  <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-tight mt-1">{row.research_type?.replace(/_/g, ' ')}</p>
+                               </div>
+                            </td>
+                            <td className="py-4 text-xs font-mono text-[var(--text-muted)]">{row.year}</td>
+                            <td className="py-4 text-center">
+                               <span className={`text-[10px] font-bold px-2 py-1 rounded ${row.course === 'CS' ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20' : 'bg-orange-500/10 text-orange-400 border border-orange-500/20'}`}>
+                                  {row.course}
+                               </span>
+                            </td>
+                            <td className="py-4">
+                              <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${
+                                row.status === 'published' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                row.status === 'under_review' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                                'bg-slate-500/10 text-slate-400 border-slate-500/20'
+                              }`}>
+                                {STATUS_LABELS[row.status] || row.status?.replace(/_/g, ' ')}
                               </span>
                             </td>
-                            <td className="college-research-row-actions">
-                              <button
-                                type="button"
-                                className="btn btn-secondary btn-compact college-research-icon-btn"
-                                title={expandedId === row.id ? 'Hide details' : 'Show details'}
-                                aria-expanded={expandedId === row.id}
-                                aria-label={expandedId === row.id ? 'Hide details' : 'Show details'}
-                                onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}
-                              >
-                                <CrIconDetails expanded={expandedId === row.id} />
-                              </button>
-                              {row.has_pdf ? (
-                                <button
-                                  type="button"
-                                  className="btn btn-secondary btn-compact college-research-icon-btn"
-                                  title="Download PDF"
-                                  aria-label="Download PDF"
-                                  onClick={() => downloadPdf(row.id, row.title)}
-                                >
-                                  <CrIconPdf />
-                                </button>
-                              ) : null}
-                              {canDelete ? (
-                                <button
-                                  type="button"
-                                  className="btn btn-secondary btn-compact college-research-icon-btn college-research-danger"
-                                  title="Delete record"
-                                  aria-label="Delete record"
-                                  onClick={() => openDeleteConfirm(row)}
-                                >
-                                  <CrIconTrash />
-                                </button>
-                              ) : null}
+                            <td className="py-4 pr-6">
+                               <div className="flex justify-end gap-2">
+                                  <button
+                                    type="button"
+                                    className={`p-2 rounded-lg transition-all ${expandedId === row.id ? 'bg-[var(--accent)] text-white' : 'bg-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text)]'}`}
+                                    onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}
+                                    title="View details"
+                                  >
+                                    <CrIconDetails size={16} expanded={expandedId === row.id} />
+                                  </button>
+                                  {row.has_pdf && (
+                                    <button
+                                      type="button"
+                                      className="p-2 rounded-lg bg-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--accent-soft)] transition-all"
+                                      onClick={() => downloadPdf(row.id, row.title)}
+                                      title="Download PDF"
+                                    >
+                                      <CrIconPdf size={16} />
+                                    </button>
+                                  )}
+                                  {canDelete && (
+                                    <button
+                                      type="button"
+                                      className="p-2 rounded-lg bg-[var(--border-color)] text-[var(--text-muted)] hover:text-rose-500 hover:bg-rose-500/10 transition-all"
+                                      onClick={() => openDeleteConfirm(row)}
+                                      title="Delete record"
+                                    >
+                                      <CrIconTrash size={16} />
+                                    </button>
+                                  )}
+                               </div>
                             </td>
                           </tr>
                           {expandedId === row.id ? (
-                            <tr className="college-research-detail-row">
-                              <td colSpan={7}>{researchDetailBlock(row)}</td>
+                            <tr className="bg-[rgba(0,0,0,0.2)] animate-slide-down">
+                              <td colSpan={6} className="p-8">
+                                 {researchDetailBlock(row)}
+                              </td>
                             </tr>
                           ) : null}
                         </Fragment>
@@ -1310,65 +1420,74 @@ export default function CollegeResearch() {
                 </table>
               </div>
             ) : (
-              <div className="college-research-grid">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 py-2">
                 {items.length === 0 ? (
-                  <div className="empty-state college-research-grid-empty">No records.</div>
+                  <div className="col-span-full py-20 text-center text-[var(--text-muted)] italic opacity-50 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)]">No records found.</div>
                 ) : (
                   items.map((row) => (
-                    <article key={row.id} className="college-research-card">
-                      <div className="college-research-card-head">
-                        <h3 className="college-research-card-title">{row.title}</h3>
-                        <div className="college-research-card-actions college-research-row-actions">
-                          <button
-                            type="button"
-                            className="btn btn-secondary btn-compact college-research-icon-btn"
-                            title={expandedId === row.id ? 'Hide details' : 'Show details'}
-                            aria-expanded={expandedId === row.id}
-                            aria-label={expandedId === row.id ? 'Hide details' : 'Show details'}
+                    <article key={row.id} className="group relative bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl overflow-hidden shadow-lg transition-all duration-300 hover:shadow-2xl hover:translate-y-[-4px] hover:border-[var(--accent-soft)] flex flex-col">
+                       {/* Header Bar */}
+                       <div className="flex justify-between items-start p-5 pb-3">
+                          <div className="flex flex-col gap-1">
+                             {row.repository_ref ? (
+                                <span className="text-[9px] font-black tracking-widest text-[var(--accent)] uppercase bg-[var(--accent-soft)] px-2 py-0.5 rounded w-fit">Published: {row.repository_ref}</span>
+                             ) : (
+                                <span className="text-[9px] font-bold tracking-widest text-[var(--text-muted)] uppercase bg-[var(--border-color)] px-2 py-0.5 rounded w-fit">Submission</span>
+                             )}
+                             <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border w-fit ${
+                                row.status === 'published' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/10' : 'bg-amber-500/10 text-amber-400 border-amber-500/10'
+                             }`}>
+                                {STATUS_LABELS[row.status] || row.status?.replace(/_/g, ' ')}
+                             </span>
+                          </div>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                             {canDelete && (
+                                <button className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-rose-500 hover:bg-rose-500/10" onClick={() => openDeleteConfirm(row)}>
+                                   <CrIconTrash size={14} />
+                                </button>
+                             )}
+                          </div>
+                       </div>
+
+                       <div className="px-5 flex-1">
+                          <h3 className="text-base font-extrabold text-[var(--text)] leading-snug group-hover:text-[var(--accent)] transition-colors line-clamp-3 mb-3 cursor-pointer" onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}>
+                             {row.title}
+                          </h3>
+                          <div className="flex flex-wrap gap-2 mb-4">
+                             <div className="flex items-center gap-1.5 px-2 py-1 bg-[rgba(255,255,255,0.03)] border border-[var(--border-color)] rounded text-[10px] font-bold text-[var(--text-muted)]">
+                                {row.course}
+                             </div>
+                             <div className="flex items-center gap-1.5 px-2 py-1 bg-[rgba(255,255,255,0.03)] border border-[var(--border-color)] rounded text-[10px] font-bold text-[var(--text-muted)]">
+                                {row.year}
+                             </div>
+                             <div className="flex items-center gap-1.5 px-2 py-1 bg-[rgba(255,255,255,0.03)] border border-[var(--border-color)] rounded text-[10px] font-bold text-[var(--text-muted)] uppercase">
+                                {row.research_type?.split('_')[0]}
+                             </div>
+                          </div>
+                       </div>
+
+                       <div className="p-5 pt-0 mt-auto flex items-center justify-between border-t border-[var(--border-color)] bg-[rgba(255,255,255,0.01)] transition-colors group-hover:bg-[rgba(255,255,255,0.03)]">
+                          <button 
+                            className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-[var(--accent)] hover:text-[var(--text)] transition-colors"
                             onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}
                           >
-                            <CrIconDetails expanded={expandedId === row.id} />
+                             {expandedId === row.id ? 'Hide Details' : 'View Details'}
+                             <CrIconDetails size={12} expanded={expandedId === row.id} />
                           </button>
-                          {row.has_pdf ? (
-                            <button
-                              type="button"
-                              className="btn btn-secondary btn-compact college-research-icon-btn"
-                              title="Download PDF"
-                              aria-label="Download PDF"
-                              onClick={() => downloadPdf(row.id, row.title)}
-                            >
-                              <CrIconPdf />
-                            </button>
-                          ) : null}
-                          {canDelete ? (
-                            <button
-                              type="button"
-                              className="btn btn-secondary btn-compact college-research-icon-btn college-research-danger"
-                              title="Delete record"
-                              aria-label="Delete record"
-                              onClick={() => openDeleteConfirm(row)}
-                            >
-                              <CrIconTrash />
-                            </button>
-                          ) : null}
-                        </div>
-                      </div>
-                      {row.repository_ref || row.submission_ref ? (
-                        <div className="college-research-card-ref">
-                          <span className="college-research-repo-ref">{row.repository_ref || row.submission_ref}</span>
-                        </div>
-                      ) : null}
-                      <div className="college-research-card-meta">
-                        <span>{row.year}</span>
-                        <span className="college-research-card-meta-sep">·</span>
-                        <span>{row.course}</span>
-                        <span className="college-research-card-meta-sep">·</span>
-                        <span>{row.research_type?.replace(/_/g, ' ')}</span>
-                        <span className={`college-research-status college-research-status-${row.status}`}>
-                          {STATUS_LABELS[row.status] || row.status}
-                        </span>
-                      </div>
-                      {expandedId === row.id ? researchDetailBlock(row) : null}
+                          {row.has_pdf && (
+                             <button 
+                                className="p-2 rounded-xl bg-[var(--accent)] text-white shadow-lg shadow-[var(--accent-soft)] hover:scale-110 active:scale-95 transition-all"
+                                onClick={() => downloadPdf(row.id, row.title)}
+                             >
+                                <CrIconPdf size={16} />
+                             </button>
+                          )}
+                       </div>
+                       {expandedId === row.id && (
+                          <div className="p-5 bg-[rgba(0,0,0,0.4)] border-t border-[var(--border-color)] animate-fade-in">
+                             {researchDetailBlock(row)}
+                          </div>
+                       )}
                     </article>
                   ))
                 )}
