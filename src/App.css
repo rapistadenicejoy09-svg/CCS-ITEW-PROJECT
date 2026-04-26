@@ -2603,6 +2603,112 @@ body[data-theme='light'] .mode-toggle {
   border-color: rgba(148, 163, 184, 0.9);
 }
 
+/* ─── Global Button Utilities ─── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-decoration: none;
+  line-height: 1.2;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #ffffff;
+  border-color: var(--accent);
+  box-shadow: 0 2px 6px rgba(229, 118, 47, 0.2);
+}
+
+.btn-primary:hover {
+  background: #f0a050;
+  border-color: #f0a050;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(229, 118, 47, 0.35);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--border-color);
+}
+
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+body[data-theme='light'] .btn-secondary {
+  color: #374151;
+  border-color: #d1d5db;
+}
+
+body[data-theme='light'] .btn-secondary:hover {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.btn-danger {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.btn-danger:hover {
+  background: #ef4444;
+  color: #ffffff;
+  border-color: #ef4444;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+}
+
+.btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+}
+
+body[data-theme='light'] .btn-ghost:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: #111827;
+}
+
+.btn-xl {
+  padding: 12px 28px;
+  font-size: 16px;
+  border-radius: var(--radius-lg);
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+
 /* RESPONSIVE */
 
 @media (max-width: 960px) {

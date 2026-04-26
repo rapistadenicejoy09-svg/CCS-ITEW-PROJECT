@@ -142,7 +142,7 @@ export default function FacultySubjects() {
                   <td className="font-medium text-sm text-[var(--text)]">{s.name}</td>
                   <td className="text-center font-mono text-sm text-[var(--text-muted)] bg-[rgba(0,0,0,0.01)] dark:bg-[rgba(255,255,255,0.01)]">{s.credits}</td>
                   <td className="text-right align-middle">
-                    <button onClick={() => handleDelete(s.id)} className="text-xs px-3 py-1.5 rounded bg-rose-50/50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 transition border border-rose-200">Delete</button>
+                    <button onClick={() => handleDelete(s.id)} className="btn btn-danger btn-sm">Delete</button>
                   </td>
                 </tr>
               ))}
