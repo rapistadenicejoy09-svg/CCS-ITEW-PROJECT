@@ -342,24 +342,25 @@ export default function FacultySchedule() {
         </div>
 
         {viewMode === 'list' ? (
-          <div className="table-wrapper">
-            <table className="data-table">
-              <thead>
-                <tr className="bg-[rgba(0,0,0,0.02)]">
-                  <th className="w-[15%]">Day</th>
-                  <th className="w-[20%]">Time</th>
-                  <th className="w-[35%]">Subject</th>
-                  <th className="w-[15%]">Section</th>
-                  <th className="w-[15%]">Room</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border-color)]">
+          <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm whitespace-nowrap">
+                <thead className="bg-[rgba(0,0,0,0.02)] dark:bg-[rgba(255,255,255,0.02)] border-b border-[var(--border-color)] text-[var(--text-muted)] text-[10px] uppercase tracking-widest font-bold">
+                  <tr>
+                    <th className="px-6 py-4 w-[15%]">Day</th>
+                    <th className="px-6 py-4 w-[20%]">Time</th>
+                    <th className="px-6 py-4 w-[35%]">Subject</th>
+                    <th className="px-6 py-4 w-[15%]">Section</th>
+                    <th className="px-6 py-4 w-[15%]">Room</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--border-color)]">
                 {DAYS.map((d) => {
                   const daySchedules = visibleSchedules.filter((s) => s.day === d)
                   if (daySchedules.length === 0) return null
                   return daySchedules.map((s, idx) => (
-                    <tr key={s.id} className="hover:bg-[rgba(0,0,0,0.01)] transition-colors">
-                      <td className="align-middle">
+                    <tr key={s.id} className="admin-student-list-row hover:bg-[rgba(0,0,0,0.02)] dark:hover:bg-[rgba(255,255,255,0.01)] transition-colors">
+                      <td className="px-6 py-4 align-middle">
                         {idx === 0 ? (
                           <div className="font-extrabold text-[var(--accent)] bg-[rgba(var(--accent-rgb),0.05)] px-3 py-2 rounded-lg inline-flex flex-col border border-[var(--accent)]/10">
                             {d}
@@ -367,23 +368,23 @@ export default function FacultySchedule() {
                           </div>
                         ) : null}
                       </td>
-                      <td className="font-mono text-sm text-[var(--text-muted)] whitespace-nowrap align-middle">
+                      <td className="px-6 py-4 font-mono text-sm text-[var(--text-muted)] whitespace-nowrap align-middle">
                         <span className="font-semibold text-[var(--text)]">{s.startTime}</span> - <span>{s.endTime}</span>
                       </td>
-                      <td className="align-middle">
+                      <td className="px-6 py-4 align-middle">
                         <div className="flex flex-col">
                           <span className="font-bold text-[var(--text)] text-sm">{s.subjectCode}</span>
                           <span className="text-xs text-[var(--text-muted)] truncate max-w-[200px]" title={s.subjectTitle}>{s.subjectTitle}</span>
                         </div>
                       </td>
-                      <td className="align-middle">
+                      <td className="px-6 py-4 align-middle">
                         <div className="flex flex-col gap-1.5 items-start">
                           <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-[var(--background)] border border-[var(--border-color)] text-[var(--text)]">
                             {formatCohortLabel(s.course, s.yearLevel, s.section)}
                           </span>
                         </div>
                       </td>
-                      <td className="align-middle">
+                      <td className="px-6 py-4 align-middle">
                         <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-800/50">
                           Room: {s.room}
                         </span>
@@ -392,10 +393,11 @@ export default function FacultySchedule() {
                   ))
                 })}
                 {visibleSchedules.length === 0 && (
-                  <tr><td colSpan="5" className="empty-state py-12">No classes assigned to you yet.</td></tr>
+                  <tr><td colSpan="5" className="px-6 py-12 text-center text-[var(--text-muted)] text-sm">No classes assigned to you yet.</td></tr>
                 )}
-              </tbody>
-            </table>
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : (
           <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] shadow-sm overflow-hidden mt-4">

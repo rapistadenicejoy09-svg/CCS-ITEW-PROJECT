@@ -163,36 +163,38 @@ export default function FacultySubjects() {
             </div>
           </div>
         </div>
-        <div className="table-wrapper">
-          <table className="data-table">
-            <thead>
-              <tr className="bg-[rgba(0,0,0,0.02)]">
-                <th className="w-1/4">Subject Code</th>
-                <th className="w-1/2">Descriptive Title</th>
-                <th className="w-1/6 text-center">Units</th>
-                <th className="w-1/6 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--border-color)]">
+        <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm whitespace-nowrap">
+              <thead className="bg-[rgba(0,0,0,0.02)] dark:bg-[rgba(255,255,255,0.02)] border-b border-[var(--border-color)] text-[var(--text-muted)] text-[10px] uppercase tracking-widest font-bold">
+                <tr>
+                  <th className="px-6 py-4 w-1/4">Subject Code</th>
+                  <th className="px-6 py-4 w-1/2">Descriptive Title</th>
+                  <th className="px-6 py-4 w-1/6 text-center">Units</th>
+                  <th className="px-6 py-4 w-1/6 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border-color)]">
               {filteredSubjects.map(s => (
-                <tr key={s.id} className="hover:bg-[rgba(0,0,0,0.01)] transition-colors">
-                  <td style={{ fontWeight: 'bold' }}>
+                <tr key={s.id} className="admin-student-list-row hover:bg-[rgba(0,0,0,0.02)] dark:hover:bg-[rgba(255,255,255,0.01)] transition-colors">
+                  <td className="px-6 py-4" style={{ fontWeight: 'bold' }}>
                      <span className="px-2 py-1 bg-[var(--accent-soft)] text-[var(--accent)] rounded border border-[var(--accent)]/10 text-xs">
                         {s.code}
                      </span>
                   </td>
-                  <td className="font-medium text-sm text-[var(--text)]">{s.name}</td>
-                  <td className="text-center font-mono text-sm text-[var(--text-muted)] bg-[rgba(0,0,0,0.01)] dark:bg-[rgba(255,255,255,0.01)]">{s.credits}</td>
-                  <td className="text-right align-middle">
+                  <td className="px-6 py-4 font-medium text-sm text-[var(--text)]">{s.name}</td>
+                  <td className="px-6 py-4 text-center font-mono text-sm text-[var(--text-muted)] bg-[rgba(0,0,0,0.01)] dark:bg-[rgba(255,255,255,0.01)]">{s.credits}</td>
+                  <td className="px-6 py-4 text-right align-middle">
                     <button onClick={() => handleDelete(s.id)} className="btn btn-danger btn-sm">Delete</button>
                   </td>
                 </tr>
               ))}
               {filteredSubjects.length === 0 && (
-                <tr><td colSpan="4" className="empty-state py-12">No subjects found matching your criteria.</td></tr>
+                <tr><td colSpan="4" className="px-6 py-12 text-center text-[var(--text-muted)] text-sm">No subjects found matching your criteria.</td></tr>
               )}
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
