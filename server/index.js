@@ -518,12 +518,60 @@ app.get('/api/health', (req, res) => {
 
 const REGISTER_ROLES_PUBLIC = [
   'student',
-  'faculty',
   'dean',
   'department_chair',
   'secretary',
   'faculty_professor',
 ]
+
+const FACULTY_SYSTEM_ROLES = ['faculty_professor', 'dean', 'department_chair', 'secretary']
+
+function normalizeDepartmentForChair(value) {
+  const raw = String(value || '').trim().toLowerCase()
+  if (!raw) return null
+  if (raw === 'information technology' || raw === 'it') return 'Information Technology'
+  if (raw === 'computer science' || raw === 'cs') return 'Computer Science'
+  return null
+}
+
+async function validateFacultyLeadershipQuota({
+  targetRole,
+  targetDepartment,
+  excludeUserId = null,
+}) {
+  if (!['dean', 'secretary', 'department_chair'].includes(targetRole)) return null
+
+  const users = await store.listAdminUsers()
+  const candidates = users.filter((u) => (excludeUserId == null ? true : String(u.id) !== String(excludeUserId)))
+
+  if (targetRole === 'dean') {
+    const existingDean = candidates.find((u) => u?.role === 'dean')
+    if (existingDean) return 'Only one dean can be assigned in CCS.'
+    return null
+  }
+
+  if (targetRole === 'secretary') {
+    const existingSecretary = candidates.find((u) => u?.role === 'secretary')
+    if (existingSecretary) return 'Only one secretary can be assigned in CCS.'
+    return null
+  }
+
+  const normalizedDepartment = normalizeDepartmentForChair(targetDepartment)
+  if (!normalizedDepartment) {
+    return 'Department Chair must be assigned to either Information Technology or Computer Science.'
+  }
+
+  const existingChair = candidates.find((u) => {
+    if (u?.role !== 'department_chair') return false
+    const department = u?.department ?? u?.summary?.department ?? u?.personal_information?.department
+    return normalizeDepartmentForChair(department) === normalizedDepartment
+  })
+  if (existingChair) {
+    return `Only one Department Chair is allowed for ${normalizedDepartment}.`
+  }
+
+  return null
+}
 
 async function registerUserFromRequest(req, res, { role: roleFixed } = {}) {
   const role = roleFixed ?? String(req.body?.role || '').trim()
@@ -602,6 +650,14 @@ async function registerUserFromRequest(req, res, { role: roleFixed } = {}) {
     const nameLn = String(piRaw.last_name || piRaw.lastName || '').trim()
     const composedFromPi = [nameFn, nameMn, nameLn].filter(Boolean).join(' ')
     if (composedFromPi) fullName = composedFromPi
+  }
+
+  const leadershipQuotaError = await validateFacultyLeadershipQuota({
+    targetRole: role,
+    targetDepartment: department,
+  })
+  if (leadershipQuotaError) {
+    return res.status(409).json({ error: leadershipQuotaError })
   }
 
   const passwordHash = hashPassword(password)
@@ -1000,6 +1056,26 @@ app.patch('/api/admin/users/:id', authMiddleware, authorize(PERMISSIONS.MANAGE_U
     }
     updates.is_active = req.body.isActive
   }
+  if (req.body.role !== undefined) {
+    const requestedRole = String(req.body.role || '').trim()
+    if (!FACULTY_SYSTEM_ROLES.includes(requestedRole)) {
+      return res.status(400).json({ error: 'Invalid role' })
+    }
+    const targetDepartment =
+      req.body.department ??
+      req.body.summary?.department ??
+      target.department ??
+      target.summary?.department
+    const leadershipQuotaError = await validateFacultyLeadershipQuota({
+      targetRole: requestedRole,
+      targetDepartment,
+      excludeUserId: id,
+    })
+    if (leadershipQuotaError) {
+      return res.status(409).json({ error: leadershipQuotaError })
+    }
+    updates.role = requestedRole
+  }
   if (req.body.personalInformation !== undefined) {
     updates.personal_information = req.body.personalInformation
     const pi = updates.personal_information
@@ -1047,6 +1123,11 @@ app.patch('/api/admin/users/:id', authMiddleware, authorize(PERMISSIONS.MANAGE_U
     return res.status(400).json({ error: 'No valid updates provided' })
   }
   const user = await store.updateStudentProfile(id, updates)
+
+  // Safety check: never report success if role did not persist.
+  if (updates.role !== undefined && user?.role !== updates.role) {
+    return res.status(500).json({ error: 'Role update did not persist. Please try again.' })
+  }
 
   // Log the update
   const actingUser = req.user

@@ -109,46 +109,53 @@ export default function FacultyOfficeHours() {
         <div className="content-header">
           <h3 className="content-title">Active Office Hours</h3>
         </div>
-        <div className="table-wrapper">
-          <table className="data-table">
-            <thead>
-              <tr className="bg-[rgba(0,0,0,0.02)]">
-                <th className="w-1/6">Day</th>
-                <th className="w-1/4">Time Slot</th>
-                <th className="w-1/4">Location</th>
-                <th className="w-1/4">Notes / Purpose</th>
-                <th className="w-1/6 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--border-color)]">
+        <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm whitespace-nowrap">
+              <thead className="bg-[rgba(0,0,0,0.02)] dark:bg-[rgba(255,255,255,0.02)] border-b border-[var(--border-color)] text-[var(--text-muted)] text-[10px] uppercase tracking-widest font-bold">
+                <tr>
+                  <th className="px-6 py-4 w-1/6">Day</th>
+                  <th className="px-6 py-4 w-1/4">Time Slot</th>
+                  <th className="px-6 py-4 w-1/4">Location</th>
+                  <th className="px-6 py-4 w-1/4">Notes / Purpose</th>
+                  <th className="px-6 py-4 w-1/6 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border-color)]">
               {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(d => {
                 const daySlots = officeHours.filter(c => c.day === d)
                 if (daySlots.length === 0) return null
                 return daySlots.map((c, idx) => (
-                  <tr key={c.id} className="hover:bg-[rgba(0,0,0,0.01)] transition-colors">
+                  <tr key={c.id} className="admin-student-list-row hover:bg-[rgba(0,0,0,0.02)] dark:hover:bg-[rgba(255,255,255,0.01)] transition-colors">
                     {idx === 0 ? (
-                       <td rowSpan={daySlots.length} className="align-top font-bold text-[var(--accent)] bg-[rgba(var(--accent-rgb),0.02)] border-r border-[var(--border-color)]">
+                       <td rowSpan={daySlots.length} className="px-6 py-4 align-top font-bold text-[var(--accent)] bg-[rgba(var(--accent-rgb),0.02)] border-r border-[var(--border-color)]">
                           {d}
                        </td>
                     ) : null}
-                    <td className="font-semibold text-sm">{c.time}</td>
-                    <td>
+                    <td className="px-6 py-4 font-semibold text-sm">{c.time}</td>
+                    <td className="px-6 py-4">
                       <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-[var(--background)] border border-[var(--border-color)] text-[var(--text)]">
                          {c.room}
                       </span>
                     </td>
-                    <td className="text-sm text-[var(--text-muted)] italic">{c.notes || '—'}</td>
-                    <td className="text-right align-middle">
+                    <td className="px-6 py-4 text-sm text-[var(--text-muted)] italic">{c.notes || '—'}</td>
+                    <td className="px-6 py-4 text-right align-middle">
                       <button onClick={() => handleRemove(c.id)} className="text-xs px-3 py-1.5 rounded bg-rose-50/50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 transition border border-rose-200">Remove</button>
                     </td>
                   </tr>
                 ))
               })}
+<<<<<<< HEAD:src/pages/FacultyOfficeHours.jsx
               {officeHours.length === 0 && (
                 <tr><td colSpan="5" className="empty-state py-12">No office hours configured.</td></tr>
+=======
+              {consultations.length === 0 && (
+                <tr><td colSpan="5" className="px-6 py-12 text-center text-[var(--text-muted)] text-sm">No consultation hours configured.</td></tr>
+>>>>>>> e8723d75f533078e698bd249a922cfe8eed08f3e:src/pages/FacultyConsultation.jsx
               )}
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

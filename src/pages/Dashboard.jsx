@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import {
   apiAdminUsers,
@@ -16,6 +16,8 @@ const MODULES = [
   { id: 'instructions', code: '1.6', title: 'Instructions', path: '/instructions' },
 ]
 
+const FACULTY_ROLES = ['faculty', 'faculty_professor', 'dean', 'department_chair', 'secretary']
+
 function dashboardStudentDisplayName(u) {
   const fn = String(u.first_name || u.personal_information?.first_name || '').trim()
   const ln = String(u.last_name || u.personal_information?.last_name || '').trim()
@@ -31,6 +33,24 @@ function dashboardStudentMeta(u) {
     ai.program || u.class_section || '',
     ai.year_level || '',
     u.student_type || '',
+    u.is_active === 0 ? 'Inactive' : '',
+  ].filter(Boolean)
+  return parts.length ? parts.join(' • ') : '—'
+}
+
+function dashboardFacultyDisplayName(u) {
+  const fn = String(u.first_name || u.personal_information?.first_name || '').trim()
+  const ln = String(u.last_name || u.personal_information?.last_name || '').trim()
+  if (fn || ln) return [fn, ln].filter(Boolean).join(' ')
+  const fb = String(u.full_name || u.personal_information?.full_name || '').trim()
+  if (fb) return fb
+  return String(u.email || `Faculty #${u.id}`)
+}
+
+function dashboardFacultyMeta(u) {
+  const parts = [
+    String(u.department || u.summary?.department || '').trim(),
+    String(u.specialization || '').trim(),
     u.is_active === 0 ? 'Inactive' : '',
   ].filter(Boolean)
   return parts.length ? parts.join(' • ') : '—'
@@ -77,8 +97,6 @@ export default function Dashboard() {
   }
 
   const [modules, setModules] = useState(MODULES)
-  const [search, setSearch] = useState('')
-  const query = search.toLowerCase()
 
   const [studentCount, setStudentCount] = useState(0)
   const [facultyCount, setFacultyCount] = useState(0)
@@ -131,14 +149,26 @@ export default function Dashboard() {
       const users = Array.isArray(uRes.users) ? uRes.users : []
       const students = users.filter(u => u.role === 'student')
       setStudentCount(students.length)
-      setQuickRows(students.map(u => ({
-        id: u.id,
-        type: 'student',
-        module: 'student-profile',
-        detailPath: `/admin/student/${u.id}`,
-        name: dashboardStudentDisplayName(u),
-        meta: dashboardStudentMeta(u),
-      })))
+      const facultyUsers = users.filter((u) => FACULTY_ROLES.includes(u.role))
+      const recentUsers = [...students, ...facultyUsers]
+        .sort((a, b) => {
+          const aTime = new Date(a.created_at || 0).getTime()
+          const bTime = new Date(b.created_at || 0).getTime()
+          if (aTime !== bTime) return bTime - aTime
+          return Number(b.id || 0) - Number(a.id || 0)
+        })
+        .slice(0, 5)
+      setQuickRows(recentUsers.map((u) => {
+        const isFacultyUser = FACULTY_ROLES.includes(u.role)
+        return {
+          id: u.id,
+          type: isFacultyUser ? 'faculty' : 'student',
+          module: isFacultyUser ? 'faculty-profile' : 'student-profile',
+          detailPath: isFacultyUser ? `/admin/faculty/${u.id}` : `/admin/student/${u.id}`,
+          name: isFacultyUser ? dashboardFacultyDisplayName(u) : dashboardStudentDisplayName(u),
+          meta: isFacultyUser ? dashboardFacultyMeta(u) : dashboardStudentMeta(u),
+        }
+      }))
 
       const facList = fRes.faculty || []
       setFacultyCount(facList.length)
@@ -219,18 +249,6 @@ export default function Dashboard() {
     }
     fetchWeather()
   }, [])
-
-  const filteredItems = useMemo(() => {
-    if (!isAdmin) return []
-    const all = quickRows
-    if (!query) return all
-    return all.filter(
-      (i) =>
-        String(i.name || '')
-          .toLowerCase()
-          .includes(query) || String(i.meta || '').toLowerCase().includes(query),
-    )
-  }, [isAdmin, quickRows, query])
 
   const dashboardClass =
     'dashboard-page' +
@@ -351,17 +369,8 @@ export default function Dashboard() {
                 <div>
                   <h2 className="content-title">Quick View</h2>
                   <p className="content-subtitle">
-                    Students in the database. Open a row to view or edit that student&apos;s profile.
+                    Top 5 recently added users (students and faculty). Open a row to view or edit a profile.
                   </p>
-                </div>
-                <div className="search-section" style={{ minWidth: '200px' }}>
-                  <input
-                    className="search-input"
-                    type="text"
-                    placeholder="Search…"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
                 </div>
               </div>
               <div className="table-wrapper">
@@ -375,16 +384,14 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredItems.length === 0 && (
+                    {quickRows.length === 0 && (
                       <tr>
                         <td colSpan="4" className="empty-state">
-                          {quickRows.length === 0
-                            ? 'No students found in the database yet.'
-                            : 'No records match your search.'}
+                          No student or faculty records found in the database yet.
                         </td>
                       </tr>
                     )}
-                    {filteredItems.map((item, index) => (
+                    {quickRows.map((item, index) => (
                       <tr key={`${item.type}-${item.id}`}>
                         <td>{index + 1}</td>
                         <td>

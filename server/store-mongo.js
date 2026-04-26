@@ -542,6 +542,7 @@ export async function openMongoStore() {
 
     async updateStudentProfile(userId, updates) {
       const allowedFields = [
+        'role',
         'personal_information',
         'academic_info',
         'academic_history',

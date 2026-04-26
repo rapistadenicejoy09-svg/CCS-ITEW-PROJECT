@@ -53,7 +53,7 @@ function formatFacultyRole(role) {
   if (role === 'department_chair') return 'Department Chair'
   if (role === 'secretary') return 'College Secretary'
   if (role === 'faculty_professor') return 'Professor'
-  if (role === 'faculty') return 'Faculty (Basic)'
+  if (role === 'faculty') return 'Professor'
   return 'Faculty'
 }
 
@@ -89,7 +89,7 @@ export default function AdminFacultyView() {
       const res = await apiAdminUser(token, id)
       const u = res?.user
       setUser(u)
-      setRoleDraft(u?.role || '')
+      setRoleDraft(u?.role === 'faculty' ? 'faculty_professor' : (u?.role || ''))
       setIsActiveDraft(u?.is_active !== 0)
     } catch (e) {
       setError(e?.message || 'Failed to load faculty profile.')
@@ -205,7 +205,6 @@ export default function AdminFacultyView() {
                     value={roleDraft}
                     onChange={e => setRoleDraft(e.target.value)}
                   >
-                    <option value="faculty">Faculty (Basic)</option>
                     <option value="faculty_professor">Professor</option>
                     <option value="dean">Dean</option>
                     <option value="department_chair">Department Chair</option>

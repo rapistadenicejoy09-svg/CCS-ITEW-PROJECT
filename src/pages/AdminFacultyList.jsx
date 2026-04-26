@@ -210,7 +210,7 @@ export default function AdminFacultyList() {
   const deptOptions = useMemo(() => {
     const set = new Set()
     for (const f of faculty) {
-      const d = (f.summary?.department || '').trim()
+      const d = (f.summary?.department || f.department || '').trim()
       if (d) set.add(d)
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b))
