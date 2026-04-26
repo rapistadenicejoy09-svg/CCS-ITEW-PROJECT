@@ -145,13 +145,8 @@ export default function FacultyOfficeHours() {
                   </tr>
                 ))
               })}
-<<<<<<< HEAD:src/pages/FacultyOfficeHours.jsx
               {officeHours.length === 0 && (
-                <tr><td colSpan="5" className="empty-state py-12">No office hours configured.</td></tr>
-=======
-              {consultations.length === 0 && (
-                <tr><td colSpan="5" className="px-6 py-12 text-center text-[var(--text-muted)] text-sm">No consultation hours configured.</td></tr>
->>>>>>> e8723d75f533078e698bd249a922cfe8eed08f3e:src/pages/FacultyConsultation.jsx
+                <tr><td colSpan="5" className="px-6 py-12 text-center text-[var(--text-muted)] text-sm">No office hours configured.</td></tr>
               )}
               </tbody>
             </table>
