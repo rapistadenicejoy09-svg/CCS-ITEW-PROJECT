@@ -50,7 +50,7 @@ function formatFacultyRole(role) {
   if (role === 'department_chair') return 'Department Chair'
   if (role === 'secretary') return 'College Secretary'
   if (role === 'faculty_professor') return 'Professor'
-  if (role === 'faculty') return 'Faculty (Basic)'
+  if (role === 'faculty') return 'Professor'
   return 'Faculty'
 }
 
@@ -120,11 +120,12 @@ export default function AdminFacultyList() {
   const [faculty, setFaculty] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [successModal, setSuccessModal] = useState({ open: false, message: '' })
+  const [successModal, setSuccessModal] = useState({ open: false, title: 'Success', message: '', useBlurBackdrop: true })
 
   const [search, setSearch] = useState('')
   const [filterRole, setFilterRole] = useState('')
   const [filterDept, setFilterDept] = useState('')
+  const [filterStatus, setFilterStatus] = useState('active')
 
   const [showFilters, setShowFilters] = useState(false)
   const [viewMode, setViewMode] = useState('grid')
@@ -151,7 +152,7 @@ export default function AdminFacultyList() {
       const facultyOnly = users.filter(u =>
         ['dean', 'department_chair', 'secretary', 'faculty_professor', 'faculty'].includes(u.role)
       )
-      setFaculty(facultyOnly.filter(isUserActive))
+      setFaculty(facultyOnly)
     } catch (err) {
       setError(err?.message || 'Failed to load faculty.')
     } finally {
@@ -166,6 +167,20 @@ export default function AdminFacultyList() {
     }
     loadFaculty()
   }, [isAdmin, loadFaculty])
+
+  useEffect(() => {
+    if (!location.state?.facultyCreated) return
+    const createdName = String(location.state.createdFacultyName || '').trim()
+    setSuccessModal({
+      open: true,
+      title: 'Faculty profile created',
+      useBlurBackdrop: false,
+      message: createdName
+        ? `Faculty profile for ${createdName} was created successfully.`
+        : 'Faculty profile created successfully.',
+    })
+    navigate(location.pathname, { replace: true, state: {} })
+  }, [location.state?.facultyCreated, location.state?.createdFacultyName, location.pathname, navigate])
 
   function closeDeleteModal() {
     setDeleteTarget(null)
@@ -186,6 +201,8 @@ export default function AdminFacultyList() {
       await loadFaculty()
       setSuccessModal({
         open: true,
+        title: 'Faculty account deactivated',
+        useBlurBackdrop: true,
         message: `${getFacultyName(target)} has been deactivated successfully.`,
       })
     } catch (err) {
@@ -212,11 +229,13 @@ export default function AdminFacultyList() {
       }
       if (filterRole && f.role !== filterRole) return false
       if (filterDept && getFacultyDept(f) !== filterDept) return false
+      if (filterStatus === 'active' && !isUserActive(f)) return false
+      if (filterStatus === 'inactive' && isUserActive(f)) return false
       return true
     })
-  }, [faculty, search, filterRole, filterDept])
+  }, [faculty, search, filterRole, filterDept, filterStatus])
 
-  const hasActiveFilters = Boolean(search.trim() || filterRole || filterDept)
+  const hasActiveFilters = Boolean(search.trim() || filterRole || filterDept || filterStatus !== 'active')
 
   if (!isAdmin) {
     return <div className="p-8 text-center text-[var(--text-muted)]">Administrators only.</div>
@@ -301,7 +320,7 @@ export default function AdminFacultyList() {
 
           {showFilters && (
             <div className="mt-5 pt-5 border-t border-[var(--border-color)] animate-fade-in">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs text-[var(--text-muted)] uppercase tracking-wider font-semibold ml-1">System Role</label>
                   <select
@@ -330,12 +349,24 @@ export default function AdminFacultyList() {
                     ))}
                   </select>
                 </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs text-[var(--text-muted)] uppercase tracking-wider font-semibold ml-1">Account Status</label>
+                  <select
+                    className="search-input appearance-none w-full"
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
               </div>
 
               {hasActiveFilters && (
                 <div className="mt-5 flex justify-end">
                   <button
-                    onClick={() => { setSearch(''); setFilterRole(''); setFilterDept(''); }}
+                    onClick={() => { setSearch(''); setFilterRole(''); setFilterDept(''); setFilterStatus('active'); }}
                     className="px-5 py-2 rounded-full border border-[var(--border-color)] bg-transparent hover:bg-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text)] text-sm font-medium transition-colors"
                   >
                     Clear all filters
@@ -370,19 +401,21 @@ export default function AdminFacultyList() {
             <>
               {viewMode === 'grid' && (
                 <div className="admin-student-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                  {filteredFaculty.map((f, idx) => (
-                    <div
-                      key={f.id}
-                      className="admin-student-card group flex flex-col bg-[var(--card-bg)] border border-[var(--border-color)] hover:border-[var(--accent)] rounded-[var(--radius-md)] overflow-hidden admin-student-card-animate"
-                      style={{ animationDelay: `${Math.min(idx, 14) * 0.055}s` }}
-                    >
+                  {filteredFaculty.map((f, idx) => {
+                    const active = isUserActive(f)
+                    return (
+                      <div
+                        key={f.id}
+                        className="admin-student-card group flex flex-col bg-[var(--card-bg)] border border-[var(--border-color)] hover:border-[var(--accent)] rounded-[var(--radius-md)] overflow-hidden admin-student-card-animate"
+                        style={{ animationDelay: `${Math.min(idx, 14) * 0.055}s` }}
+                      >
                       <div className="p-5 pb-3 border-b border-[var(--border-color)] flex justify-between items-start">
                         <div>
                           <h3 className="text-base font-bold text-[var(--text)] mb-0.5 leading-tight">{getFacultyName(f)}</h3>
                           <p className="text-[var(--accent)] font-mono text-xs">{f.email}</p>
                         </div>
-                        <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400`}>
-                          Active
+                        <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'}`}>
+                          {active ? 'Active' : 'Inactive'}
                         </span>
                       </div>
 
@@ -417,6 +450,7 @@ export default function AdminFacultyList() {
                       <div className="p-3 bg-[rgba(0,0,0,0.02)] flex justify-end gap-2 border-t border-[var(--border-color)]">
                         <button
                           className="flex items-center justify-center px-3 py-1.5 bg-rose-50/50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 rounded-lg border border-rose-200 transition-all font-medium text-xs disabled:opacity-30"
+                          disabled={!active}
                           onClick={() => setDeleteTarget(f)}
                         >
                           <IconTrash />
@@ -429,7 +463,8 @@ export default function AdminFacultyList() {
                         </Link>
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
 
@@ -513,9 +548,10 @@ export default function AdminFacultyList() {
       )}
       <SuccessModal
         open={successModal.open}
-        title="Faculty account deactivated"
+        title={successModal.title}
         message={successModal.message}
-        onClose={() => setSuccessModal({ open: false, message: '' })}
+        useBlurBackdrop={successModal.useBlurBackdrop}
+        onClose={() => setSuccessModal({ open: false, title: 'Success', message: '', useBlurBackdrop: true })}
       />
     </div>
   )

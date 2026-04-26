@@ -1,24 +1,22 @@
 import { useMemo, useState, useEffect } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import { apiAdminUsers } from '../lib/api'
+import {
+  apiAdminUsers,
+  apiFacultyDirectory,
+  apiGetEvents,
+  apiResearchList,
+  apiGetInstructions,
+} from '../lib/api'
+import { getSchedules } from '../lib/schedulingStore'
 
 const MODULES = [
   { id: 'student-profile', code: '1.1', title: 'Student List', path: '/student-profile' },
-  { id: 'faculty-profile', code: '1.2', title: 'Faculty Profile', path: '/faculty-profile' },
+  { id: 'faculty-profile', code: '1.2', title: 'Faculty List', path: '/admin/faculty' },
   { id: 'events', code: '1.3', title: 'Events', path: '/events' },
   { id: 'scheduling', code: '1.4', title: 'Scheduling', path: '/scheduling' },
   { id: 'college-research', code: '1.5', title: 'College Research', path: '/college-research' },
   { id: 'instructions', code: '1.6', title: 'Instructions', path: '/instructions' },
 ]
-
-/** Placeholder counts for modules not backed by DB yet (admin cards only). */
-const STATIC_MODULE_DISPLAY = {
-  'faculty-profile': 8,
-  events: 4,
-  scheduling: 6,
-  'college-research': 2,
-  instructions: 5,
-}
 
 function dashboardStudentDisplayName(u) {
   const fn = String(u.first_name || u.personal_information?.first_name || '').trim()
@@ -74,12 +72,19 @@ function useTodayParts() {
 
 export default function Dashboard() {
   const [role, setRole] = useState(() => getRole())
-  if (role === 'faculty') return <Navigate to="/faculty-dashboard" replace />
+  if (['faculty', 'faculty_professor', 'dean', 'department_chair', 'secretary'].includes(role)) {
+    return <Navigate to="/faculty-dashboard" replace />
+  }
   const [modules, setModules] = useState(MODULES)
   const [search, setSearch] = useState('')
   const query = search.toLowerCase()
 
   const [studentCount, setStudentCount] = useState(0)
+  const [facultyCount, setFacultyCount] = useState(0)
+  const [eventsCount, setEventsCount] = useState(0)
+  const [scheduleCount, setScheduleCount] = useState(0)
+  const [researchCount, setResearchCount] = useState(0)
+  const [instructionsCount, setInstructionsCount] = useState(0)
   const [quickRows, setQuickRows] = useState([])
   const [statsLoading, setStatsLoading] = useState(false)
   const [statsError, setStatsError] = useState('')
@@ -91,7 +96,7 @@ export default function Dashboard() {
 
   const isAdmin = role === 'admin'
   const isStudent = role === 'student'
-  const isFaculty = role === 'faculty'
+  const isFaculty = ['faculty', 'faculty_professor', 'dean', 'department_chair', 'secretary'].includes(role)
 
   useEffect(() => {
     const r = getRole()
@@ -115,25 +120,86 @@ export default function Dashboard() {
     if (!token) return
     setStatsError('')
     setStatsLoading(true)
-    apiAdminUsers(token)
-      .then((res) => {
-        const users = Array.isArray(res.users) ? res.users : []
-        const students = users.filter((u) => u.role === 'student')
-        setStudentCount(students.length)
-        setQuickRows(
-          students.map((u) => ({
-            id: u.id,
-            type: 'student',
-            module: 'student-profile',
-            detailPath: `/admin/student/${u.id}`,
-            name: dashboardStudentDisplayName(u),
-            meta: dashboardStudentMeta(u),
-          })),
-        )
+    Promise.allSettled([
+      apiAdminUsers(token),
+      apiFacultyDirectory(token),
+      apiGetEvents(token),
+      apiResearchList(token, { scope: 'all' }),
+      apiGetInstructions(token),
+      getSchedules(),
+    ])
+      .then((results) => {
+        const [usersRes, facultyRes, eventsRes, researchRes, instructionsRes, schedulesRes] = results
+
+        if (usersRes.status === 'fulfilled') {
+          const users = Array.isArray(usersRes.value?.users) ? usersRes.value.users : []
+          const students = users.filter((u) => u.role === 'student')
+          setStudentCount(students.length)
+          setQuickRows(
+            students.map((u) => ({
+              id: u.id,
+              type: 'student',
+              module: 'student-profile',
+              detailPath: `/admin/student/${u.id}`,
+              name: dashboardStudentDisplayName(u),
+              meta: dashboardStudentMeta(u),
+            })),
+          )
+        } else {
+          setStudentCount(0)
+          setQuickRows([])
+        }
+
+        if (facultyRes.status === 'fulfilled') {
+          const faculty = Array.isArray(facultyRes.value?.faculty) ? facultyRes.value.faculty : []
+          const active = faculty.filter((f) => f?.is_active !== 0 && f?.is_active !== false)
+          setFacultyCount(active.length)
+        } else {
+          setFacultyCount(0)
+        }
+
+        if (eventsRes.status === 'fulfilled') {
+          const ev = Array.isArray(eventsRes.value?.events) ? eventsRes.value.events : []
+          setEventsCount(ev.length)
+        } else {
+          setEventsCount(0)
+        }
+
+        if (schedulesRes.status === 'fulfilled') {
+          const sc = Array.isArray(schedulesRes.value) ? schedulesRes.value : []
+          setScheduleCount(sc.length)
+        } else {
+          setScheduleCount(0)
+        }
+
+        if (researchRes.status === 'fulfilled') {
+          const items = Array.isArray(researchRes.value?.items) ? researchRes.value.items : []
+          setResearchCount(items.length)
+        } else {
+          setResearchCount(0)
+        }
+
+        if (instructionsRes.status === 'fulfilled') {
+          const inst = Array.isArray(instructionsRes.value?.instructions) ? instructionsRes.value.instructions : []
+          setInstructionsCount(inst.length)
+        } else {
+          setInstructionsCount(0)
+        }
+
+        const failures = results.filter((r) => r.status === 'rejected')
+        if (failures.length) {
+          const msg = failures[0]?.reason?.message || 'Some dashboard stats could not be loaded.'
+          setStatsError(msg)
+        }
       })
       .catch((e) => {
-        setStatsError(e?.message || 'Could not load student list.')
+        setStatsError(e?.message || 'Could not load dashboard stats.')
         setStudentCount(0)
+        setFacultyCount(0)
+        setEventsCount(0)
+        setScheduleCount(0)
+        setResearchCount(0)
+        setInstructionsCount(0)
         setQuickRows([])
       })
       .finally(() => setStatsLoading(false))
@@ -348,14 +414,26 @@ export default function Dashboard() {
                   </div>
                 ))
                 : modules.map((m) => {
-                  const isLiveStudent = m.id === 'student-profile'
-                  const n = isLiveStudent ? studentCount : STATIC_MODULE_DISPLAY[m.id] ?? '—'
+                  const n =
+                    m.id === 'student-profile'
+                      ? studentCount
+                      : m.id === 'faculty-profile'
+                        ? facultyCount
+                        : m.id === 'events'
+                          ? eventsCount
+                          : m.id === 'scheduling'
+                            ? scheduleCount
+                            : m.id === 'college-research'
+                              ? researchCount
+                              : m.id === 'instructions'
+                                ? instructionsCount
+                                : '—'
                   return (
                     <SummaryCard
                       key={m.id}
                       label={m.title}
                       value={n}
-                      hint={isLiveStudent && studentCount === 0 ? 'No students yet' : undefined}
+                      hint={m.id === 'student-profile' && studentCount === 0 ? 'No students yet' : undefined}
                       link={m.path}
                     />
                   )

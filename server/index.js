@@ -556,7 +556,7 @@ async function registerUserFromRequest(req, res, { role: roleFixed } = {}) {
   let emailStored = null
   let classSection = null
   let studentType = null
-  let department = String(req.body?.department || '').trim() || null
+  let department = String(req.body?.department || req.body?.summary?.department || '').trim() || null
   let specialization = String(req.body?.specialization || req.body?.summary?.specialization || '').trim() || null
   let bio = String(req.body?.bio || '').trim() || null
 

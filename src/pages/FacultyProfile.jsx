@@ -229,6 +229,15 @@ export default function FacultyProfile() {
   const displayName = profile?.displayName || 'Faculty'
   const heroLetter = displayName.charAt(0).toUpperCase()
   const s = profile?.summary || {}
+  const legacyDepartment = String(
+    profile?.department ||
+    s?.department ||
+    profile?.personal_information?.department ||
+    profile?.personal_information?.Department ||
+    '',
+  ).trim()
+  const displayDepartment = legacyDepartment || '—'
+  const displaySpecialization = String(profile?.specialization || s?.specialization || '').trim() || '—'
   const firstName = profile?.firstName || profile?.first_name || profile?.personal_information?.first_name || '—'
   const middleName = profile?.middleName || profile?.middle_name || profile?.personal_information?.middle_name || '—'
   const lastName = profile?.lastName || profile?.last_name || profile?.personal_information?.last_name || '—'
@@ -247,13 +256,13 @@ export default function FacultyProfile() {
           {profile?.role === 'dean' ? 'College Dean' :
             profile?.role === 'department_chair' ? 'Department Chair' :
               profile?.role === 'secretary' ? 'College Secretary' :
-                profile?.role === 'faculty_professor' ? 'Professor' : 'Professional Educator'}
+                profile?.role === 'faculty_professor' || profile?.role === 'faculty' ? 'Professor' : 'Professional Educator'}
         </p>
 
         <div className="faculty-stats">
           <div className="faculty-stat">
             <span className="faculty-stat-label">Specialization</span>
-            <span className="faculty-stat-value">{profile?.specialization || '—'}</span>
+            <span className="faculty-stat-value">{displaySpecialization}</span>
           </div>
           <div className="faculty-stat-divider" />
           <div className="faculty-stat">
@@ -263,7 +272,7 @@ export default function FacultyProfile() {
           <div className="faculty-stat-divider" />
           <div className="faculty-stat">
             <span className="faculty-stat-label">Department</span>
-            <span className="faculty-stat-value">{profile?.department || '—'}</span>
+            <span className="faculty-stat-value">{displayDepartment}</span>
           </div>
         </div>
       </div>
@@ -450,7 +459,7 @@ export default function FacultyProfile() {
               <div className="auth-field">
                 <label className="auth-label">System Role</label>
                 <select className="search-input" value={roleDraft} onChange={e => setRoleDraft(e.target.value)}>
-                  <option value="faculty">Faculty (Basic)</option>
+                  <option value="faculty">Professor</option>
                   <option value="faculty_professor">Professor</option>
                   <option value="dean">Dean</option>
                   <option value="department_chair">Department Chair</option>

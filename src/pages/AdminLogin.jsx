@@ -2,6 +2,14 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiLogin } from '../lib/api'
 
+function resolveLandingPathForRole(role) {
+  if (role === 'student') return '/'
+  if (['faculty', 'faculty_professor', 'dean', 'department_chair', 'secretary'].includes(role)) {
+    return '/faculty-dashboard'
+  }
+  return '/'
+}
+
 export default function AdminLogin() {
   const navigate = useNavigate()
   const [form, setForm] = useState({ email: '', password: '', twoFACode: '' })
@@ -44,7 +52,7 @@ export default function AdminLogin() {
         })
         localStorage.setItem('authToken', result.token)
         localStorage.setItem('authUser', JSON.stringify(result.user))
-        navigate('/')
+        navigate(resolveLandingPathForRole(result?.user?.role), { replace: true })
       } catch (err) {
         if (err?.data?.error === 'Two-factor required') {
           setStep('2fa')
@@ -77,7 +85,7 @@ export default function AdminLogin() {
         })
         localStorage.setItem('authToken', result.token)
         localStorage.setItem('authUser', JSON.stringify(result.user))
-        navigate('/')
+        navigate(resolveLandingPathForRole(result?.user?.role), { replace: true })
       } catch (err) {
         setError(err?.message || 'Invalid backup code.')
       } finally {

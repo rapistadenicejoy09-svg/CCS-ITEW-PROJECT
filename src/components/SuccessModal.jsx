@@ -1,11 +1,11 @@
-export default function SuccessModal({ open, title = 'Success', message, onClose, confirmLabel = 'OK' }) {
+export default function SuccessModal({ open, title = 'Success', message, onClose, confirmLabel = 'OK', useBlurBackdrop = true }) {
   if (!open) return null
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <button
         type="button"
-        className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
+        className={`absolute inset-0 bg-black/40 ${useBlurBackdrop ? 'backdrop-blur-[2px]' : ''}`}
         aria-label="Close dialog"
         onClick={onClose}
       />

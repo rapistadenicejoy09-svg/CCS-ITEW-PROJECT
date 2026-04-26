@@ -102,6 +102,7 @@ export default function AdminCreateStudent() {
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
   const [skillInput, setSkillInput] = useState('')
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -228,6 +229,7 @@ export default function AdminCreateStudent() {
         state: {
           studentCreated: true,
           createdStudentId: formData.studentId.trim(),
+          createdStudentName: [formData.firstName, formData.middleName, formData.lastName].filter(Boolean).join(' ').trim(),
         },
       })
     } catch (err) {
@@ -262,7 +264,7 @@ export default function AdminCreateStudent() {
             <Link to="/student-profile" className="btn btn-secondary">
               ← Cancel
             </Link>
-            <button type="button" onClick={handleCreate} disabled={creating} className="btn btn-primary">
+            <button type="button" onClick={() => setConfirmOpen(true)} disabled={creating} className="btn btn-primary">
               {creating ? 'Creating Profile...' : 'Save Profile'}
             </button>
           </div>
@@ -549,6 +551,38 @@ export default function AdminCreateStudent() {
         </Card>
 
       </div>
+
+      {confirmOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/60"
+            onClick={() => setConfirmOpen(false)}
+            aria-label="Close confirmation"
+          />
+          <div className="relative w-full max-w-md bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] p-6 shadow-2xl">
+            <h2 className="text-lg font-bold text-[var(--text)]">Confirm student profile creation</h2>
+            <p className="mt-2 text-sm text-[var(--text-muted)]">
+              Proceed with saving this new student profile?
+            </p>
+            <div className="mt-6 flex justify-end gap-2">
+              <button type="button" className="btn btn-secondary" onClick={() => setConfirmOpen(false)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={(e) => {
+                  setConfirmOpen(false)
+                  handleCreate(e)
+                }}
+              >
+                Confirm and Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

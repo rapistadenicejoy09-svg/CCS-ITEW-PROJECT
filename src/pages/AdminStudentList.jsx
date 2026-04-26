@@ -97,13 +97,14 @@ export default function AdminStudentList() {
   const [students, setStudents] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [successModal, setSuccessModal] = useState({ open: false, message: '' })
+  const [successModal, setSuccessModal] = useState({ open: false, title: 'Success', message: '', useBlurBackdrop: true })
 
   const [search, setSearch] = useState('')
   const [filterSection, setFilterSection] = useState('')
   const [filterType, setFilterType] = useState('')
   const [filterSkill, setFilterSkill] = useState('')
   const [filterAffiliation, setFilterAffiliation] = useState('')
+  const [filterStatus, setFilterStatus] = useState('active')
 
   const [showFilters, setShowFilters] = useState(false)
   const [viewMode, setViewMode] = useState('grid')
@@ -127,7 +128,7 @@ export default function AdminStudentList() {
       if (filterAffiliation.trim()) query.affiliation = filterAffiliation.trim()
       const result = await apiAdminStudents(token, query)
       const rawStudents = Array.isArray(result?.students) ? result.students : []
-      setStudents(rawStudents.filter(isUserActive))
+      setStudents(rawStudents)
     } catch (err) {
       setError(err?.message || 'Failed to load students.')
     } finally {
@@ -146,14 +147,19 @@ export default function AdminStudentList() {
   useEffect(() => {
     if (!location.state?.studentCreated) return
     const id = location.state.createdStudentId
+    const name = String(location.state.createdStudentName || '').trim()
     setSuccessModal({
       open: true,
-      message: id
-        ? `Student account created successfully. Student ID: ${id}.`
-        : 'Student account created successfully.',
+      title: 'Student profile created',
+      useBlurBackdrop: false,
+      message: name && id
+        ? `Student profile for ${name} was created successfully. Student ID: ${id}.`
+        : id
+          ? `Student account created successfully. Student ID: ${id}.`
+          : 'Student account created successfully.',
     })
     navigate(location.pathname, { replace: true, state: {} })
-  }, [location.state?.studentCreated, location.state?.createdStudentId, location.pathname, navigate])
+  }, [location.state?.studentCreated, location.state?.createdStudentId, location.state?.createdStudentName, location.pathname, navigate])
 
   function closeDeleteModal() {
     setDeleteTarget(null)
@@ -174,6 +180,8 @@ export default function AdminStudentList() {
       await loadStudents()
       setSuccessModal({
         open: true,
+        title: 'Student profile deactivated',
+        useBlurBackdrop: true,
         message: `${target.full_name || displayStudentId(target)}'s profile has been deactivated.`,
       })
     } catch (err) {
@@ -211,12 +219,14 @@ export default function AdminStudentList() {
         const t = (s.student_type || 'regular').toLowerCase()
         if (t !== filterType) return false
       }
+      if (filterStatus === 'active' && !isUserActive(s)) return false
+      if (filterStatus === 'inactive' && isUserActive(s)) return false
       return true
     })
-  }, [students, search, filterSection, filterType])
+  }, [students, search, filterSection, filterType, filterStatus])
 
   const hasActiveFilters = Boolean(
-    search.trim() || filterSection || filterType || filterSkill.trim() || filterAffiliation.trim()
+    search.trim() || filterSection || filterType || filterSkill.trim() || filterAffiliation.trim() || filterStatus !== 'active'
   )
 
   if (!isAdmin) {
@@ -273,7 +283,7 @@ export default function AdminStudentList() {
                 className={`btn flex items-center gap-2 ${showFilters || hasActiveFilters ? 'btn-primary' : 'btn-secondary'}`}
               >
                 <IconFilter /> Filters
-                {(filterSection || filterType || filterSkill || filterAffiliation) && (
+                {(filterSection || filterType || filterSkill || filterAffiliation || filterStatus !== 'active') && (
                   <span className={`w-1.5 h-1.5 rounded-full ${showFilters || hasActiveFilters ? 'bg-[#1a0d05]' : 'bg-[var(--accent)]'}`} />
                 )}
               </button>
@@ -300,7 +310,7 @@ export default function AdminStudentList() {
 
           {showFilters && (
             <div className="mt-5 md:mt-6 pt-5 md:pt-6 border-t border-[var(--border-color)] animate-fade-in">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs text-[var(--text-muted)] uppercase tracking-wider font-semibold ml-1">Section</label>
                   <select
@@ -341,6 +351,18 @@ export default function AdminStudentList() {
                 </div>
 
                 <div className="flex flex-col gap-1.5">
+                  <label className="text-xs text-[var(--text-muted)] uppercase tracking-wider font-semibold ml-1">Status</label>
+                  <select
+                    className="search-input appearance-none w-full"
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
                   <label className="text-xs text-[var(--text-muted)] uppercase tracking-wider font-semibold ml-1">Affiliation</label>
                   <input
                     type="text"
@@ -356,7 +378,7 @@ export default function AdminStudentList() {
                 <div className="mt-5 flex justify-end">
                   <button
                     onClick={() => {
-                      setSearch(''); setFilterSection(''); setFilterType(''); setFilterSkill(''); setFilterAffiliation('');
+                      setSearch(''); setFilterSection(''); setFilterType(''); setFilterStatus('active'); setFilterSkill(''); setFilterAffiliation('');
                     }}
                     className="px-5 py-2 rounded-full border border-[var(--border-color)] bg-transparent hover:bg-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text)] text-sm font-medium transition-colors"
                   >
@@ -621,9 +643,10 @@ export default function AdminStudentList() {
 
       <SuccessModal
         open={successModal.open}
-        title="Student created"
+        title={successModal.title}
         message={successModal.message}
-        onClose={() => setSuccessModal({ open: false, message: '' })}
+        useBlurBackdrop={successModal.useBlurBackdrop}
+        onClose={() => setSuccessModal({ open: false, title: 'Success', message: '', useBlurBackdrop: true })}
       />
 
       {deleteTarget && (
