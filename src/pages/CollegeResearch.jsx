@@ -1,4 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { Link } from 'react-router-dom'
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal'
 import {
   apiResearchList,
@@ -181,6 +183,25 @@ function roleLabel(role) {
   if (role === 'department_chair') return 'Chair'
   if (role === 'faculty_professor') return 'Professor'
   return role || ''
+}
+
+function getInitials(name) {
+  if (!name) return '?'
+  const parts = name.split(' ').filter(Boolean)
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+  }
+  return name.substring(0, 2).toUpperCase()
+}
+
+function SummaryCard({ label, value, hint, link }) {
+  return (
+    <Link to={link || '#'} className="summary-card">
+      <div className="summary-label">{label}</div>
+      <div className="summary-value text-[var(--accent)]">{value}</div>
+      {hint ? <div className="summary-hint">{hint}</div> : null}
+    </Link>
+  )
 }
 
 function getAdminLoginIdentifier() {
@@ -490,30 +511,36 @@ export default function CollegeResearch() {
     setAppliedLibraryFilters({ year: '', course: '', keyword: '', author: '' })
   }
 
-  function StatBarList({ title, rows, valueLabel }) {
+  function StatBarList({ title, rows, valueLabel, icon }) {
     const safe = Array.isArray(rows) ? rows : []
     const max = safe.reduce((m, r) => Math.max(m, Number(r?.[1]) || 0), 0) || 1
     return (
-      <div className="college-research-stat-card college-research-graph-card">
-        <div className="college-research-graph-head">
-          <span className="college-research-stat-label">{title}</span>
-          {valueLabel ? <span className="college-research-graph-meta">{valueLabel}</span> : null}
+      <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] p-6 shadow-sm hover:shadow-md transition-all duration-300 h-full">
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-3">
+            {icon && <div className="p-2 bg-[var(--accent-soft)] text-[var(--accent)] rounded-lg">{icon}</div>}
+            <h3 className="text-sm font-bold text-[var(--text)] uppercase tracking-wide">{title}</h3>
+          </div>
+          {valueLabel ? <span className="text-[10px] text-[var(--text-muted)] font-bold uppercase tracking-widest">{valueLabel}</span> : null}
         </div>
-        <div className="college-research-barlist">
+        <div className="space-y-4">
           {safe.length === 0 ? (
-            <div className="empty-state" style={{ padding: '18px 0' }}>No data.</div>
+            <div className="text-center py-10 text-[var(--text-muted)] text-sm italic">No data available.</div>
           ) : (
             safe.map(([k, v]) => {
               const n = Number(v) || 0
               const pct = Math.max(0, Math.min(100, (n / max) * 100))
               return (
-                <div key={k} className="college-research-barrow">
-                  <div className="college-research-barrow-top">
-                    <span className="college-research-barrow-label" title={k}>{k}</span>
-                    <span className="college-research-barrow-val">{n}</span>
+                <div key={k} className="group">
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-xs font-semibold text-[var(--text-muted)] group-hover:text-[var(--text)] transition-colors" title={k}>{k}</span>
+                    <span className="text-xs font-bold text-[var(--accent)]">{n}</span>
                   </div>
-                  <div className="college-research-bartrack" aria-hidden="true">
-                    <div className="college-research-barfill" style={{ width: `${pct}%` }} />
+                  <div className="h-1.5 w-full bg-[rgba(255,255,255,0.05)] rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-[var(--accent-soft)] to-[var(--accent)] rounded-full transition-all duration-1000 ease-out"
+                      style={{ width: `${pct}%` }}
+                    />
                   </div>
                 </div>
               )
@@ -886,52 +913,59 @@ export default function CollegeResearch() {
           </div>
         ) : null}
 
-        {showForm && canCreate ? (
+        {showForm && canCreate ? createPortal(
           <div
-            className="modal-overlay college-research-modal-overlay"
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8"
             role="presentation"
-            onMouseDown={(e) => {
-              if (e.target === e.currentTarget) {
+          >
+            {/* Background overlay */}
+            <div
+              className="absolute inset-0 bg-black/60 transition-opacity"
+              onClick={() => {
                 setShowForm(false)
                 setShowSubmitConfirm(false)
                 setPendingSubmitMode(null)
-              }
-            }}
-          >
-            <section className="modal-card college-research-form-modal-card college-research-form-panel-relative" role="dialog" aria-modal="true" aria-labelledby="cr-form-title">
-              <header className="college-research-modal-header">
-                <div className="college-research-modal-header-text">
-                  <h3 id="cr-form-title" className="college-research-modal-title">
+              }}
+            />
+
+            <section
+              className="relative bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl animate-in fade-in zoom-in duration-300"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="cr-form-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <header className="p-6 border-b border-[var(--border-color)] flex justify-between items-start shrink-0">
+                <div className="space-y-1">
+                  <h3 id="cr-form-title" className="text-xl font-bold text-[var(--text)] tracking-tight">
                     New research record
                   </h3>
-                  <p className="college-research-modal-subtitle">
-                    Create a draft first, then attach a PDF and submit when ready. Required fields: title, abstract, and year.
+                  <p className="text-xs text-[var(--text-muted)] font-medium">
+                    Draft automatically saved. Complete mandatory fields to submit.
                   </p>
                 </div>
                 <button
                   type="button"
-                  className="college-research-modal-close"
-                  aria-label="Close new research record form"
+                  className="p-2 hover:bg-[var(--accent-soft)] text-[var(--text-muted)] hover:text-[var(--accent)] rounded-lg transition-colors"
+                  aria-label="Close form"
                   onClick={() => {
                     setShowForm(false)
                     setShowSubmitConfirm(false)
                     setPendingSubmitMode(null)
                   }}
                 >
-                  ×
+                  <CrIconClose />
                 </button>
               </header>
 
               <form
-                className="college-research-form"
-                onSubmit={(e) => {
-                  e.preventDefault()
-                }}
+                className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar"
+                onSubmit={(e) => e.preventDefault()}
               >
                 {submitting ? (
-                  <div className="college-research-form-loading" aria-busy="true" role="status">
-                    <div className="college-research-spinner" />
-                    <span>Saving your record…</span>
+                  <div className="absolute inset-0 z-20 bg-[var(--card-bg)]/80 backdrop-blur-md flex flex-col items-center justify-center gap-4 rounded-2xl" aria-busy="true" role="status">
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[var(--accent)]" />
+                    <span className="font-bold text-[var(--accent)] animate-pulse">Publishing record…</span>
                   </div>
                 ) : null}
 
@@ -1181,82 +1215,78 @@ export default function CollegeResearch() {
                     </label>
                   ) : null}
                 </div>
-                <div className="college-research-form-actions">
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    disabled={submitting || !isDraftValid}
-                    onClick={() => requestSubmit('draft')}
-                    title={!isDraftValid ? 'Complete required fields first' : ''}
-                  >
-                    Save draft
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    disabled={submitting || !isSubmitValid}
-                    onClick={() => requestSubmit('submit')}
-                    title={!isSubmitValid ? 'Complete all required fields and attach a PDF' : ''}
-                  >
-                    Submit for review
-                  </button>
-                </div>
+                {/* Sticky footer with form actions */}
               </form>
-            </section>
-          </div>
-        ) : null}
 
-        {showSubmitConfirm && pendingSubmitMode ? (
-          <div className="modal-overlay college-research-modal-overlay" role="presentation">
-            <div className="modal-card college-research-confirm-card" role="dialog" aria-modal="true" aria-labelledby="cr-confirm-title">
-              <h3 id="cr-confirm-title" className="modal-title">
-                {pendingSubmitMode === 'draft' ? 'Save draft?' : 'Submit for review?'}
-              </h3>
-              <div className="college-research-confirm-body">
-                <p>
-                  <strong>Title:</strong> {form.title.trim() || '—'}
-                </p>
-                <p>
-                  <strong>Year / course:</strong> {form.year} · {form.course}
-                </p>
-                <p>
-                  <strong>Type:</strong> {RESEARCH_TYPES.find((t) => t.value === form.researchType)?.label || form.researchType}
-                </p>
-                {form.adviserFacultyId ? (
-                  <p>
-                    <strong>Adviser:</strong>{' '}
-                    {advisers.find((a) => String(a.id) === String(form.adviserFacultyId))?.displayName || 'Selected'}
-                  </p>
-                ) : null}
-                <p>
-                  <strong>Co-authors:</strong>{' '}
-                  {form.coAuthorIds.length
-                    ? form.coAuthorIds.map((id) => coAuthorLabels[id] || `#${id}`).join(', ')
-                    : 'None'}
-                </p>
-                <p>
-                  <strong>PDF:</strong> {form.file ? form.file.name : pendingSubmitMode === 'draft' ? 'None (draft)' : '—'}
-                </p>
-              </div>
-              <div className="modal-actions">
+              <div className="p-6 pt-4 border-t border-[var(--border-color)] flex justify-end gap-3 shrink-0 bg-[var(--card-bg)] rounded-b-2xl">
                 <button
                   type="button"
                   className="btn btn-secondary"
-                  disabled={submitting}
-                  onClick={() => {
-                    setShowSubmitConfirm(false)
-                    setPendingSubmitMode(null)
-                  }}
+                  disabled={submitting || !isDraftValid}
+                  onClick={() => requestSubmit('draft')}
+                  title={!isDraftValid ? 'Complete required fields first' : ''}
                 >
-                  Cancel
+                  Save draft
                 </button>
-                <button type="button" className="btn btn-primary" disabled={submitting} onClick={confirmPendingSubmit}>
-                  {submitting ? 'Working…' : pendingSubmitMode === 'draft' ? 'Yes, save draft' : 'Yes, submit'}
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={submitting || !isSubmitValid}
+                  onClick={() => requestSubmit('submit')}
+                  title={!isSubmitValid ? 'Complete all required fields and attach a PDF' : ''}
+                >
+                  Submit for review
                 </button>
+              </div>
+            </section>
+          </div>
+        , document.body) : null}
+
+        {showSubmitConfirm && pendingSubmitMode ? createPortal(
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4" role="presentation">
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => { setShowSubmitConfirm(false); setPendingSubmitMode(null) }} />
+            <div
+              className="relative bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl w-full max-w-sm shadow-2xl"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="cr-confirm-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6">
+                <h3 id="cr-confirm-title" className="text-lg font-bold text-[var(--text)] mb-1">
+                  {pendingSubmitMode === 'draft' ? 'Save draft?' : 'Submit for review?'}
+                </h3>
+                <div className="text-sm text-[var(--text-muted)] space-y-1.5 mt-4 mb-6">
+                  <p><span className="font-bold text-[var(--text)]">{form.title.trim() || '—'}</span></p>
+                  <p>{form.year} · {form.course} · {RESEARCH_TYPES.find((t) => t.value === form.researchType)?.label || form.researchType}</p>
+                  {form.adviserFacultyId ? (
+                    <p>Adviser: {advisers.find((a) => String(a.id) === String(form.adviserFacultyId))?.displayName || 'Selected'}</p>
+                  ) : null}
+                  <p>Co-authors: {form.coAuthorIds.length ? form.coAuthorIds.map((id) => coAuthorLabels[id] || `#${id}`).join(', ') : 'None'}</p>
+                  <p>PDF: {form.file ? form.file.name : pendingSubmitMode === 'draft' ? 'None (draft)' : '—'}</p>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    className="flex-1 px-4 py-2.5 text-sm font-semibold text-[var(--text-muted)] hover:text-[var(--text)] bg-transparent hover:bg-[var(--border-color)]/30 border border-[var(--border-color)] rounded-xl transition-all"
+                    disabled={submitting}
+                    onClick={() => { setShowSubmitConfirm(false); setPendingSubmitMode(null) }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="flex-1 px-4 py-2.5 text-sm font-semibold btn btn-primary rounded-xl"
+                    disabled={submitting}
+                    onClick={confirmPendingSubmit}
+                  >
+                    {submitting ? 'Working…' : pendingSubmitMode === 'draft' ? 'Yes, save draft' : 'Yes, submit'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        ) : null}
+        , document.body) : null}
 
         {deleteTarget && (
           <ConfirmDeleteModal
@@ -1421,71 +1451,100 @@ export default function CollegeResearch() {
         </section>
 
         {tab === 'analytics' ? (
-          <section className="content-panel college-research-analytics">
+          <section className="animate-fade-in space-y-8 pb-12">
             {loading ? (
-              <div className="college-research-page-loading" role="status">
-                <div className="college-research-spinner college-research-spinner-lg" />
-                <span>Loading analytics…</span>
+              <div className="flex flex-col items-center justify-center p-24 text-[var(--accent)]">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-current" />
+                <span className="mt-4 font-medium">Analyzing research data…</span>
               </div>
             ) : analytics ? (
-              <>
-                <p className="college-research-analytics-note">
-                  {analyticsScope === 'full'
-                    ? 'Full analytics (Dean / Chair / Admin).'
-                    : 'Summary counts from published works. Request elevated access for productivity metrics.'}
-                </p>
-                <div className="college-research-stat-grid">
-                  <div className="college-research-stat-card">
-                    <span className="college-research-stat-value">{analytics.totalPublished ?? '—'}</span>
-                    <span className="college-research-stat-label">Published works</span>
-                  </div>
-                  <StatBarList
-                    title="By workflow status"
-                    rows={byStatusSorted.map(([k, v]) => [STATUS_LABELS[k] || k, v])}
+              <div className="space-y-8">
+
+                {/* Header Note
+                <div className="bg-[var(--accent-soft)] border border-[var(--accent)]/10 rounded-xl p-4 flex items-center gap-3">
+                  <div className="w-2 h-2 rounded-full bg-[var(--accent)] animate-pulse" />
+                  <p className="text-xs font-semibold text-[var(--accent)] leading-relaxed">
+                    {analyticsScope === 'full'
+                      ? 'Full analytics active (Dean / Chair / Admin access).'
+                      : 'Summary counts from published works. Productivity metrics require elevated permissions.'}
+                  </p>
+                </div> */}
+
+                {/* Summary Metrics - Matching Dashboard Style */}
+                <div className="summary-row">
+                  <SummaryCard
+                    label="Published Works"
+                    value={analytics.totalPublished ?? '0'}
+                    hint="Total archived records"
+                    link="/college-research"
                   />
+                  {byStatusSorted.map(([k, v]) => (
+                    <div key={k} className="summary-card">
+                      <div className="summary-label">{STATUS_LABELS[k] || k}</div>
+                      <div className="summary-value text-[var(--accent)]">{v}</div>
+                      <div className="summary-hint">Workflow status</div>
+                    </div>
+                  ))}
                 </div>
 
-                <div className="college-research-graph-grid">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <StatBarList
-                    title="Published per year"
+                    title="Published per Year"
+                    icon={<CrIconAllTab />}
                     rows={filteredByYearSorted.slice(0, 10)}
-                    valueLabel={analyticsSearch.trim() ? `Filtered by "${analyticsSearch.trim()}"` : 'Top 10'}
+                    valueLabel={analyticsSearch.trim() ? `Filtered by "${analyticsSearch.trim()}"` : 'Historical activity'}
                   />
                   <StatBarList
-                    title="Top categories (published)"
+                    title="Top Categories"
+                    icon={<CrIconMineTab />}
                     rows={filteredByCategorySorted.slice(0, 10)}
-                    valueLabel={analyticsSearch.trim() ? `Filtered by "${analyticsSearch.trim()}"` : 'Top 10'}
+                    valueLabel={analyticsSearch.trim() ? `Filtered by "${analyticsSearch.trim()}"` : 'Research clusters'}
                   />
                 </div>
 
-                <div className="college-research-block">
-                  <h4 className="college-research-block-title">Most active faculty (adviser + author credits)</h4>
+                <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] p-6 shadow-sm">
+                  <div className="flex justify-between items-center mb-6">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-[var(--accent-soft)] text-[var(--accent)] rounded-lg"><CrIconAdviserTab /></div>
+                      <h3 className="text-sm font-bold text-[var(--text)] uppercase tracking-wide">Most Active Researchers</h3>
+                    </div>
+                    <span className="text-[10px] bg-[var(--accent-soft)] text-[var(--accent)] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Top {analyticsTopN}</span>
+                  </div>
+
                   {filteredTopFaculty.length > 0 ? (
-                    <div className="college-research-stat-card">
-                      <ol className="college-research-ordered" style={{ margin: 0 }}>
-                        {filteredTopFaculty.map((row) => (
-                          <li key={row.userId}>
-                            {row.displayName} — <strong>{row.count}</strong>
-                          </li>
-                        ))}
-                      </ol>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {filteredTopFaculty.map((row) => (
+                        <div key={row.userId} className="flex items-center justify-between p-3 rounded-xl border border-[var(--border-color)] hover:border-[var(--accent)] transition-all bg-[var(--background)] group">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] flex items-center justify-center text-[10px] font-bold border border-[var(--accent)]/10 group-hover:bg-[var(--accent)] group-hover:text-white transition-all">
+                              {getInitials(row.displayName)}
+                            </div>
+                            <span className="text-xs font-bold text-[var(--text)] truncate max-w-[120px]">{row.displayName}</span>
+                          </div>
+                          <div className="flex items-center gap-2 pr-2">
+                            <span className="text-sm font-black text-[var(--accent)]">{row.count}</span>
+                            <span className="text-[9px] text-[var(--text-muted)] font-bold uppercase tracking-tighter">Credits</span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   ) : (
-                    <p className="empty-state" style={{ padding: '12px 0' }}>No faculty results.</p>
+                    <p className="text-center py-6 text-[var(--text-muted)] text-sm italic">No records matches your query.</p>
                   )}
                 </div>
-              </>
+
+              </div>
             ) : (
-              <p className="empty-state">No analytics yet.</p>
+              <p className="text-center py-12 text-[var(--text-muted)]">No analytics available.</p>
             )}
           </section>
         ) : loading ? (
-          <div className="college-research-page-loading content-panel" role="status">
-            <div className="college-research-spinner college-research-spinner-lg" />
-            <span>Loading records…</span>
+          <div className="flex flex-col items-center justify-center p-24 text-[var(--accent)]" role="status">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-current" />
+            <span className="mt-4 font-medium">Loading records…</span>
           </div>
         ) : (
-          <section className="content-panel">
+          <section className="space-y-6">
             {repoViewMode === 'list' ? (
               <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] overflow-hidden shadow-sm transition-shadow duration-300 hover:shadow-md">
                 <div className="overflow-x-auto">

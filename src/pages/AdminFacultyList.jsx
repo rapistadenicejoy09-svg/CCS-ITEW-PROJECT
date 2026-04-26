@@ -216,6 +216,9 @@ export default function AdminFacultyList() {
     return Array.from(set).sort((a, b) => a.localeCompare(b))
   }, [faculty])
 
+  const itemsPerPage = viewMode === 'grid' ? 9 : 10
+  const [currentPage, setCurrentPage] = useState(1)
+
   const filteredFaculty = useMemo(() => {
     const q = search.trim().toLowerCase()
     return faculty.filter((f) => {
@@ -231,6 +234,17 @@ export default function AdminFacultyList() {
       return true
     })
   }, [faculty, search, filterRole, filterDept, filterStatus])
+
+  // Reset page when filtering or changing view mode
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [search, filterRole, filterDept, filterStatus, viewMode])
+
+  const totalPages = Math.ceil(filteredFaculty.length / itemsPerPage)
+  const paginatedFaculty = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage
+    return filteredFaculty.slice(start, start + itemsPerPage)
+  }, [filteredFaculty, currentPage, itemsPerPage])
 
   const hasActiveFilters = Boolean(search.trim() || filterRole || filterDept || filterStatus !== 'active')
 
@@ -397,7 +411,7 @@ export default function AdminFacultyList() {
             <>
               {viewMode === 'grid' && (
                 <div className="admin-student-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                  {filteredFaculty.map((f, idx) => {
+                  {paginatedFaculty.map((f, idx) => {
                     const active = isUserActive(f)
                     return (
                       <div
@@ -502,7 +516,7 @@ export default function AdminFacultyList() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[var(--border-color)]">
-                        {filteredFaculty.map((f, idx) => (
+                        {paginatedFaculty.map((f, idx) => (
                           <tr
                             key={f.id}
                             className={`admin-student-list-row admin-student-table-row-enter hover:bg-[rgba(0,0,0,0.02)] ${f.is_legacy ? 'opacity-80' : ''}`}
@@ -568,6 +582,52 @@ export default function AdminFacultyList() {
                       </tbody>
                     </table>
                   </div>
+                </div>
+              )}
+              
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-2 mt-8 pb-4 admin-animate-reveal">
+                  <button
+                    onClick={() => {
+                      setCurrentPage(p => Math.max(1, p - 1))
+                      window.scrollTo({ top: 0, behavior: 'smooth' })
+                    }}
+                    disabled={currentPage === 1}
+                    className="btn btn-secondary !rounded-full px-4 py-2 disabled:opacity-50 transition-all hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
+                  >
+                    Previous
+                  </button>
+                  
+                  <div className="flex items-center gap-1.5 mx-4">
+                    {[...Array(totalPages)].map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => {
+                          setCurrentPage(i + 1)
+                          window.scrollTo({ top: 0, behavior: 'smooth' })
+                        }}
+                        className={`w-9 h-9 flex items-center justify-center rounded-full text-xs font-bold transition-all ${
+                          currentPage === i + 1
+                            ? 'bg-[var(--accent)] text-white shadow-lg scale-110'
+                            : 'bg-[var(--card-bg)] text-[var(--text-muted)] border border-[var(--border-color)] hover:border-[var(--accent)]'
+                        }`}
+                      >
+                        {i + 1}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setCurrentPage(p => Math.min(totalPages, p + 1))
+                      window.scrollTo({ top: 0, behavior: 'smooth' })
+                    }}
+                    disabled={currentPage === totalPages}
+                    className="btn btn-secondary !rounded-full px-4 py-2 disabled:opacity-50 transition-all hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
+                  >
+                    Next
+                  </button>
                 </div>
               )}
             </>
