@@ -798,6 +798,30 @@ export async function apiResearchDownloadBlob(token, id) {
   return await res.blob()
 }
 
+// --- Office Hours ---
+
+export async function apiGetOfficeHours(token) {
+  return request('/api/office-hours', {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
+export async function apiCreateOfficeHour(token, body) {
+  return request('/api/office-hours', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body),
+  })
+}
+
+export async function apiDeleteOfficeHour(token, id) {
+  return request(`/api/office-hours/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+}
+
 // --- Events Module ---
 
 export async function apiGetEvents(token, query = {}) {
