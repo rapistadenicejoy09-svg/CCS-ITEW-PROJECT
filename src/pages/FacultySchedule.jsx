@@ -283,7 +283,7 @@ export default function FacultySchedule() {
         </section>
 
         {/* Content */}
-        <section className="space-y-4 admin-student-list-section-enter">
+        <section className="space-y-4 admin-student-list-section-enter print:hidden">
           <h2 className="text-xl font-bold px-1 flex items-center gap-2 text-[var(--text)] flex-wrap">
             <span className="w-6 h-[2px] bg-[var(--accent)]" />
             {viewMode === 'timetable' ? 'Weekly timetable' : 'Class schedules'}
@@ -532,6 +532,52 @@ export default function FacultySchedule() {
             </>
           )}
         </section>
+
+        {/* PRINT ONLY VIEW */}
+        <div className="hidden print:block w-full text-black bg-white">
+          <div className="mb-4 text-center border-b pb-4 border-gray-300">
+            <h1 className="text-2xl font-bold uppercase tracking-widest">Pnc Faculty Schedule</h1>
+            <p className="text-sm mt-1">{instructorName || me?.email || 'Unknown Faculty'}</p>
+          </div>
+          <table className="w-full text-left text-sm border-collapse border border-gray-400">
+            <thead>
+              <tr className="bg-gray-100">
+                <th className="border border-gray-400 p-2 font-bold uppercase tracking-wider">Subject</th>
+                <th className="border border-gray-400 p-2 font-bold uppercase tracking-wider">Schedule</th>
+                <th className="border border-gray-400 p-2 font-bold uppercase tracking-wider">Room</th>
+                <th className="border border-gray-400 p-2 font-bold uppercase tracking-wider">Cohort</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleSchedules.map(item => (
+                <tr key={`print-${item.id}`}>
+                  <td className="border border-gray-400 p-2">
+                    <div className="font-bold">{item.subjectCode}</div>
+                    <div className="text-xs text-gray-700">{item.subjectTitle}</div>
+                  </td>
+                  <td className="border border-gray-400 p-2">
+                    <div className="font-bold">{item.day}</div>
+                    <div className="text-xs">{item.startTime} - {item.endTime}</div>
+                  </td>
+                  <td className="border border-gray-400 p-2 font-semibold">
+                    {item.room}
+                  </td>
+                  <td className="border border-gray-400 p-2">
+                    <div className="font-bold">{item.course} {item.yearLevel}</div>
+                    <div className="text-xs">Sec {item.section} &bull; {item.semester}</div>
+                  </td>
+                </tr>
+              ))}
+              {visibleSchedules.length === 0 && (
+                <tr>
+                  <td colSpan="4" className="border border-gray-400 p-4 text-center italic text-gray-500">
+                    No schedules match the current view.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )
