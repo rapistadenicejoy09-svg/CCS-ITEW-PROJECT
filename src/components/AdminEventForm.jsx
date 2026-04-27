@@ -166,6 +166,9 @@ export default function AdminEventForm({ event, onClose, onSuccess }) {
                 className="search-input w-full px-4 rounded-[var(--radius-md)] h-10 transition-all focus:ring-2 focus:ring-[var(--accent-soft)]"
                 value={formData.start_time}
                 onChange={e => setFormData({ ...formData, start_time: e.target.value })}
+                onClick={(e) => {
+                  try { e.currentTarget.showPicker(); } catch (err) { }
+                }}
               />
             </div>
 
@@ -179,6 +182,9 @@ export default function AdminEventForm({ event, onClose, onSuccess }) {
                 className="search-input w-full px-4 rounded-[var(--radius-md)] h-10 transition-all focus:ring-2 focus:ring-[var(--accent-soft)]"
                 value={formData.end_time}
                 onChange={e => setFormData({ ...formData, end_time: e.target.value })}
+                onClick={(e) => {
+                  try { e.currentTarget.showPicker(); } catch (err) { }
+                }}
               />
             </div>
 

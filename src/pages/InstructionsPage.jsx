@@ -249,9 +249,9 @@ export default function InstructionsPage() {
                       setFilterAuthor('')
                       setFilterSubject('')
                     }}
-                    className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-md transition-all whitespace-nowrap ${isActive
+                    className={`flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-md transition-all whitespace-nowrap ${isActive
                         ? 'bg-[var(--accent)] text-white shadow-md'
-                        : 'text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[rgba(255,255,255,0.05)]'
+                        : 'text-[var(--text-muted)] inactive-tab-text hover:text-[var(--text)] hover:bg-[rgba(255,255,255,0.05)] border border-transparent hover:border-[var(--border-color)]'
                       }`}
                   >
                     {tab.icon && <span className={isActive ? 'opacity-100' : 'opacity-70'}>{tab.icon}</span>}
@@ -449,7 +449,7 @@ export default function InstructionsPage() {
                       </div>
 
                       {/* Card Actions Footer */}
-                      <div className="px-5 py-3 bg-[rgba(0,0,0,0.15)] dark:bg-[rgba(255,255,255,0.02)] border-t border-[var(--border-color)] flex justify-between items-center opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300">
+                      <div className="px-5 py-3 bg-[rgba(255,255,255,0.03)] border-t border-[var(--border-color)] flex justify-between items-center transition-all duration-300">
                         {isAdmin ? (
                           <button
                             onClick={() => setArchiveTarget({ id: item.id, title: item.title })}
@@ -458,10 +458,15 @@ export default function InstructionsPage() {
                             Archive
                           </button>
                         ) : (
-                          <div></div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold tracking-widest uppercase">
+                               Available Now
+                            </span>
+                          </div>
                         )}
-                        <Link to={`/admin/instructions/${item.id}`} className="flex items-center gap-1.5 text-[var(--accent)] hover:text-[var(--text)] bg-[var(--accent-soft)] hover:bg-[var(--accent)] px-3 py-1.5 rounded-md text-[11px] font-bold transition-all">
-                          <IconDownload /> View / Download
+                        <Link to={`/admin/instructions/${item.id}`} className="flex items-center gap-1.5 text-white bg-[var(--accent)] hover:bg-[var(--accent)] hover:shadow-lg hover:scale-[1.02] px-4 py-2 rounded-lg text-[12px] font-extrabold transition-all shadow-md">
+                          <IconDownload /> <span className="drop-shadow-sm">View / Download</span>
                         </Link>
                       </div>
 
@@ -526,7 +531,7 @@ export default function InstructionsPage() {
                                 </button>
                               )}
 
-                              <Link to={`/admin/instructions/${item.id}`} className="flex items-center w-fit gap-1.5 text-[var(--accent)] hover:text-[var(--text)] bg-[var(--accent-soft)] hover:bg-[var(--accent)] px-3 py-1.5 rounded-md text-[11px] font-bold transition-all">
+                              <Link to={`/admin/instructions/${item.id}`} className="flex items-center w-fit gap-1.5 text-white bg-[var(--accent)] hover:shadow-md px-4 py-2 rounded-lg text-[11px] font-bold transition-all">
                                 <IconDownload /> View
                               </Link>
                             </td>
