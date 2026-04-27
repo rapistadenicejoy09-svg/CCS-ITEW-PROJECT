@@ -241,10 +241,18 @@ export default function AdminFacultyList() {
   }, [search, filterRole, filterDept, filterStatus, viewMode])
 
   const totalPages = Math.ceil(filteredFaculty.length / itemsPerPage)
+  const PAGE_WINDOW_SIZE = 12
+  const safeCurrentPage = Math.min(currentPage, Math.max(1, totalPages))
+  const pageWindowStart = Math.floor((safeCurrentPage - 1) / PAGE_WINDOW_SIZE) * PAGE_WINDOW_SIZE + 1
+  const pageWindowEnd = Math.min(totalPages, pageWindowStart + PAGE_WINDOW_SIZE - 1)
+  const pageNumbers = Array.from(
+    { length: Math.max(0, pageWindowEnd - pageWindowStart + 1) },
+    (_, idx) => pageWindowStart + idx,
+  )
   const paginatedFaculty = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage
+    const start = (safeCurrentPage - 1) * itemsPerPage
     return filteredFaculty.slice(start, start + itemsPerPage)
-  }, [filteredFaculty, currentPage, itemsPerPage])
+  }, [filteredFaculty, safeCurrentPage, itemsPerPage])
 
   const hasActiveFilters = Boolean(search.trim() || filterRole || filterDept || filterStatus !== 'active')
 
@@ -587,47 +595,50 @@ export default function AdminFacultyList() {
               
               {/* Pagination Controls */}
               {totalPages > 1 && (
-                <div className="flex justify-center items-center gap-2 mt-8 pb-4 admin-animate-reveal">
-                  <button
-                    onClick={() => {
-                      setCurrentPage(p => Math.max(1, p - 1))
-                      window.scrollTo({ top: 0, behavior: 'smooth' })
-                    }}
-                    disabled={currentPage === 1}
-                    className="btn btn-secondary !rounded-full px-4 py-2 disabled:opacity-50 transition-all hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
-                  >
-                    Previous
-                  </button>
-                  
-                  <div className="flex items-center gap-1.5 mx-4">
-                    {[...Array(totalPages)].map((_, i) => (
+                <div className="flex justify-center items-center gap-2 mt-8 pb-4 admin-animate-reveal flex-wrap">
+                  <div className="flex items-center gap-1.5 mx-2">
+                    <button
+                      onClick={() => {
+                        const nextPage = Math.max(1, pageWindowStart - PAGE_WINDOW_SIZE)
+                        setCurrentPage(nextPage)
+                        window.scrollTo({ top: 0, behavior: 'smooth' })
+                      }}
+                      disabled={pageWindowStart <= 1}
+                      className="btn btn-secondary !rounded-full px-3 py-2 disabled:opacity-50 transition-all hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
+                      title="Previous page set"
+                    >
+                      &lt;
+                    </button>
+
+                    {pageNumbers.map((pageNum) => (
                       <button
-                        key={i}
+                        key={pageNum}
                         onClick={() => {
-                          setCurrentPage(i + 1)
+                          setCurrentPage(pageNum)
                           window.scrollTo({ top: 0, behavior: 'smooth' })
                         }}
-                        className={`w-9 h-9 flex items-center justify-center rounded-full text-xs font-bold transition-all ${
-                          currentPage === i + 1
+                        className={`w-9 h-9 flex items-center justify-center rounded-full text-xs font-bold transition-all ${safeCurrentPage === pageNum
                             ? 'bg-[var(--accent)] text-white shadow-lg scale-110'
                             : 'bg-[var(--card-bg)] text-[var(--text-muted)] border border-[var(--border-color)] hover:border-[var(--accent)]'
                         }`}
                       >
-                        {i + 1}
+                        {pageNum}
                       </button>
                     ))}
-                  </div>
 
-                  <button
-                    onClick={() => {
-                      setCurrentPage(p => Math.min(totalPages, p + 1))
-                      window.scrollTo({ top: 0, behavior: 'smooth' })
-                    }}
-                    disabled={currentPage === totalPages}
-                    className="btn btn-secondary !rounded-full px-4 py-2 disabled:opacity-50 transition-all hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
-                  >
-                    Next
-                  </button>
+                    <button
+                      onClick={() => {
+                        const nextPage = Math.min(totalPages, pageWindowStart + PAGE_WINDOW_SIZE)
+                        setCurrentPage(nextPage)
+                        window.scrollTo({ top: 0, behavior: 'smooth' })
+                      }}
+                      disabled={pageWindowEnd >= totalPages}
+                      className="btn btn-secondary !rounded-full px-3 py-2 disabled:opacity-50 transition-all hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
+                      title="Next page set"
+                    >
+                      &gt;
+                    </button>
+                  </div>
                 </div>
               )}
             </>

@@ -108,6 +108,7 @@ export default function AdminStudentList() {
 
   const [showFilters, setShowFilters] = useState(false)
   const [viewMode, setViewMode] = useState('grid')
+  const [currentPage, setCurrentPage] = useState(1)
 
   const [deleteTarget, setDeleteTarget] = useState(null)
   const isAdmin = getRole() === 'admin'
@@ -224,6 +225,26 @@ export default function AdminStudentList() {
       return true
     })
   }, [students, search, filterSection, filterType, filterStatus])
+
+  const itemsPerPage = viewMode === 'grid' ? 9 : 10
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [search, filterSection, filterType, filterSkill, filterAffiliation, filterStatus, viewMode])
+
+  const totalItems = filteredStudents.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage))
+  const safeCurrentPage = Math.min(currentPage, totalPages)
+  const startIndex = (safeCurrentPage - 1) * itemsPerPage
+  const endIndex = Math.min(startIndex + itemsPerPage, totalItems)
+  const paginatedStudents = filteredStudents.slice(startIndex, endIndex)
+  const PAGE_WINDOW_SIZE = 12
+  const pageWindowStart = Math.floor((safeCurrentPage - 1) / PAGE_WINDOW_SIZE) * PAGE_WINDOW_SIZE + 1
+  const pageWindowEnd = Math.min(totalPages, pageWindowStart + PAGE_WINDOW_SIZE - 1)
+  const pageNumbers = Array.from(
+    { length: pageWindowEnd - pageWindowStart + 1 },
+    (_, idx) => pageWindowStart + idx,
+  )
 
   const hasActiveFilters = Boolean(
     search.trim() || filterSection || filterType || filterSkill.trim() || filterAffiliation.trim() || filterStatus !== 'active'
@@ -393,9 +414,9 @@ export default function AdminStudentList() {
           <h2 className="text-xl font-bold px-1 flex items-center gap-2 text-[var(--text)]">
             <span className="w-6 h-[2px] bg-[var(--accent)]"></span>
             Profiles
-            {filteredStudents.length > 0 && (
+            {totalItems > 0 && (
               <span className="px-2 py-0.5 bg-[var(--accent-soft)] text-[var(--accent)] rounded-full text-xs ml-2">
-                {filteredStudents.length}
+                {totalItems}
               </span>
             )}
           </h2>
@@ -404,7 +425,7 @@ export default function AdminStudentList() {
             <div className="flex justify-center p-12 text-[var(--accent)] admin-animate-reveal">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-current motion-safe:transition-opacity" />
             </div>
-          ) : filteredStudents.length === 0 ? (
+          ) : totalItems === 0 ? (
             <div className="text-center p-12 bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] admin-animate-reveal transition-shadow duration-300 hover:shadow-md">
               <p className="text-[var(--text-muted)] text-sm">No student profiles match the current query.</p>
             </div>
@@ -412,7 +433,7 @@ export default function AdminStudentList() {
             <>
               {viewMode === 'grid' && (
                 <div className="admin-student-card-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-                  {filteredStudents.map((student, idx) => {
+                  {paginatedStudents.map((student, idx) => {
                     const active = isUserActive(student)
                     return (
                       <div
@@ -530,7 +551,7 @@ export default function AdminStudentList() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[var(--border-color)]">
-                        {filteredStudents.map((student, idx) => {
+                        {paginatedStudents.map((student, idx) => {
                           const active = isUserActive(student)
                           return (
                             <tr
@@ -632,6 +653,54 @@ export default function AdminStudentList() {
                         })}
                       </tbody>
                     </table>
+                  </div>
+                </div>
+              )}
+
+              {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-2 mt-8 pb-4 admin-animate-reveal flex-wrap">
+                  <div className="flex items-center gap-1.5 mx-2">
+                    <button
+                      onClick={() => {
+                        const nextPage = Math.max(1, pageWindowStart - PAGE_WINDOW_SIZE)
+                        setCurrentPage(nextPage)
+                        window.scrollTo({ top: 0, behavior: 'smooth' })
+                      }}
+                      disabled={pageWindowStart <= 1}
+                      className="btn btn-secondary !rounded-full px-3 py-2 disabled:opacity-50 transition-all hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
+                      title="Previous page set"
+                    >
+                      &lt;
+                    </button>
+
+                    {pageNumbers.map((pageNum) => (
+                      <button
+                        key={pageNum}
+                        onClick={() => {
+                          setCurrentPage(pageNum)
+                          window.scrollTo({ top: 0, behavior: 'smooth' })
+                        }}
+                        className={`w-9 h-9 flex items-center justify-center rounded-full text-xs font-bold transition-all ${safeCurrentPage === pageNum
+                            ? 'bg-[var(--accent)] text-white shadow-lg scale-110'
+                            : 'bg-[var(--card-bg)] text-[var(--text-muted)] border border-[var(--border-color)] hover:border-[var(--accent)]'
+                          }`}
+                      >
+                        {pageNum}
+                      </button>
+                    ))}
+
+                    <button
+                      onClick={() => {
+                        const nextPage = Math.min(totalPages, pageWindowStart + PAGE_WINDOW_SIZE)
+                        setCurrentPage(nextPage)
+                        window.scrollTo({ top: 0, behavior: 'smooth' })
+                      }}
+                      disabled={pageWindowEnd >= totalPages}
+                      className="btn btn-secondary !rounded-full px-3 py-2 disabled:opacity-50 transition-all hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
+                      title="Next page set"
+                    >
+                      &gt;
+                    </button>
                   </div>
                 </div>
               )}

@@ -70,6 +70,10 @@ try {
       if (missingStaff > 0) {
         console.log(`[Admin] Reconstructed personal records for ${missingStaff} faculty/admin staff.`)
       }
+      const normalizedDepartments = await normalizeExistingFacultyDepartments()
+      if (normalizedDepartments > 0) {
+        console.log(`[Admin] Normalized ${normalizedDepartments} faculty department assignment(s).`)
+      }
     } catch (bfErr) {
       // eslint-disable-next-line no-console
       console.warn('[Research] Repository ref backfill:', bfErr?.message || bfErr)
@@ -441,22 +445,136 @@ function deleteResearchStoredFile(storedName) {
   }
 }
 
+const RESEARCH_APPROVAL_SUBJECTS = {
+  CS: {
+    thesis: [
+      { code: 'CSP111', name: 'Thesis 1' },
+      { code: 'CSP114', name: 'Thesis 2' },
+    ],
+  },
+  IT: {
+    capstone: [
+      { code: 'ITP108', name: 'Capstone Project 1' },
+      { code: 'ITP112', name: 'Capstone Project 2' },
+    ],
+  },
+}
+
+function normalizeResearchCourse(value) {
+  const raw = String(value || '').trim().toUpperCase()
+  if (!raw) return ''
+  if (raw === 'CS' || raw === 'BSCS') return 'CS'
+  if (raw === 'IT' || raw === 'BSIT') return 'IT'
+  return raw
+}
+
+function normalizeResearchType(value) {
+  const raw = String(value || '').trim().toLowerCase().replace(/\s+/g, '_')
+  if (!raw) return ''
+  if (raw.includes('thesis')) return 'thesis'
+  if (raw.includes('capstone')) return 'capstone'
+  return raw
+}
+
+function normalizeResearchApprovalText(value) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, ' ')
+}
+
+function normalizeSectionKey(value) {
+  return String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+}
+
+function extractSectionLetter(value) {
+  const key = normalizeSectionKey(value)
+  if (!key) return ''
+  const m = key.match(/([A-Z])$/)
+  return m ? m[1] : ''
+}
+
+function getResearchApprovalSubjects(itemLike) {
+  const course = normalizeResearchCourse(itemLike?.course)
+  const researchType = normalizeResearchType(itemLike?.research_type || itemLike?.researchType)
+  return RESEARCH_APPROVAL_SUBJECTS[course]?.[researchType] || []
+}
+
+function usesAssignedProfessorApproval(itemLike) {
+  return getResearchApprovalSubjects(itemLike).length > 0
+}
+
+async function canFacultyApproveResearchItem(store, user, item) {
+  if (!item || !['faculty', 'faculty_professor'].includes(user?.role)) return false
+  const uid = userNumId(user)
+  const requiredSubjects = getResearchApprovalSubjects(item)
+
+  if (requiredSubjects.length === 0) {
+    return Number(item.adviser_faculty_id) === uid
+  }
+
+  const loads = await store.listTeachingLoads(uid)
+  if (!Array.isArray(loads) || loads.length === 0) return false
+
+  const allowedCodes = new Set(requiredSubjects.map((s) => normalizeResearchApprovalText(s.code)))
+  const allowedNames = new Set(requiredSubjects.map((s) => normalizeResearchApprovalText(s.name)))
+  const relevantLoads = loads.filter((load) => {
+    const subjectCode = normalizeResearchApprovalText(load?.subject?.code)
+    const subjectName = normalizeResearchApprovalText(load?.subject?.name)
+    return allowedCodes.has(subjectCode) || allowedNames.has(subjectName)
+  })
+  if (relevantLoads.length === 0) return false
+
+  let submissionSection = String(item.submission_section || '').trim()
+  if (!submissionSection && Number.isFinite(Number(item.created_by_user_id))) {
+    const creator = await store.getUserByIdForAuth(Number(item.created_by_user_id))
+    submissionSection = String(creator?.class_section || '').trim()
+  }
+  if (!submissionSection) return false
+
+  const submissionSectionKey = normalizeSectionKey(submissionSection)
+  const submissionSectionLetter = extractSectionLetter(submissionSection)
+
+  return relevantLoads.some((load) => {
+    const loadSectionRaw = String(load?.section_id || load?.section || '').trim()
+    if (!loadSectionRaw) return false
+    const loadSectionKey = normalizeSectionKey(loadSectionRaw)
+    const loadSectionLetter = extractSectionLetter(loadSectionRaw)
+
+    if (!loadSectionKey) return false
+    if (loadSectionKey === submissionSectionKey) return true
+    if (submissionSectionKey && (loadSectionKey.endsWith(submissionSectionKey) || submissionSectionKey.endsWith(loadSectionKey))) {
+      return true
+    }
+    return Boolean(loadSectionLetter && submissionSectionLetter && loadSectionLetter === submissionSectionLetter)
+  })
+}
+
+function getCreatorSubmissionSection(reqUser) {
+  return String(reqUser?.class_section || '').trim() || null
+}
+
 function resolveNewResearchStatus(body, user) {
   const want = String(body?.status || 'draft').toLowerCase()
   if (want === 'draft') return 'draft'
   if (user.role === 'admin') {
     const direct = String(body?.publishDirect || '').toLowerCase()
     if (direct === 'true' || direct === '1') return 'published'
-    return 'pending_approval'
+    return usesAssignedProfessorApproval(body) || body?.adviserFacultyId ? 'under_faculty_review' : 'published'
   }
   if (user.role === 'secretary') {
     const needApproval = String(body?.requireApproval || '').toLowerCase()
-    if (needApproval === 'true' || needApproval === '1') return 'pending_approval'
+    if (needApproval === 'true' || needApproval === '1') {
+      return usesAssignedProfessorApproval(body) || body?.adviserFacultyId ? 'under_faculty_review' : 'published'
+    }
     return 'published'
   }
   if (user.role === 'student') return 'under_faculty_review'
   if (['faculty', 'faculty_professor', 'dean', 'department_chair'].includes(user.role)) {
-    return 'pending_approval'
+    return usesAssignedProfessorApproval(body) || body?.adviserFacultyId ? 'under_faculty_review' : 'published'
   }
   return 'draft'
 }
@@ -526,6 +644,19 @@ const REGISTER_ROLES_PUBLIC = [
 
 const FACULTY_SYSTEM_ROLES = ['faculty_professor', 'dean', 'department_chair', 'secretary']
 
+function normalizeFacultyDepartment(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return null
+  if (raw.toLowerCase() === 'computer engineering') return 'Computer Science'
+  return raw
+}
+
+function enforceFacultyRoleDepartment(role, department) {
+  const normalized = normalizeFacultyDepartment(department)
+  if (role === 'dean' || role === 'secretary') return 'CCS'
+  return normalized
+}
+
 function normalizeDepartmentForChair(value) {
   const raw = String(value || '').trim().toLowerCase()
   if (!raw) return null
@@ -571,6 +702,22 @@ async function validateFacultyLeadershipQuota({
   }
 
   return null
+}
+
+async function normalizeExistingFacultyDepartments() {
+  const users = await store.listAdminUsers()
+  let updatedCount = 0
+
+  for (const u of users) {
+    const currentDepartment = u?.department ?? u?.summary?.department ?? u?.personal_information?.department ?? null
+    const normalizedDepartment = enforceFacultyRoleDepartment(u?.role, currentDepartment)
+    if (normalizedDepartment && normalizedDepartment !== currentDepartment) {
+      await store.updateStudentProfile(u.id, { department: normalizedDepartment })
+      updatedCount++
+    }
+  }
+
+  return updatedCount
 }
 
 async function registerUserFromRequest(req, res, { role: roleFixed } = {}) {
@@ -650,6 +797,10 @@ async function registerUserFromRequest(req, res, { role: roleFixed } = {}) {
     const nameLn = String(piRaw.last_name || piRaw.lastName || '').trim()
     const composedFromPi = [nameFn, nameMn, nameLn].filter(Boolean).join(' ')
     if (composedFromPi) fullName = composedFromPi
+  }
+
+  if (role !== 'student') {
+    department = enforceFacultyRoleDepartment(role, department)
   }
 
   const leadershipQuotaError = await validateFacultyLeadershipQuota({
@@ -842,6 +993,9 @@ app.patch('/api/account/profile', authMiddleware, asyncHandler(async (req, res) 
   if (req.body.bio !== undefined) body.bio = req.body.bio
   if (req.body.department !== undefined) body.department = req.body.department
   if (req.body.specialization !== undefined) body.specialization = req.body.specialization
+  if (req.user.role !== 'student' && body.department !== undefined) {
+    body.department = enforceFacultyRoleDepartment(req.user.role, body.department)
+  }
   if (Object.keys(body).length === 0) {
     return res.status(400).json({ error: 'No updates provided' })
   }
@@ -1056,8 +1210,9 @@ app.patch('/api/admin/users/:id', authMiddleware, authorize(PERMISSIONS.MANAGE_U
     }
     updates.is_active = req.body.isActive
   }
-  if (req.body.role !== undefined) {
-    const requestedRole = String(req.body.role || '').trim()
+  const requestedRole = req.body.role !== undefined ? String(req.body.role || '').trim() : target.role
+  const hasRoleUpdate = req.body.role !== undefined
+  if (hasRoleUpdate) {
     if (!FACULTY_SYSTEM_ROLES.includes(requestedRole)) {
       return res.status(400).json({ error: 'Invalid role' })
     }
@@ -1075,6 +1230,16 @@ app.patch('/api/admin/users/:id', authMiddleware, authorize(PERMISSIONS.MANAGE_U
       return res.status(409).json({ error: leadershipQuotaError })
     }
     updates.role = requestedRole
+  }
+  const hasDepartmentUpdate = req.body.department !== undefined || req.body.summary?.department !== undefined
+  if (hasDepartmentUpdate || hasRoleUpdate) {
+    const requestedDepartmentRaw =
+      req.body.department ??
+      req.body.summary?.department ??
+      target.department ??
+      target.summary?.department ??
+      null
+    updates.department = enforceFacultyRoleDepartment(requestedRole, requestedDepartmentRaw)
   }
   if (req.body.personalInformation !== undefined) {
     updates.personal_information = req.body.personalInformation
@@ -1488,8 +1653,7 @@ async function handleResearchList(req, res) {
   } else if (scope === 'mine') {
     filter.created_by_user_id = userNumId(req.user)
   } else if (scope === 'adviser_review') {
-    filter.status = 'under_faculty_review'
-    filter.adviser_faculty_id = userNumId(req.user)
+    filter = {}
   } else if (scope === 'pending_approval') {
     filter.status = 'pending_approval'
   } else if (scope === 'all' && (req.user.role === 'admin' || req.user.role === 'secretary')) {
@@ -1528,7 +1692,17 @@ async function handleResearchList(req, res) {
   if (scope === 'repository' || scope === 'mine') {
     list = list.filter((item) => canViewResearchItem(req.user, item))
   } else if (scope === 'adviser_review') {
-    list = list.filter((item) => canViewResearchItem(req.user, item))
+    if (!['faculty', 'faculty_professor'].includes(req.user.role)) {
+      list = []
+    } else {
+      const reviewable = list.filter((item) =>
+        ['under_faculty_review', 'pending_approval'].includes(String(item.status || '').toLowerCase()),
+      )
+      const allowed = await Promise.all(
+        reviewable.map(async (item) => ((await canFacultyApproveResearchItem(store, req.user, item)) ? item : null)),
+      )
+      list = allowed.filter(Boolean)
+    }
   } else if (scope === 'pending_approval') {
     if (!['dean', 'department_chair', 'admin'].includes(req.user.role)) {
       list = []
@@ -1646,6 +1820,9 @@ app.post(
     })
   },
   asyncHandler(async (req, res) => {
+    if (req.user.role !== 'student') {
+      return res.status(403).json({ error: 'Only students can create new college research records' })
+    }
     const body = req.body || {}
     const title = String(body.title || '').trim()
     const abstract = String(body.abstract || '').trim()
@@ -1706,6 +1883,7 @@ app.post(
       abstract,
       adviser_name: advName || null,
       adviser_faculty_id: adviserFacultyId || null,
+      submission_section: getCreatorSubmissionSection(req.user),
       year,
       course,
       category: category || 'General',
@@ -1789,8 +1967,18 @@ app.patch(
           patch.status = 'under_faculty_review'
         }
         else if (['secretary', 'admin'].includes(req.user.role)) {
-          patch.status = resolveNewResearchStatus({ status: 'submitted', requireApproval: req.body.requireApproval }, req.user)
-        } else patch.status = 'pending_approval'
+          patch.status = resolveNewResearchStatus(
+            {
+              status: 'submitted',
+              course: item.course,
+              researchType: item.research_type,
+              adviserFacultyId: patch.adviser_faculty_id ?? item.adviser_faculty_id,
+              requireApproval: req.body.requireApproval,
+              publishDirect: req.body.publishDirect,
+            },
+            req.user,
+          )
+        } else patch.status = usesAssignedProfessorApproval(item) || item.adviser_faculty_id ? 'under_faculty_review' : 'published'
       }
       if (next === 'draft' && ['draft', 'rejected'].includes(item.status)) patch.status = 'draft'
       if (
@@ -1799,7 +1987,12 @@ app.patch(
         item.created_by_user_id === userNumId(req.user)
       ) {
         if (!item.file_stored_name) return res.status(400).json({ error: 'PDF required to resubmit' })
-        patch.status = item.created_by_role === 'student' ? 'under_faculty_review' : 'pending_approval'
+        patch.status =
+          item.created_by_role === 'student'
+            ? 'under_faculty_review'
+            : usesAssignedProfessorApproval(item) || item.adviser_faculty_id
+              ? 'under_faculty_review'
+              : 'published'
       }
     }
 
@@ -1842,10 +2035,14 @@ app.post(
     const id = Number(req.params.id)
     const item = await store.findResearchPublicationById(id)
     if (!item) return res.status(404).json({ error: 'Not found' })
-    if (item.status !== 'under_faculty_review') return res.status(400).json({ error: 'Not awaiting faculty review' })
+    if (!['under_faculty_review', 'pending_approval'].includes(String(item.status || '').toLowerCase())) {
+      return res.status(400).json({ error: 'Not awaiting faculty review' })
+    }
     const uid = userNumId(req.user)
-    if (Number(item.adviser_faculty_id) !== uid && req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Only the assigned adviser can review' })
+    if (!(await canFacultyApproveResearchItem(store, req.user, item))) {
+      return res.status(403).json({
+        error: 'Only the assigned Thesis/Capstone professor for the submission section can review this request',
+      })
     }
     const action = String(req.body?.action || '').toLowerCase()
     const comments = String(req.body?.comments || '').trim() || null
@@ -1855,16 +2052,31 @@ app.post(
         reviewed_by_faculty_id: uid,
         review_comments: comments,
       })
-      await store.pushResearchWorkflow(id, { at: new Date().toISOString(), action: 'rejected_by_adviser', by_user_id: uid, note: comments })
+      await store.pushResearchWorkflow(id, {
+        at: new Date().toISOString(),
+        action: 'rejected_by_assigned_professor',
+        by_user_id: uid,
+        note: comments,
+      })
       return res.json({ ok: true, item: researchForClient(updated) })
     }
     if (action === 'approve') {
-      const updated = await store.updateResearchPublication(id, {
-        status: 'pending_approval',
+      const now = new Date().toISOString()
+      const patchWithRef = await assignRepositoryRefIfPublishing(store, item, {
+        status: 'published',
         reviewed_by_faculty_id: uid,
         review_comments: comments,
+        approved_by_user_id: uid,
+        approval_comments: comments,
+        published_at: now,
       })
-      await store.pushResearchWorkflow(id, { at: new Date().toISOString(), action: 'forwarded_to_chair_dean', by_user_id: uid, note: comments })
+      const updated = await store.updateResearchPublication(id, patchWithRef)
+      await store.pushResearchWorkflow(id, {
+        at: now,
+        action: 'published_by_assigned_professor',
+        by_user_id: uid,
+        note: comments,
+      })
       return res.json({ ok: true, item: researchForClient(updated) })
     }
     return res.status(400).json({ error: 'Invalid action' })
@@ -1876,40 +2088,9 @@ app.post(
   authMiddleware,
   authorize(PERMISSIONS.DOC_APPROVE),
   asyncHandler(async (req, res) => {
-    if (!['dean', 'department_chair', 'admin'].includes(req.user.role)) {
-      return res.status(403).json({ error: 'Only Chair or Dean can finalize approval' })
-    }
-    const id = Number(req.params.id)
-    const item = await store.findResearchPublicationById(id)
-    if (!item) return res.status(404).json({ error: 'Not found' })
-    if (item.status !== 'pending_approval') return res.status(400).json({ error: 'Not pending approval' })
-    const action = String(req.body?.action || '').toLowerCase()
-    const comments = String(req.body?.comments || '').trim() || null
-    const uid = userNumId(req.user)
-    if (action === 'reject') {
-      const updated = await store.updateResearchPublication(id, {
-        status: 'rejected',
-        approved_by_user_id: uid,
-        approval_comments: comments,
-      })
-      await store.pushResearchWorkflow(id, { at: new Date().toISOString(), action: 'rejected_final', by_user_id: uid, note: comments })
-      return res.json({ ok: true, item: researchForClient(updated) })
-    }
-    if (action === 'approve') {
-      const now = new Date().toISOString()
-      const y = new Date(now).getFullYear()
-      const repository_ref = item.repository_ref || (await store.nextResearchRepositoryRef(y))
-      const updated = await store.updateResearchPublication(id, {
-        status: 'published',
-        approved_by_user_id: uid,
-        approval_comments: comments,
-        published_at: now,
-        repository_ref,
-      })
-      await store.pushResearchWorkflow(id, { at: now, action: 'published', by_user_id: uid, note: comments })
-      return res.json({ ok: true, item: researchForClient(updated) })
-    }
-    return res.status(400).json({ error: 'Invalid action' })
+    return res.status(410).json({
+      error: 'Final approval is no longer used. Assigned Thesis/Capstone professors now publish requests directly.',
+    })
   }),
 )
 
