@@ -167,10 +167,8 @@ export default function SchedulingPage() {
       if (c && itemCourse !== c) return false
       if (y && normalizeText(item.yearLevel) !== y) return false
       
-      // Fuzzy Section Matching: Matches 'A' to '1A' since Year is already strictly verified above
-      let sLetter = s.replace(/[^a-z]/g, '')
-      let itemSectLetter = normalizeText(item.section).replace(/[^a-z]/g, '')
-      if (s && sLetter !== itemSectLetter) return false
+      // Exact Section Matching
+      if (s && normalizeText(item.section) !== s) return false
       
       return true
     })
@@ -357,7 +355,9 @@ export default function SchedulingPage() {
                     onClick={() => {
                       setSearch('')
                       setFilterDay('')
-                      setSectionFilter('')
+                      setSectionFilter(isStudent ? (studentInfo.section || '') : '')
+                      setCourseFilter(isStudent ? (studentInfo.course || '') : '')
+                      setYearFilter(isStudent ? (studentInfo.yearLevel || '') : '')
                     }}
                     className="px-5 py-2 rounded-full border border-[var(--border-color)] bg-transparent hover:bg-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text)] text-sm font-medium transition-colors"
                   >

@@ -972,9 +972,21 @@ export async function openMongoStore() {
     },
 
     async deleteTeachingLoad(id) {
+      if (String(id).startsWith('v-')) {
+         const scheduleId = String(id).replace('v-', '')
+         await schedules.updateOne(
+             { $or: [{ id: Number(scheduleId) }, { id: scheduleId }] },
+             { $set: { instructorId: null, instructor: 'TBA', instructorEmail: null, teaching_load_id: null, updated_at: new Date().toISOString() } }
+         )
+         return
+      }
+
       await teachingLoads.deleteOne({ id: Number(id) })
-      // Also delete associated schedules
-      await schedules.deleteMany({ teaching_load_id: Number(id) })
+      // Also release associated schedules instead of destructively deleting them
+      await schedules.updateMany(
+        { teaching_load_id: Number(id) },
+        { $set: { instructorId: null, instructor: 'TBA', instructorEmail: null, teaching_load_id: null, updated_at: new Date().toISOString() } }
+      )
     },
 
     // Schedules
@@ -1012,6 +1024,39 @@ export async function openMongoStore() {
       return null
     },
 
+    async checkUnitLimit(data, excludeScheduleId = null) {
+      if (!data.instructorId || !data.subjectCode || !data.semester) return null
+
+      const subject = await subjects.findOne({ code: { $regex: new RegExp(`^${data.subjectCode}$`, 'i') } })
+      const newUnits = Number(subject?.credits || 3)
+
+      const currentLoads = await this.listTeachingLoads(data.instructorId)
+      let currentSemLoads = currentLoads.filter(l => (l.semester || 'Unassigned Semester (From Schedule)') === data.semester)
+
+      if (excludeScheduleId) {
+         currentSemLoads = currentSemLoads.filter(l => l.id !== `v-${excludeScheduleId}`)
+      }
+
+      const targetSection = `${data.course} ${data.section}`.trim().toLowerCase()
+      const targetSubj = data.subjectCode.toLowerCase()
+      
+      const alreadyExists = currentSemLoads.find(l => 
+         (l.subject?.code || '').toLowerCase() === targetSubj && 
+         (l.section_id || l.section || '').toLowerCase() === targetSection
+      )
+
+      let totalUnits = currentSemLoads.reduce((acc, l) => acc + Number(l.subject?.credits || 3), 0)
+      
+      if (!alreadyExists) {
+          totalUnits += newUnits
+      }
+
+      if (totalUnits > 18) {
+         return `Assignment blocked: Overload.\n\nA professor is only allowed a maximum of 18 units per semester. Adding this subject (${newUnits} units) exceeds the 18 unit limit.`
+      }
+      return null
+    },
+
     async listSchedules(teachingLoadId = null) {
       const query = {}
       if (teachingLoadId) {
@@ -1030,6 +1075,10 @@ export async function openMongoStore() {
       // Validate conflicts
       const conflictMsg = await this.checkConflicts(data)
       if (conflictMsg) throw new Error(conflictMsg)
+
+      // Validate 18-unit limit
+      const overloadMsg = await this.checkUnitLimit(data)
+      if (overloadMsg) throw new Error(overloadMsg)
 
       const id = await nextId('schedules')
       const doc = { 
@@ -1092,6 +1141,10 @@ export async function openMongoStore() {
       const merged = { ...current, ...data }
       const conflictMsg = await this.checkConflicts(merged, id)
       if (conflictMsg) throw new Error(conflictMsg)
+
+      // Validate 18-unit limit
+      const overloadMsg = await this.checkUnitLimit(merged, id)
+      if (overloadMsg) throw new Error(overloadMsg)
 
       // Build update doc with explicit fields to prevent stripping
       const doc = { updated_at: new Date().toISOString() }
