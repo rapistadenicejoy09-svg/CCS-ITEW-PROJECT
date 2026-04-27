@@ -46,6 +46,16 @@ function IconRefresh() {
   )
 }
 
+function IconDownload() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  )
+}
+
 function IconUser() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -133,6 +143,42 @@ export default function ActivityLog() {
     return result
   }, [logs, filter, search])
 
+  const handleExport = () => {
+    if (filteredLogs.length === 0) return
+
+    const headers = ['User', 'Role', 'Action', 'Category', 'Timestamp', 'Details', 'IP Address']
+    const rows = filteredLogs.map(log => {
+      const role = log.user_role === 'faculty_professor' ? 'Professor' :
+                   log.user_role === 'department_chair' ? 'Chair' :
+                   log.user_role || 'System'
+      
+      return [
+        `"${log.user_name || 'System'}"`,
+        `"${role}"`,
+        `"${log.action}"`,
+        `"${log.type}"`,
+        `"${new Date(log.created_at).toLocaleString()}"`,
+        `"${String(log.details || '').replace(/"/g, '""')}"`,
+        `"${log.user_ip || 'N/A'}"`
+      ]
+    })
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.setAttribute('href', url)
+    link.setAttribute('download', `activity_logs_${filter}_${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
 
 
   return (
@@ -148,6 +194,15 @@ export default function ActivityLog() {
               {isAdmin ? 'Audit trail of administrative actions and system events.' : 'View your recent actions and system events securely.'}
             </p>
           </div>
+
+          <button
+            onClick={handleExport}
+            disabled={filteredLogs.length === 0}
+            className="mt-4 md:mt-0 flex items-center gap-2.5 px-6 py-3 rounded-xl bg-[var(--accent)] hover:bg-[var(--accent-hover)] disabled:bg-slate-500/20 disabled:text-slate-500 disabled:cursor-not-allowed text-white font-bold text-sm shadow-lg shadow-[var(--accent)]/20 transition-all active:scale-95"
+          >
+            <IconDownload />
+            Export to CSV
+          </button>
         </header>
 
         <section className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] p-5 md:p-6 shadow-sm animate-reveal" style={{ animationDelay: '0.1s' }}>
