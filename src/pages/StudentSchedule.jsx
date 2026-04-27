@@ -104,9 +104,7 @@ export default function StudentSchedule() {
       if (itemCourse !== c) return false
       if (normalizeText(item.yearLevel) !== y) return false
       
-      let sLetter = s.replace(/[^a-z]/g, '')
-      let itemSectLetter = normalizeText(item.section).replace(/[^a-z]/g, '')
-      if (sLetter !== itemSectLetter) return false
+      if (normalizeText(item.section) !== s) return false
       
       return true
     })
@@ -170,6 +168,17 @@ export default function StudentSchedule() {
                     ))}
                     </select>
                 </label>
+                {filterDay && (
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={() => setFilterDay('')}
+                      className="px-5 py-2 rounded-full border border-[var(--border-color)] bg-transparent hover:bg-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text)] text-sm font-medium transition-colors"
+                    >
+                      Clear Filter
+                    </button>
+                  </div>
+                )}
             </div>
             <div className="flex items-center gap-1 shrink-0 justify-end">
                 <button

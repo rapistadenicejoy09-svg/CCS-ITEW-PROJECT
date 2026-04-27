@@ -12,7 +12,6 @@ const DAY_STYLE = {
 }
 
 function normalizeText(v) { return String(v || '').trim().toLowerCase() }
-function sectionLetter(v) { return normalizeText(v).replace(/[^a-z]/g, '') }
 
 function IconSearch() {
   return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
@@ -92,7 +91,10 @@ export default function FacultySchedule() {
   const uniqueYears = useMemo(() => [...new Set(mySchedules.map((i) => String(i.yearLevel || '').trim()).filter(Boolean))].sort(), [mySchedules])
   const uniqueSections = useMemo(() => {
     const s = new Set()
-    mySchedules.forEach((i) => { const l = sectionLetter(i.section); if (l) s.add(l.toUpperCase()) })
+    mySchedules.forEach((i) => { 
+      const val = String(i.section || '').trim().toUpperCase()
+      if (val) s.add(val) 
+    })
     return Array.from(s).sort()
   }, [mySchedules])
 
@@ -100,14 +102,14 @@ export default function FacultySchedule() {
   const scopedSchedules = useMemo(() => {
     const c = normalizeText(courseFilter)
     const y = normalizeText(yearFilter)
-    const s = sectionLetter(sectionFilter)
+    const s = normalizeText(sectionFilter)
     return mySchedules.filter((item) => {
       let ic = normalizeText(item.course)
       if (ic.includes('computer science') || ic === 'cs') ic = 'bscs'
       if (ic.includes('information tech') || ic === 'it') ic = 'bsit'
       if (c && ic !== c) return false
       if (y && normalizeText(item.yearLevel) !== y) return false
-      if (s && s !== sectionLetter(item.section)) return false
+      if (s && normalizeText(item.section) !== s) return false
       return true
     })
   }, [courseFilter, mySchedules, sectionFilter, yearFilter])
