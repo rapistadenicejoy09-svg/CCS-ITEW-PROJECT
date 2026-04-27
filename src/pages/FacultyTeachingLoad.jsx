@@ -1,40 +1,14 @@
 import { useEffect, useState, useMemo } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { apiGetTeachingLoads, apiGetSubjects, apiCreateTeachingLoad, apiDeleteTeachingLoad, apiFacultyDirectory } from '../lib/api'
-import { COURSE_OPTIONS, YEAR_OPTIONS, getExpectedCodes } from '../lib/curriculum'
+import { apiGetTeachingLoads, apiDeleteTeachingLoad, apiFacultyDirectory } from '../lib/api'
 
 export default function FacultyTeachingLoad() {
+  const token = localStorage.getItem('authToken')
   const [loads, setLoads] = useState([])
-  const [subjects, setSubjects] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [viewingFacultyId, setViewingFacultyId] = useState(null)
 
-  const token = localStorage.getItem('authToken')
-
-  // Form states
-  const [selectedSubject, setSelectedSubject] = useState('')
-  const [sectionCourse, setSectionCourse] = useState('BSIT')
-  const [sectionYear, setSectionYear] = useState('1st Year')
-  const [sectionLetter, setSectionLetter] = useState('')
-  const [semester, setSemester] = useState('2nd Semester 2024-2025')
-
-  const SECTION_OPTIONS = ['A', 'B', 'C', 'D', 'E']
-  const SEMESTER_OPTIONS = [
-    '1st Semester 2024-2025',
-    '2nd Semester 2024-2025',
-    '1st Semester 2025-2026',
-    '2nd Semester 2025-2026',
-    '1st Semester 2026-2027',
-    '2nd Semester 2026-2027',
-  ]
-
-  const [searchParams] = useSearchParams()
-  const urlFacultyId = searchParams.get('facultyId')
-
   const [allFaculty, setAllFaculty] = useState([])
-  const [selectedFacultyId, setSelectedFacultyId] = useState(urlFacultyId || '')
-  const [isAdministrative, setIsAdministrative] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -42,15 +16,12 @@ export default function FacultyTeachingLoad() {
         const authRaw = localStorage.getItem('authUser')
         const user = authRaw ? JSON.parse(authRaw) : null
         const isAdmin = ['admin', 'dean', 'department_chair', 'secretary'].includes(user?.role)
-        setIsAdministrative(isAdmin)
 
-        const [lRes, sRes, fRes] = await Promise.all([
+        const [lRes, fRes] = await Promise.all([
           apiGetTeachingLoads(token),
-          apiGetSubjects(token),
           isAdmin ? apiFacultyDirectory(token) : Promise.resolve({ faculty: [] })
         ])
         setLoads(lRes.teachingLoads)
-        setSubjects(sRes.subjects || [])
         if (isAdmin) {
           setAllFaculty(fRes.faculty || [])
         }
@@ -63,62 +34,13 @@ export default function FacultyTeachingLoad() {
     load()
   }, [token])
 
-  async function handleAdd() {
-    if (!selectedSubject || !sectionCourse || !sectionYear || !sectionLetter) {
-      return alert('Subject and all section details (Course, Year, Letter) are required')
-    }
-    
-    // Construct full section string, e.g. "BSCS 3A"
-    const yearDigit = sectionYear.charAt(0)
-    const fullSection = `${sectionCourse} ${yearDigit}${sectionLetter}`
-
-    let targetFacultyId = selectedFacultyId
-    if (!targetFacultyId && !isAdministrative) {
-       try {
-         const user = JSON.parse(localStorage.getItem('authUser'))
-         targetFacultyId = user.id
-       } catch {}
-    }
-
-    if (!targetFacultyId) return alert('Faculty selection is required')
-
-    // Enforce 18-unit limit
-    const currentSemLoads = loads.filter(l => 
-        String(l.faculty_id) === String(targetFacultyId) && 
-        (l.semester || 'Unassigned Semester') === semester
-    )
-    const assignedUnits = currentSemLoads.reduce((acc, l) => acc + Number(l.subject?.credits || 0), 0)
-    
-    const subjectToAdd = subjects.find(s => String(s.id) === String(selectedSubject))
-    const newUnits = Number(subjectToAdd?.credits || 0)
-
-    if (assignedUnits + newUnits > 18) {
-       return alert(`Assignment blocked: Overload.\n\nA professor is only allowed a maximum of 18 units per semester.\nCurrent Load: ${assignedUnits} units\nSubject Units: ${newUnits} units`)
-    }
-
-    try {
-      await apiCreateTeachingLoad(token, {
-        facultyId: targetFacultyId,
-        subjectId: selectedSubject,
-        sectionId: fullSection,
-        semester
-      })
-      
-      const lRes = await apiGetTeachingLoads(token)
-      setLoads(lRes.teachingLoads)
-      
-      setSelectedSubject('')
-      setSectionLetter('')
-    } catch (err) {
-      alert(err.message)
-    }
-  }
-
-  async function handleDelete(id) {
-    if (!confirm('Are you sure you want to remove this assignment?')) return
+  async function handleDropSubject(id) {
+    if (!confirm('Are you sure you want to drop this subject? It will set the schedule\'s instructor to TBA.')) return
     try {
       await apiDeleteTeachingLoad(token, id)
-      setLoads(loads.filter(l => l.id !== id))
+      // Re-fetch loads to reflect the dropped subject
+      const lRes = await apiGetTeachingLoads(token)
+      setLoads(lRes.teachingLoads)
     } catch (err) {
       alert(err.message)
     }
@@ -181,8 +103,8 @@ export default function FacultyTeachingLoad() {
 
       <header className="module-header flex flex-wrap justify-between items-center gap-4 no-print">
         <div>
-          <h1 className="main-title font-extrabold text-[var(--text)]">Teaching Load Management</h1>
-          <p className="main-description text-[var(--text-muted)] mt-1">Oversee subject assignments and class sections.</p>
+          <h1 className="main-title font-extrabold text-[var(--text)]">Teaching Load View</h1>
+          <p className="main-description text-[var(--text-muted)] mt-1">View teaching load assignments auto-generated from schedules.</p>
         </div>
         <div className="flex items-center gap-4">
            <div className="relative">
@@ -198,84 +120,11 @@ export default function FacultyTeachingLoad() {
                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
              </svg>
              </div>
-         </div>
-       </header>
+          </div>
+        </header>
 
-      <div className="content-panel no-print assign-form-container">
-        <div className="content-header">
-          <div>
-            <h3 className="content-title">Assign New Subject</h3>
-            <p className="content-subtitle">Select a subject from the master list to assign to your load.</p>
-          </div>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginTop: '12px' }}>
-          {isAdministrative && (
-            <div className="auth-field">
-              <label className="auth-label">Faculty Member</label>
-              <select className="search-input" style={{ borderRadius: 'var(--radius-md)', padding: '10px' }} value={selectedFacultyId} onChange={e => setSelectedFacultyId(e.target.value)}>
-                <option value="">Select Faculty</option>
-                {allFaculty.map(f => (
-                  <option key={f.id} value={f.id}>{f.full_name || f.displayName || f.identifier}</option>
-                ))}
-              </select>
-            </div>
-          )}
-          <div className="auth-field">
-            <label className="auth-label">Course</label>
-            <select className="search-input" style={{ borderRadius: 'var(--radius-md)', padding: '10px' }} value={sectionCourse} onChange={e => setSectionCourse(e.target.value)}>
-              {COURSE_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          <div className="auth-field">
-            <label className="auth-label">Year Level</label>
-            <select className="search-input" style={{ borderRadius: 'var(--radius-md)', padding: '10px' }} value={sectionYear} onChange={e => setSectionYear(e.target.value)}>
-              {YEAR_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
-          </div>
-          <div className="auth-field">
-            <label className="auth-label">Semester</label>
-            <select
-              className="search-input"
-              style={{ borderRadius: 'var(--radius-md)', padding: '10px' }}
-              value={semester}
-              onChange={e => setSemester(e.target.value)}
-            >
-              {SEMESTER_OPTIONS.map(sem => (
-                <option key={sem} value={sem}>
-                  {sem}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="auth-field">
-            <label className="auth-label">Section Letter (A-E)</label>
-            <select className="search-input" style={{ borderRadius: 'var(--radius-md)', padding: '10px' }} value={sectionLetter} onChange={e => setSectionLetter(e.target.value)}>
-              <option value="">Select Section</option>
-              {SECTION_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div className="auth-field">
-            <label className="auth-label">Subject</label>
-            <select className="search-input" style={{ borderRadius: 'var(--radius-md)', padding: '10px' }} value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)}>
-              <option value="">Select Subject</option>
-              {(() => {
-                 const semLower = semester.toLowerCase();
-                 const currSem = semLower.includes('1st') ? '1st Semester' : (semLower.includes('2nd') ? '2nd Semester' : 'All');
-                 const allowedCodes = getExpectedCodes(sectionCourse, sectionYear, currSem);
-                 return subjects
-                   .filter(s => allowedCodes.has(s.code.toLowerCase()))
-                   .map(s => <option key={s.id} value={s.id}>{s.code} - {s.name}</option>);
-              })()}
-            </select>
-          </div>
-          <div className="flex items-end justify-end">
-            <button onClick={handleAdd} className="btn btn-primary" style={{ width: '100%', padding: '10px' }}>Assign Load</button>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-8">
-        {facultyGroups.length === 0 ? (
+        <div className="mt-8">
+          {facultyGroups.length === 0 ? (
           <div className="content-panel text-center p-12">
             <p className="text-[var(--text-muted)] text-sm">No teaching loads assigned yet.</p>
           </div>
@@ -289,7 +138,10 @@ export default function FacultyTeachingLoad() {
                          </div>
                          <div>
                              <h3 className="font-bold text-[var(--text)]">{fg.faculty_name}</h3>
-                             <p className="text-xs text-[var(--accent)] font-semibold">{fg.totalUnits} Units Total</p>
+                             <p className={`text-xs font-semibold ${fg.totalUnits > 18 ? 'text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full inline-flex mt-1 animate-pulse' : 'text-[var(--accent)]'}`}>
+                               {fg.totalUnits} Units Total
+                               {fg.totalUnits > 18 && <span className="ml-1 font-bold">— OVERLOADED</span>}
+                             </p>
                          </div>
                      </div>
                      <div className="flex justify-between items-center mt-6 pt-4 border-t border-[var(--border-color)]">
@@ -310,8 +162,15 @@ export default function FacultyTeachingLoad() {
           <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95">
             <div className="p-5 border-b border-[var(--border-color)] flex justify-between items-center bg-[rgba(0,0,0,0.02)]">
                <div>
-                  <h2 className="text-xl font-extrabold text-[var(--text)] tracking-tight">Teaching Load</h2>
-                  <p className="text-sm font-semibold text-[var(--accent)] mt-0.5">{activeFacultyGroup.faculty_name} &bull; {activeFacultyGroup.totalUnits} Units</p>
+                  <h2 className="text-xl font-extrabold text-[var(--text)] tracking-tight flex items-center gap-2">
+                     Teaching Load
+                     {activeFacultyGroup.totalUnits > 18 && (
+                        <span className="text-[10px] bg-rose-100 text-rose-700 uppercase tracking-widest font-black px-2 py-0.5 rounded-full border border-rose-200 shadow-sm animate-pulse">Overload Detected</span>
+                     )}
+                  </h2>
+                  <p className={`text-sm font-semibold mt-0.5 ${activeFacultyGroup.totalUnits > 18 ? 'text-rose-600' : 'text-[var(--accent)]'}`}>
+                     {activeFacultyGroup.faculty_name} &bull; {activeFacultyGroup.totalUnits} Units
+                  </p>
                </div>
                <button onClick={() => setViewingFacultyId(null)} className="p-2 hover:bg-[rgba(0,0,0,0.05)] rounded-full text-[var(--text-muted)] transition-colors">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
@@ -363,7 +222,7 @@ export default function FacultyTeachingLoad() {
                          </td>
                          <td className="text-[var(--text-muted)] font-mono">{l.subject?.credits || 0}</td>
                          <td style={{ textAlign: 'right' }}>
-                           <button onClick={() => handleDelete(l.id)} disabled={l.is_virtual} className={`text-xs px-3 py-1.5 rounded transition border ${l.is_virtual ? 'bg-[rgba(0,0,0,0.02)] text-gray-400 border-transparent cursor-not-allowed hidden' : 'bg-rose-50/50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 border-rose-200'}`}>Remove</button>
+                           <button onClick={() => handleDropSubject(l.id)} className="text-xs px-3 py-1.5 rounded transition border bg-rose-50/50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 border-rose-200">Drop</button>
                          </td>
                        </tr>
                      ))}
