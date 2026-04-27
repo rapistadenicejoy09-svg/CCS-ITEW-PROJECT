@@ -20,6 +20,14 @@ export default function FacultyTeachingLoad() {
   const [semester, setSemester] = useState('2nd Semester 2024-2025')
 
   const SECTION_OPTIONS = ['A', 'B', 'C', 'D', 'E']
+  const SEMESTER_OPTIONS = [
+    '1st Semester 2024-2025',
+    '2nd Semester 2024-2025',
+    '1st Semester 2025-2026',
+    '2nd Semester 2025-2026',
+    '1st Semester 2026-2027',
+    '2nd Semester 2026-2027',
+  ]
 
   const [searchParams] = useSearchParams()
   const urlFacultyId = searchParams.get('facultyId')
@@ -226,7 +234,18 @@ export default function FacultyTeachingLoad() {
           </div>
           <div className="auth-field">
             <label className="auth-label">Semester</label>
-            <input type="text" className="search-input" style={{ borderRadius: 'var(--radius-md)', padding: '10px' }} value={semester} onChange={e => setSemester(e.target.value)} />
+            <select
+              className="search-input"
+              style={{ borderRadius: 'var(--radius-md)', padding: '10px' }}
+              value={semester}
+              onChange={e => setSemester(e.target.value)}
+            >
+              {SEMESTER_OPTIONS.map(sem => (
+                <option key={sem} value={sem}>
+                  {sem}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="auth-field">
             <label className="auth-label">Section Letter (A-E)</label>

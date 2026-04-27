@@ -11,7 +11,6 @@ import {
   apiResearchPatch,
   apiResearchUploadPdf,
   apiResearchFacultyReview,
-  apiResearchFinalApproval,
   apiResearchDownloadBlob,
   apiResearchDelete,
 } from '../lib/api'
@@ -19,8 +18,8 @@ import { getCurrentRole, hasPermission, PERMISSIONS } from '../lib/security'
 
 const STATUS_LABELS = {
   draft: 'Draft',
-  under_faculty_review: 'Faculty review',
-  pending_approval: 'Chair / Dean',
+  under_faculty_review: 'Professor review',
+  pending_approval: 'Professor approval',
   published: 'Published',
   rejected: 'Rejected',
 }
@@ -140,15 +139,6 @@ function CrIconAdviserTab() {
   )
 }
 
-function CrIconApprovalTab() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M9 12l2 2 4-4" />
-      <path d="M12 2l2.09 5.26L20 8l-4 3.74L17.18 18 12 15l-5.18 3L8 11.74 4 8l5.91-.74L12 2z" />
-    </svg>
-  )
-}
-
 function CrIconAllTab() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -221,11 +211,10 @@ export default function CollegeResearch() {
   const token = localStorage.getItem('authToken')
   const role = getCurrentRole()
 
-  const canCreate = hasPermission(PERMISSIONS.DOC_CREATE)
+  const canCreate = role === 'student' && hasPermission(PERMISSIONS.DOC_CREATE)
   const canReviewAsAdviser =
     hasPermission(PERMISSIONS.DOC_APPROVE) &&
     ['faculty', 'faculty_professor'].includes(role || '')
-  const canFinalApprove = ['dean', 'department_chair', 'admin'].includes(role || '')
   const canSeeAllPipeline = role === 'admin' || role === 'secretary'
   const canDelete = role === 'admin'
 
@@ -439,13 +428,12 @@ export default function CollegeResearch() {
 
   const tabs = useMemo(() => {
     const t = [{ id: 'library', label: 'Library', icon: <CrIconLibraryTab /> }]
-    t.push({ id: 'mine', label: 'My submissions', icon: <CrIconMineTab /> })
-    if (canReviewAsAdviser) t.push({ id: 'adviser', label: 'Adviser review', icon: <CrIconAdviserTab /> })
-    if (canFinalApprove) t.push({ id: 'approval', label: 'Final approval', icon: <CrIconApprovalTab /> })
+    if (role === 'student') t.push({ id: 'mine', label: 'My submissions', icon: <CrIconMineTab /> })
+    if (canReviewAsAdviser) t.push({ id: 'adviser', label: 'Professor approval', icon: <CrIconAdviserTab /> })
     if (canSeeAllPipeline) t.push({ id: 'all', label: 'All records', icon: <CrIconAllTab /> })
     t.push({ id: 'analytics', label: 'Analytics', icon: <CrIconAnalyticsTab /> })
     return t
-  }, [canReviewAsAdviser, canFinalApprove, canSeeAllPipeline])
+  }, [role, canReviewAsAdviser, canSeeAllPipeline])
 
   const analyticsQuery = analyticsSearch.trim().toLowerCase()
 
@@ -662,18 +650,6 @@ export default function CollegeResearch() {
       await apiResearchFacultyReview(token, id, { action, comments: reviewNote })
       setReviewNote('')
       setExpandedId(null)
-      await loadList()
-    } catch (e) {
-      setError(e.message || 'Action failed')
-    }
-  }
-
-  async function runFinal(id, action) {
-    if (!token) return
-    try {
-      await apiResearchFinalApproval(token, id, { action, comments: reviewNote })
-      setReviewNote('')
-      setExpandedId(null)
       setSuccessMsg(action === 'approve' ? 'Research published successfully!' : 'Research rejected.')
       await loadList()
     } catch (e) {
@@ -768,6 +744,9 @@ export default function CollegeResearch() {
           <strong>Adviser:</strong> {row.adviser_name || '—'}
         </p>
         <p>
+          <strong>Type:</strong> {row.research_type?.replace(/_/g, ' ') || '—'}
+        </p>
+        <p>
           <strong>Keywords:</strong>{' '}
           {Array.isArray(row.keywords) && row.keywords.length ? row.keywords.join(', ') : '—'}
         </p>
@@ -820,8 +799,7 @@ export default function CollegeResearch() {
             </button>
           </div>
         ) : null}
-        {(canReviewAsAdviser && row.status === 'under_faculty_review') ||
-          (canFinalApprove && row.status === 'pending_approval') ? (
+        {canReviewAsAdviser && ['under_faculty_review', 'pending_approval'].includes(row.status) ? (
           <div className="college-research-review-box">
             <textarea
               className="search-input college-research-textarea"
@@ -830,26 +808,14 @@ export default function CollegeResearch() {
               value={reviewNote}
               onChange={(e) => setReviewNote(e.target.value)}
             />
-            {canReviewAsAdviser && row.status === 'under_faculty_review' ? (
-              <div className="college-research-review-actions">
-                <button type="button" className="btn btn-primary" onClick={() => runFacultyReview(row.id, 'approve')}>
-                  Forward to Chair/Dean
-                </button>
-                <button type="button" className="btn btn-secondary" onClick={() => runFacultyReview(row.id, 'reject')}>
-                  Reject
-                </button>
-              </div>
-            ) : null}
-            {canFinalApprove && row.status === 'pending_approval' ? (
-              <div className="college-research-review-actions">
-                <button type="button" className="btn btn-primary" onClick={() => runFinal(row.id, 'approve')}>
-                  Publish
-                </button>
-                <button type="button" className="btn btn-secondary" onClick={() => runFinal(row.id, 'reject')}>
-                  Reject
-                </button>
-              </div>
-            ) : null}
+            <div className="college-research-review-actions">
+              <button type="button" className="btn btn-primary" onClick={() => runFacultyReview(row.id, 'approve')}>
+                Publish
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={() => runFacultyReview(row.id, 'reject')}>
+                Reject
+              </button>
+            </div>
           </div>
         ) : null}
       </div>
@@ -1555,7 +1521,6 @@ export default function CollegeResearch() {
                         <th className="px-4 py-3">Title</th>
                         <th className="px-4 py-3">Year</th>
                         <th className="px-4 py-3">Course</th>
-                        <th className="px-4 py-3">Type</th>
                         <th className="px-4 py-3">Status</th>
                         <th className="px-4 py-3 text-right">Actions</th>
                       </tr>
@@ -1563,7 +1528,7 @@ export default function CollegeResearch() {
                     <tbody className="divide-y divide-[var(--border-color)]">
                       {items.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="empty-state px-4 py-8">
+                          <td colSpan={6} className="empty-state px-4 py-8">
                             No records.
                           </td>
                         </tr>
@@ -1583,7 +1548,6 @@ export default function CollegeResearch() {
                               <td className="px-4 py-3 college-research-title-cell">{row.title}</td>
                               <td className="px-4 py-3">{row.year}</td>
                               <td className="px-4 py-3">{row.course}</td>
-                              <td className="px-4 py-3">{row.research_type?.replace(/_/g, ' ')}</td>
                               <td className="px-4 py-3">
                                 <span className={`college-research-status college-research-status-${row.status}`}>
                                   {STATUS_LABELS[row.status] || row.status}
@@ -1628,7 +1592,7 @@ export default function CollegeResearch() {
                             </tr>
                             {expandedId === row.id ? (
                               <tr className="college-research-detail-row">
-                                <td colSpan={7} className="px-4 py-4">
+                                <td colSpan={6} className="px-4 py-4">
                                   {researchDetailBlock(row)}
                                 </td>
                               </tr>

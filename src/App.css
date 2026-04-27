@@ -3643,6 +3643,11 @@ body[data-theme='light'] .college-research-suggest-list {
   white-space: nowrap;
 }
 
+.college-research-table-compact .college-research-row-actions {
+  flex-wrap: nowrap;
+  gap: 4px;
+}
+
 .college-research-row-actions {
   display: flex;
   flex-wrap: wrap;
