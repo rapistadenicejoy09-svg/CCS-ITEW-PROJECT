@@ -330,7 +330,7 @@ export function openSqliteStore() {
         data.end_time,
         data.location,
         data.target_audience,
-        data.status || 'pending',
+        data.status || 'approved',
         data.created_by_user_id,
         new Date().toISOString(),
         new Date().toISOString()

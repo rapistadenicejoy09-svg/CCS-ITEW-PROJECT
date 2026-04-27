@@ -2,6 +2,7 @@
   --bg: #050816;
   --bg-alt: #060b23;
   --accent: #e5762f;
+  --accent-hover: #f08b4d;
   --accent-soft: rgba(229, 118, 47, 0.12);
   --text: #f5f7fb;
   --text-muted: #a1a6c4;
@@ -1396,7 +1397,9 @@ body[data-theme='light'] .profile-card-icon-faculty {
 
 /* ── CALENDAR PICKER ICON VISIBILITY ── */
 /* Standardize native date picker icon across browsers and themes */
-input[type="date"]::-webkit-calendar-picker-indicator {
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
   filter: invert(0.5);
   /* Default gray */
@@ -1404,19 +1407,25 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   transition: all 0.2s;
 }
 
-body[data-theme='light'] input[type="date"]::-webkit-calendar-picker-indicator {
+body[data-theme='light'] input[type="date"]::-webkit-calendar-picker-indicator,
+body[data-theme='light'] input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+body[data-theme='light'] input[type="time"]::-webkit-calendar-picker-indicator {
   filter: invert(0);
   /* Black icon on light bg */
   opacity: 0.5;
 }
 
-input[type="date"]:hover::-webkit-calendar-picker-indicator {
+input[type="date"]:hover::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]:hover::-webkit-calendar-picker-indicator,
+input[type="time"]:hover::-webkit-calendar-picker-indicator {
   opacity: 1;
   filter: sepia(100%) saturate(1000%) hue-rotate(340deg);
   /* Switch to Orange on hover */
 }
 
-input[type="date"]:focus::-webkit-calendar-picker-indicator {
+input[type="date"]:focus::-webkit-calendar-picker-indicator,
+input[type="datetime-local"]:focus::-webkit-calendar-picker-indicator,
+input[type="time"]:focus::-webkit-calendar-picker-indicator {
   opacity: 1;
 }
 
@@ -3912,12 +3921,19 @@ body[data-theme='light'] .college-research-form-loading {
   .module-page { gap: 10px !important; }
   .main-title { color: black !important; font-size: 24pt !important; }
   .main-description { color: #444 !important; }
-  .bg-[var(--card-bg)], .content-panel { background: white !important; border: 1px solid #ddd !important; box-shadow: none !important; }
+  .bg-\[var\(--card-bg\)\], .content-panel { background: white !important; border: 1px solid #ddd !important; box-shadow: none !important; }
   * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
   .admin-animate-reveal, .admin-student-list-header-enter, .admin-student-list-toolbar-enter { animation: none !important; transform: none !important; opacity: 1 !important; }
   #timetable-container { overflow: visible !important; background: white !important; }
   table, .data-table { border-collapse: collapse !important; }
   th, td { border: 1px solid #ddd !important; color: black !important; }
-  .bg-[rgba(0,0,0,0.02)], .bg-[rgba(255,255,255,0.03)] { background: #f9f9f9 !important; }
+  .bg-\[rgba\(0\,0\,0\,0\.02\)\], .bg-\[rgba\(255\,255\,255\,0\.03\)\] { background: #f9f9f9 !important; }
   @page { margin: 1cm; }
 }
+
+
+/* Student Portal UI Fixes */
+body[data-theme='light'] .inactive-tab-text { color: #4b5563 !important; }
+.inactive-tab-text { color: var(--text-muted); }
+.college-research-row-actions { display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; gap: 12px !important; justify-content: flex-end !important; align-items: center !important; }
+

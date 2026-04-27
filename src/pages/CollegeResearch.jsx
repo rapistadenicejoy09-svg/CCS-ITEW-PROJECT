@@ -871,7 +871,7 @@ export default function CollegeResearch() {
             {canCreate ? (
               <button
                 type="button"
-                className={`mt-4 md:mt-0 font-medium transition-all duration-300 text-sm px-6 py-2.5 rounded-full hover:shadow-lg hover:scale-[1.03] active:scale-[0.98] ${showForm ? 'college-research-header-btn-secondary' : ''
+                className={`mt-4 md:mt-0 font-bold transition-all duration-300 text-xs uppercase tracking-widest px-7 py-3 rounded-full hover:shadow-[0_0_20px_rgba(229,118,47,0.3)] hover:scale-[1.05] active:scale-[0.98] ${showForm ? 'college-research-header-btn-secondary' : ''
                   }`}
                 style={
                   showForm
@@ -1322,9 +1322,9 @@ export default function CollegeResearch() {
                     type="button"
                     role="tab"
                     aria-selected={isActive}
-                    className={`flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded-md transition-all whitespace-nowrap ${isActive
+                    className={`flex items-center gap-2 px-3 py-1.5 text-[12px] font-bold rounded-md transition-all whitespace-nowrap ${isActive
                       ? 'bg-[var(--accent)] text-white shadow-md'
-                      : 'text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[rgba(255,255,255,0.05)]'
+                      : 'text-[var(--text-muted)] inactive-tab-text hover:text-[var(--text)] hover:bg-[rgba(255,255,255,0.05)] border border-transparent hover:border-[var(--border-color)]'
                       }`}
                     onClick={() => setTab(t.id)}
                   >
@@ -1589,38 +1589,38 @@ export default function CollegeResearch() {
                                   {STATUS_LABELS[row.status] || row.status}
                                 </span>
                               </td>
-                              <td className="px-4 py-3">
-                                <div className="college-research-row-actions">
+                              <td className="px-4 py-3 align-middle text-right">
+                                <div className="college-research-row-actions flex flex-row flex-nowrap items-center justify-end gap-2.5">
                                   <button
                                     type="button"
-                                    className="btn btn-secondary btn-compact college-research-icon-btn"
+                                    className="btn btn-secondary !border-[var(--border-color)] flex items-center gap-1.5 transition-all hover:scale-[1.02]"
                                     title={expandedId === row.id ? 'Hide details' : 'Show details'}
                                     aria-expanded={expandedId === row.id}
-                                    aria-label={expandedId === row.id ? 'Hide details' : 'Show details'}
                                     onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}
                                   >
                                     <CrIconDetails expanded={expandedId === row.id} />
+                                    <span className="font-bold text-[11px] whitespace-nowrap">Details</span>
                                   </button>
                                   {row.has_pdf ? (
                                     <button
                                       type="button"
-                                      className="btn btn-secondary btn-compact college-research-icon-btn"
+                                      className="btn btn-secondary !border-[var(--border-color)] flex items-center gap-1.5 transition-all hover:scale-[1.02]"
                                       title="Download PDF"
-                                      aria-label="Download PDF"
                                       onClick={() => downloadPdf(row.id, row.title)}
                                     >
                                       <CrIconPdf />
+                                      <span className="font-bold text-[11px] whitespace-nowrap">PDF</span>
                                     </button>
                                   ) : null}
                                   {canDelete ? (
                                     <button
                                       type="button"
-                                      className="btn btn-secondary btn-compact college-research-icon-btn college-research-danger"
+                                      className="btn btn-secondary college-research-danger !border-rose-500/20 flex items-center gap-1.5 transition-all hover:scale-[1.02]"
                                       title="Delete record"
-                                      aria-label="Delete record"
                                       onClick={() => openDeleteConfirm(row)}
                                     >
                                       <CrIconTrash />
+                                      <span className="font-bold text-[11px] whitespace-nowrap text-rose-500">Delete</span>
                                     </button>
                                   ) : null}
                                 </div>

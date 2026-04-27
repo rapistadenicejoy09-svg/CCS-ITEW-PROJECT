@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { apiGetEvents, apiDeleteEvent, apiApproveEvent } from '../lib/api'
+import { apiGetEvents, apiDeleteEvent } from '../lib/api'
 import SuccessModal from '../components/SuccessModal'
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal'
 import AdminEventForm from '../components/AdminEventForm'
@@ -13,7 +13,6 @@ export default function AdminEventList() {
   const [viewMode, setViewMode] = useState('list') // list or calendar
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState('all')
-  const [filterStatus, setFilterStatus] = useState('all')
   const [showForm, setShowForm] = useState(false)
   const [editingEvent, setEditingEvent] = useState(null)
   const [showSuccess, setShowSuccess] = useState(false)
@@ -43,10 +42,9 @@ export default function AdminEventList() {
       const matchesSearch = e.title.toLowerCase().includes(search.toLowerCase()) ||
         e.description?.toLowerCase().includes(search.toLowerCase())
       const matchesType = filterType === 'all' || e.type === filterType
-      const matchesStatus = filterStatus === 'all' || e.status === filterStatus
-      return matchesSearch && matchesType && matchesStatus
+      return matchesSearch && matchesType
     })
-  }, [events, search, filterType, filterStatus])
+  }, [events, search, filterType])
 
   const stats = useMemo(() => {
     const now = new Date()
@@ -98,18 +96,6 @@ export default function AdminEventList() {
     }
   }
 
-  const handleApprove = async (id) => {
-    try {
-      const res = await apiApproveEvent(authToken, id)
-      if (res.ok) {
-        setEvents(events.map(e => e.id === id ? res.event : e))
-        setSuccessMsg('Event approved successfully')
-        setShowSuccess(true)
-      }
-    } catch (err) {
-      alert(err.message)
-    }
-  }
 
   return (
     <div className="module-page">
@@ -218,21 +204,7 @@ export default function AdminEventList() {
                     <Filter size={12} />
                   </div>
                 </div>
-                <div className="relative flex-1 min-w-0">
-                  <select
-                    className="search-input w-full h-10 px-4 appearance-none cursor-pointer text-[11px]"
-                    value={filterStatus}
-                    onChange={e => setFilterStatus(e.target.value)}
-                  >
-                    <option value="all">All Status</option>
-                    <option value="approved">Approved</option>
-                    <option value="pending">Pending</option>
-                    <option value="cancelled">Cancelled</option>
-                  </select>
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--text-muted)]">
-                    <Filter size={12} />
-                  </div>
-                </div>
+
               </div>
             </div>
             <div className="flex gap-1 bg-[rgba(0,0,0,0.05)] p-1 rounded-lg border border-[var(--border-color)]">
@@ -268,7 +240,7 @@ export default function AdminEventList() {
                   <th className="p-4 font-bold text-[var(--text-muted)] text-[10px] uppercase tracking-widest">Date & Time</th>
                   <th className="p-4 font-bold text-[var(--text-muted)] text-[10px] uppercase tracking-widest">Location</th>
                   <th className="p-4 font-bold text-[var(--text-muted)] text-[10px] uppercase tracking-widest">Audience</th>
-                  <th className="p-4 font-bold text-[var(--text-muted)] text-[10px] uppercase tracking-widest">Status</th>
+
                   <th className="p-4 font-bold text-[var(--text-muted)] text-[10px] uppercase tracking-widest text-right">Actions</th>
                 </tr>
               </thead>
@@ -310,25 +282,10 @@ export default function AdminEventList() {
                         {event.target_audience}
                       </div>
                     </td>
-                    <td className="p-4">
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider
-                      ${event.status === 'approved' ? 'bg-emerald-500/10 text-emerald-500' :
-                          event.status === 'pending' ? 'bg-amber-500/10 text-amber-500' :
-                            'bg-rose-500/10 text-rose-500'}`}>
-                        {event.status}
-                      </span>
-                    </td>
+
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        {isAdmin && event.status === 'pending' && (
-                          <button
-                            className="p-2 text-emerald-500 hover:bg-emerald-500/10 rounded-lg transition-all"
-                            title="Approve"
-                            onClick={() => handleApprove(event.id)}
-                          >
-                            <CheckCircle size={18} />
-                          </button>
-                        )}
+
                         {(isAdmin || event.created_by === authUser?.id) && (
                           <>
                             <button

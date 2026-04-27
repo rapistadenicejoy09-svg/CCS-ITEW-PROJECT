@@ -99,7 +99,7 @@ export function initDb(db) {
       end_time TEXT NOT NULL,
       location TEXT,
       target_audience TEXT,
-      status TEXT NOT NULL DEFAULT 'pending', -- pending, approved, cancelled
+      status TEXT NOT NULL DEFAULT 'approved', -- pending, approved, cancelled
       created_by_user_id INTEGER NOT NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
