@@ -153,7 +153,6 @@ export default function AdminAdminsPage() {
   const [listError, setListError] = useState('')
 
   const [search, setSearch] = useState('')
-  const [showAddPanel, setShowAddPanel] = useState(true)
 
   const [form, setForm] = useState({
     firstName: '',
@@ -363,15 +362,6 @@ export default function AdminAdminsPage() {
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2 shrink-0">
-            <button
-              type="button"
-              className="btn btn-primary lg:hidden"
-              onClick={() => setShowAddPanel((v) => !v)}
-            >
-              {showAddPanel ? 'Hide form' : 'Add administrator'}
-            </button>
-          </div>
         </header>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 admin-admins-stats-enter">
@@ -496,7 +486,7 @@ export default function AdminAdminsPage() {
             </div>
           </div>
 
-          <div className={`xl:col-span-5 ${showAddPanel ? '' : 'hidden lg:block'}`}>
+          <div className="xl:col-span-5">
             <div className="xl:sticky xl:top-6 space-y-4 admin-admins-form-enter">
               <div className="bg-[var(--card-bg)] border border-[var(--border-color)] rounded-[var(--radius-lg)] p-6 md:p-7 shadow-sm admin-profile-card-surface admin-admins-form-card">
                 <div className="flex items-center gap-2 mb-1">
