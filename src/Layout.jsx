@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useRef } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { NavLink, Outlet, Link, useNavigate } from 'react-router-dom'
 import { getAllowedModules } from './lib/security'
 import { apiMe } from './lib/api'
@@ -73,34 +73,6 @@ export default function Layout() {
   const [mustChangePassword, setMustChangePassword] = useState(false)
   const [showLogoutModal, setShowLogoutModal] = useState(false)
   const navigate = useNavigate()
-
-  const [showNotifications, setShowNotifications] = useState(false)
-  const [notifications, setNotifications] = useState([
-    { id: 1, title: 'Profile Reviewed', message: 'Your student profile has been approved.', isRead: false },
-    { id: 2, title: 'System Update', message: 'Scheduled maintenance this Saturday.', isRead: false },
-    { id: 3, title: 'Welcome', message: 'Welcome to the new CCS Dashboard.', isRead: true },
-  ])
-  const notifRef = useRef(null)
-
-  const unreadCount = notifications.filter(n => !n.isRead).length
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (notifRef.current && !notifRef.current.contains(event.target)) {
-        setShowNotifications(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
-
-  function markAllRead() {
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })))
-  }
-
-  function markAsRead(id) {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n))
-  }
 
   const [isFacultyExpanded, setIsFacultyExpanded] = useState(() => {
     try {
@@ -405,45 +377,6 @@ export default function Layout() {
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
               )}
             </button>
-            <div className="notification-bell" ref={notifRef}>
-              <button
-                className="notification-icon-btn"
-                onClick={() => setShowNotifications(!showNotifications)}
-                title="Notifications"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
-                {unreadCount > 0 && <span className="notification-badge">{unreadCount}</span>}
-              </button>
-
-              {showNotifications && (
-                <div className="notification-dropdown">
-                  <div className="notif-header">
-                    <h4>Notifications</h4>
-                    {unreadCount > 0 && (
-                      <button className="notif-mark-read" onClick={markAllRead}>
-                        Mark all as read
-                      </button>
-                    )}
-                  </div>
-                  <div className="notif-list">
-                    {notifications.length === 0 ? (
-                      <div className="notif-empty">No notifications</div>
-                    ) : (
-                      notifications.map(n => (
-                        <div
-                          key={n.id}
-                          className={`notif-item ${!n.isRead ? 'unread' : ''}`}
-                          onClick={() => markAsRead(n.id)}
-                        >
-                          <div className="notif-item-title">{n.title} {!n.isRead && <span className="notif-dot"></span>}</div>
-                          <div className="notif-item-msg">{n.message}</div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
             {profilePath ? (
               <Link to={profilePath} className="top-bar-avatar" title="Go to Profile">
                 {headerProfileImageUrl ? (

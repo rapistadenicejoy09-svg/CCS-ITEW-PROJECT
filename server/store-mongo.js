@@ -74,6 +74,7 @@ export async function openMongoStore() {
   const documents = db.collection('documents')
   const evaluations = db.collection('evaluations')
   const logs = db.collection('logs')
+  const notifications = db.collection('notifications')
   const researchPublications = db.collection('research_publications')
   const events = db.collection('events')
   const instructions = db.collection('instructions')
@@ -107,6 +108,13 @@ export async function openMongoStore() {
     evaluations.createIndex({ faculty_id: 1 }),
     logs.createIndex({ id: 1 }, { unique: true, name: 'logs_id_unique' }),
     logs.createIndex({ created_at: -1 }),
+    notifications.createIndex({ id: 1 }, { unique: true, name: 'notifications_id_unique' }),
+    notifications.createIndex({ recipient_user_id: 1, is_read: 1, created_at: -1 }),
+    notifications.createIndex({ recipient_user_id: 1, created_at: -1 }),
+    notifications.createIndex(
+      { recipient_user_id: 1, dedupe_key: 1 },
+      { unique: true, sparse: true, name: 'notifications_recipient_dedupe_unique' },
+    ),
     researchPublications.createIndex({ id: 1 }, { unique: true, name: 'research_publications_id_unique' }),
     researchPublications.createIndex({ status: 1, year: -1 }),
     researchPublications.createIndex({ created_by_user_id: 1 }),
