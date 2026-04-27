@@ -2078,6 +2078,53 @@ app.use((err, req, res, _next) => {
 
 const MAX_PORT_TRIES = 20
 
+
+// --- Office Hours ---
+
+app.get('/api/office-hours', authMiddleware, authorize(PERMISSIONS.OFFICE_HOURS_VIEW), asyncHandler(async (req, res) => {
+  const filter = {}
+  if (req.user.role === 'student') {
+    const student = await store.getAccountProfile(req.user.id)
+    const section = student?.class_section
+    if (!section) return res.json({ ok: true, officeHours: [] })
+    const loads = await store.listTeachingLoads()
+    const professorIds = [...new Set(loads
+      .filter(l => {
+        const lSec = String(l.section_id || l.section || '').trim().toUpperCase()
+        const sSec = String(section).trim().toUpperCase()
+        return lSec === sSec || lSec.includes(sSec) || sSec.includes(lSec)
+      })
+      .map(l => l.faculty_id)
+      .filter(Boolean)
+    )]
+    if (professorIds.length === 0) return res.json({ ok: true, officeHours: [] })
+    filter.professorIds = professorIds
+  }
+  const list = await store.listOfficeHours(filter)
+  res.json({ ok: true, officeHours: list })
+}))
+
+app.post('/api/office-hours', authMiddleware, authorize(PERMISSIONS.OFFICE_HOURS_MANAGE), asyncHandler(async (req, res) => {
+  if (req.user.role === 'admin') return res.status(403).json({ error: 'Admins cannot create office hours' })
+  const data = {
+    userId: req.user.id,
+    day: req.body.day,
+    time: req.body.time,
+    room: req.body.room,
+    notes: req.body.notes
+  }
+  const ok = await store.createOfficeHour(data)
+  res.json({ ok: true, officeHour: ok })
+}))
+
+app.delete('/api/office-hours/:id', authMiddleware, authorize(PERMISSIONS.OFFICE_HOURS_MANAGE), asyncHandler(async (req, res) => {
+  const id = Number(req.params.id)
+  if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' })
+  const success = await store.deleteOfficeHour(id, req.user.role === 'admin' ? null : req.user.id)
+  if (!success) return res.status(404).json({ error: 'Office hour not found or unauthorized' })
+  res.json({ ok: true })
+}))
+
 function startListening(port, triesLeft) {
   const server = app.listen(port, () => {
     // eslint-disable-next-line no-console

@@ -77,6 +77,7 @@ export async function openMongoStore() {
   const researchPublications = db.collection('research_publications')
   const events = db.collection('events')
   const instructions = db.collection('instructions')
+  const officeHours = db.collection('office_hours')
   const bucket = new GridFSBucket(db, { bucketName: 'instruction_files' })
 
   // Ensure uniqueness constraints for user identity and sessions.
@@ -128,6 +129,8 @@ export async function openMongoStore() {
     instructions.createIndex({ type: 1 }),
     instructions.createIndex({ course: 1 }),
     instructions.createIndex({ status: 1 }),
+    officeHours.createIndex({ id: 1 }, { unique: true, name: 'office_hours_id_unique' }),
+    officeHours.createIndex({ user_id: 1 }),
   ])
 
   // Migration: Convert string IDs to numbers for schedules
@@ -1753,8 +1756,56 @@ export async function openMongoStore() {
         filename: file.filename,
         contentType: contentType || 'application/octet-stream'
       }
+    },
+    // Office Hours
+    async listOfficeHours(filter = {}) {
+      const { userId, professorIds } = filter
+      const query = {}
+      if (userId) query.user_id = Number(userId)
+      if (professorIds && professorIds.length > 0) {
+        query.user_id = { $in: professorIds.map(Number) }
+      }
+      const pipeline = [
+        { $match: query },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'user_id',
+            foreignField: 'id',
+            as: 'professor_info'
+          }
+        },
+        {
+          $addFields: {
+            professor_name: { $arrayElemAt: ['$professor_info.full_name', 0] }
+          }
+        },
+        { $project: { professor_info: 0 } },
+        { $sort: { id: -1 } }
+      ]
+      return await officeHours.aggregate(pipeline).toArray()
+    },
+    async createOfficeHour(data) {
+      const id = await nextId('office_hours')
+      const doc = {
+        id,
+        user_id: Number(data.userId),
+        day: data.day,
+        time: data.time,
+        room: data.room,
+        notes: data.notes || '',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+      await officeHours.insertOne(doc)
+      return doc
+    },
+    async deleteOfficeHour(id, userId) {
+      const query = { id: Number(id) }
+      if (userId) query.user_id = Number(userId)
+      const res = await officeHours.deleteOne(query)
+      return res.deletedCount > 0
     }
-
   }
 }
 
